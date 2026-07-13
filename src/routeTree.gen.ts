@@ -9,8 +9,38 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as WebappsRouteImport } from './routes/webapps'
+import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as ProductsRouteImport } from './routes/products'
+import { Route as LedgerRouteImport } from './routes/ledger'
+import { Route as ClientsRouteImport } from './routes/clients'
 import { Route as IndexRouteImport } from './routes/index'
 
+const WebappsRoute = WebappsRouteImport.update({
+  id: '/webapps',
+  path: '/webapps',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProductsRoute = ProductsRouteImport.update({
+  id: '/products',
+  path: '/products',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LedgerRoute = LedgerRouteImport.update({
+  id: '/ledger',
+  path: '/ledger',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ClientsRoute = ClientsRouteImport.update({
+  id: '/clients',
+  path: '/clients',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -19,28 +49,96 @@ const IndexRoute = IndexRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/clients': typeof ClientsRoute
+  '/ledger': typeof LedgerRoute
+  '/products': typeof ProductsRoute
+  '/settings': typeof SettingsRoute
+  '/webapps': typeof WebappsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/clients': typeof ClientsRoute
+  '/ledger': typeof LedgerRoute
+  '/products': typeof ProductsRoute
+  '/settings': typeof SettingsRoute
+  '/webapps': typeof WebappsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/clients': typeof ClientsRoute
+  '/ledger': typeof LedgerRoute
+  '/products': typeof ProductsRoute
+  '/settings': typeof SettingsRoute
+  '/webapps': typeof WebappsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/clients'
+    | '/ledger'
+    | '/products'
+    | '/settings'
+    | '/webapps'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to: '/' | '/clients' | '/ledger' | '/products' | '/settings' | '/webapps'
+  id:
+    | '__root__'
+    | '/'
+    | '/clients'
+    | '/ledger'
+    | '/products'
+    | '/settings'
+    | '/webapps'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ClientsRoute: typeof ClientsRoute
+  LedgerRoute: typeof LedgerRoute
+  ProductsRoute: typeof ProductsRoute
+  SettingsRoute: typeof SettingsRoute
+  WebappsRoute: typeof WebappsRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/webapps': {
+      id: '/webapps'
+      path: '/webapps'
+      fullPath: '/webapps'
+      preLoaderRoute: typeof WebappsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/products': {
+      id: '/products'
+      path: '/products'
+      fullPath: '/products'
+      preLoaderRoute: typeof ProductsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ledger': {
+      id: '/ledger'
+      path: '/ledger'
+      fullPath: '/ledger'
+      preLoaderRoute: typeof LedgerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/clients': {
+      id: '/clients'
+      path: '/clients'
+      fullPath: '/clients'
+      preLoaderRoute: typeof ClientsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -53,17 +151,12 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ClientsRoute: ClientsRoute,
+  LedgerRoute: LedgerRoute,
+  ProductsRoute: ProductsRoute,
+  SettingsRoute: SettingsRoute,
+  WebappsRoute: WebappsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
