@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as WebappsRouteImport } from './routes/webapps'
 import { Route as ProductsRouteImport } from './routes/products'
+import { Route as LedgerRouteImport } from './routes/ledger'
 import { Route as ClientsRouteImport } from './routes/clients'
 import { Route as IndexRouteImport } from './routes/index'
 
@@ -22,6 +23,11 @@ const WebappsRoute = WebappsRouteImport.update({
 const ProductsRoute = ProductsRouteImport.update({
   id: '/products',
   path: '/products',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LedgerRoute = LedgerRouteImport.update({
+  id: '/ledger',
+  path: '/ledger',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ClientsRoute = ClientsRouteImport.update({
@@ -38,12 +44,14 @@ const IndexRoute = IndexRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/clients': typeof ClientsRoute
+  '/ledger': typeof LedgerRoute
   '/products': typeof ProductsRoute
   '/webapps': typeof WebappsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/clients': typeof ClientsRoute
+  '/ledger': typeof LedgerRoute
   '/products': typeof ProductsRoute
   '/webapps': typeof WebappsRoute
 }
@@ -51,20 +59,22 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/clients': typeof ClientsRoute
+  '/ledger': typeof LedgerRoute
   '/products': typeof ProductsRoute
   '/webapps': typeof WebappsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/clients' | '/products' | '/webapps'
+  fullPaths: '/' | '/clients' | '/ledger' | '/products' | '/webapps'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/clients' | '/products' | '/webapps'
-  id: '__root__' | '/' | '/clients' | '/products' | '/webapps'
+  to: '/' | '/clients' | '/ledger' | '/products' | '/webapps'
+  id: '__root__' | '/' | '/clients' | '/ledger' | '/products' | '/webapps'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ClientsRoute: typeof ClientsRoute
+  LedgerRoute: typeof LedgerRoute
   ProductsRoute: typeof ProductsRoute
   WebappsRoute: typeof WebappsRoute
 }
@@ -83,6 +93,13 @@ declare module '@tanstack/react-router' {
       path: '/products'
       fullPath: '/products'
       preLoaderRoute: typeof ProductsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ledger': {
+      id: '/ledger'
+      path: '/ledger'
+      fullPath: '/ledger'
+      preLoaderRoute: typeof LedgerRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/clients': {
@@ -105,6 +122,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ClientsRoute: ClientsRoute,
+  LedgerRoute: LedgerRoute,
   ProductsRoute: ProductsRoute,
   WebappsRoute: WebappsRoute,
 }
