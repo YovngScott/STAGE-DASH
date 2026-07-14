@@ -72,6 +72,7 @@ interface Client {
 interface Product {
   id: string;
   name: string;
+  monthly_cost: number;
 }
 
 const emptyDraft = {
@@ -80,10 +81,10 @@ const emptyDraft = {
   email: "",
   phone: "",
   status: "active",
-  mrr: 0,
   billing_cycle: "monthly",
   next_billing_day: 5,
   services: [] as string[],
+  servicePrices: {} as Record<string, number>,
   notes: "",
 };
 
@@ -102,7 +103,7 @@ function Clients() {
     setLoading(true);
     const [cRes, pRes] = await Promise.all([
       supabase.from("clients").select("*").order("created_at", { ascending: true }),
-      supabase.from("products").select("id,name").order("name"),
+      supabase.from("products").select("id,name,monthly_cost").order("name"),
     ]);
     if (cRes.error) toast.error(cRes.error.message);
     else setClients((cRes.data ?? []) as Client[]);
@@ -128,6 +129,11 @@ function Clients() {
     0,
   );
 
+  const computedMrr = draft.services.reduce(
+    (s, name) => s + (draft.servicePrices[name] ?? 0),
+    0,
+  );
+
   const openNew = () => {
     setEditing(null);
     setDraft({ ...emptyDraft });
@@ -138,27 +144,49 @@ function Clients() {
     const day = c.next_billing_date
       ? new Date(c.next_billing_date).getUTCDate()
       : 5;
+    const services = Array.isArray(c.services) ? c.services : [];
     setDraft({
       company_name: c.company_name,
       contact_name: c.contact_name ?? "",
       email: c.email ?? "",
       phone: c.phone ?? "",
       status: c.status,
-      mrr: Number(c.mrr),
       billing_cycle: c.billing_cycle,
       next_billing_day: day,
-      services: Array.isArray(c.services) ? c.services : [],
+      services,
+      servicePrices: Object.fromEntries(
+        services.map((name) => [
+          name,
+          products.find((p) => p.name === name)?.monthly_cost ?? 0,
+        ]),
+      ),
       notes: c.notes ?? "",
     });
     setOpen(true);
   };
 
   const toggleService = (name: string) => {
+    setDraft((d) => {
+      const active = d.services.includes(name);
+      return {
+        ...d,
+        services: active
+          ? d.services.filter((s) => s !== name)
+          : [...d.services, name],
+        servicePrices: active
+          ? d.servicePrices
+          : {
+              ...d.servicePrices,
+              [name]: d.servicePrices[name] ?? products.find((p) => p.name === name)?.monthly_cost ?? 0,
+            },
+      };
+    });
+  };
+
+  const updateServicePrice = (name: string, price: number) => {
     setDraft((d) => ({
       ...d,
-      services: d.services.includes(name)
-        ? d.services.filter((s) => s !== name)
-        : [...d.services, name],
+      servicePrices: { ...d.servicePrices, [name]: price },
     }));
   };
 
@@ -182,7 +210,7 @@ function Clients() {
       email: draft.email.trim() || null,
       phone: draft.phone.trim() || null,
       status: draft.status,
-      mrr: Number(draft.mrr) || 0,
+      mrr: computedMrr,
       billing_cycle: draft.billing_cycle,
       next_billing_date: nextBillingDate(draft.next_billing_day),
       services: draft.services,
@@ -452,19 +480,39 @@ function Clients() {
                     ...draft.services.filter((s) => !products.some((p) => p.name === s)),
                   ].map((name) => {
                     const active = draft.services.includes(name);
+                    if (active) {
+                      return (
+                        <div
+                          key={name}
+                          className="inline-flex items-center gap-2 rounded-full border border-primary bg-primary/15 pl-3 pr-1.5 py-1 text-xs text-primary"
+                        >
+                          <button
+                            type="button"
+                            onClick={() => toggleService(name)}
+                            className="inline-flex items-center gap-1.5"
+                          >
+                            <CheckCircle2 className="h-3.5 w-3.5" />
+                            {name}
+                          </button>
+                          <span className="text-primary/60">$</span>
+                          <input
+                            type="number"
+                            min={0}
+                            step="0.01"
+                            value={draft.servicePrices[name] ?? 0}
+                            onChange={(e) => updateServicePrice(name, Number(e.target.value))}
+                            className="w-16 rounded bg-transparent border border-primary/30 px-1.5 py-0.5 text-xs text-primary focus:outline-none focus:border-primary"
+                          />
+                        </div>
+                      );
+                    }
                     return (
                       <button
                         type="button"
                         key={name}
                         onClick={() => toggleService(name)}
-                        className={
-                          "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs transition-all " +
-                          (active
-                            ? "border-primary bg-primary/15 text-primary"
-                            : "border-border/60 text-muted-foreground hover:border-primary/40 hover:text-foreground")
-                        }
+                        className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs transition-all border-border/60 text-muted-foreground hover:border-primary/40 hover:text-foreground"
                       >
-                        {active && <CheckCircle2 className="h-3.5 w-3.5" />}
                         {name}
                       </button>
                     );
@@ -478,13 +526,10 @@ function Clients() {
                 <Label htmlFor="c-mrr">Monthly (USD)</Label>
                 <Input
                   id="c-mrr"
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  value={draft.mrr}
-                  onChange={(e) =>
-                    setDraft((d) => ({ ...d, mrr: Number(e.target.value) }))
-                  }
+                  value={`$${computedMrr.toLocaleString()}`}
+                  readOnly
+                  disabled
+                  className="font-medium"
                 />
               </div>
               <div className="space-y-2">
