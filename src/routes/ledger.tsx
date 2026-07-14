@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
-import { Plus, TrendingUp, Receipt, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Plus, TrendingUp, Receipt, Trash2, Loader2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -47,6 +47,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/ledger")({
   component: Ledger,
@@ -61,42 +62,48 @@ interface Tx {
   category: string;
   amount: number;
   kind: Kind;
-  recurring?: boolean;
+  recurring: boolean;
 }
 
-const seed: Tx[] = [
-  { id: "1", date: "2026-01-08", label: "Company Formation · Wyoming LLC", category: "Legal", amount: 320, kind: "investment" },
-  { id: "2", date: "2026-01-10", label: "Domain stage.ai purchase", category: "Domain", amount: 2400, kind: "investment" },
-  { id: "3", date: "2026-01-22", label: "Development Infrastructure", category: "Infrastructure", amount: 1850, kind: "investment" },
-  { id: "4", date: "2026-02-15", label: "Legal & registered agent (annual)", category: "Legal", amount: 410, kind: "investment" },
-  { id: "5", date: "2026-03-01", label: "Initial capital injection", category: "Capital", amount: 7500, kind: "investment" },
-
-  { id: "e1", date: "2026-07-01", label: "OpenAI API", category: "AI / LLM", amount: 106, kind: "expense", recurring: true },
-  { id: "e2", date: "2026-07-01", label: "Supabase Pro", category: "Infrastructure", amount: 25, kind: "expense", recurring: true },
-  { id: "e3", date: "2026-07-01", label: "Twilio (WhatsApp + Voice)", category: "Telephony", amount: 62, kind: "expense", recurring: true },
-  { id: "e4", date: "2026-07-01", label: "Vapi / Retell", category: "Voice AI", amount: 45, kind: "expense", recurring: true },
-  { id: "e5", date: "2026-07-01", label: "Vercel + Netlify hosting", category: "Hosting", amount: 40, kind: "expense", recurring: true },
-  { id: "e6", date: "2026-07-01", label: "GitHub Team", category: "Software", amount: 21, kind: "expense", recurring: true },
-  { id: "e7", date: "2026-07-01", label: "Gym membership", category: "Overhead", amount: 21, kind: "expense", recurring: true },
-];
-
 function Ledger() {
-  const [txs, setTxs] = useState<Tx[]>(seed);
+  const [txs, setTxs] = useState<Tx[]>([]);
+  const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [kind, setKind] = useState<Kind>("expense");
+  const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<Tx | null>(null);
 
-  const remove = () => {
-    if (!confirmDelete) return;
-    setTxs((prev) => prev.filter((t) => t.id !== confirmDelete.id));
-    toast.success(`${confirmDelete.label} deleted`);
-    setConfirmDelete(null);
+  const load = async () => {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from("ledger_entries")
+      .select("*")
+      .order("date", { ascending: false });
+    if (error) toast.error(error.message);
+    else setTxs((data ?? []) as Tx[]);
+    setLoading(false);
   };
+
+  useEffect(() => {
+    void load();
+  }, []);
 
   const investments = useMemo(() => txs.filter((t) => t.kind === "investment"), [txs]);
   const expenses = useMemo(() => txs.filter((t) => t.kind === "expense"), [txs]);
-  const totalInv = investments.reduce((s, t) => s + t.amount, 0);
-  const totalExp = expenses.reduce((s, t) => s + t.amount, 0);
+  const totalInv = investments.reduce((s, t) => s + Number(t.amount), 0);
+  const totalExp = expenses.reduce((s, t) => s + Number(t.amount), 0);
+
+  const remove = async () => {
+    if (!confirmDelete) return;
+    const { error } = await supabase
+      .from("ledger_entries")
+      .delete()
+      .eq("id", confirmDelete.id);
+    if (error) return toast.error(error.message);
+    toast.success(`${confirmDelete.label} deleted`);
+    setConfirmDelete(null);
+    void load();
+  };
 
   return (
     <div className="mx-auto max-w-[1400px] p-6 md:p-8 space-y-6">
@@ -124,20 +131,29 @@ function Ledger() {
               </DialogDescription>
             </DialogHeader>
             <form
-              onSubmit={(e) => {
+              onSubmit={async (e) => {
                 e.preventDefault();
                 const fd = new FormData(e.currentTarget);
                 const label = String(fd.get("label") || "").trim();
                 const amount = Number(fd.get("amount") || 0);
-                const category = String(fd.get("category") || "General");
+                const category = String(fd.get("category") || "General").trim() || "General";
                 const date = String(fd.get("date") || new Date().toISOString().slice(0, 10));
+                const recurring = fd.get("recurring") === "on";
                 if (!label || amount <= 0) return;
-                setTxs((prev) => [
-                  { id: crypto.randomUUID(), date, label, amount, category, kind },
-                  ...prev,
-                ]);
+                setSaving(true);
+                const { error } = await supabase.from("ledger_entries").insert({
+                  date,
+                  label,
+                  amount,
+                  category,
+                  kind,
+                  recurring: kind === "expense" ? recurring : false,
+                });
+                setSaving(false);
+                if (error) return toast.error(error.message);
                 toast.success(`${kind === "investment" ? "Investment" : "Expense"} logged`);
                 setOpen(false);
+                void load();
               }}
               className="space-y-4"
             >
@@ -169,8 +185,17 @@ function Ledger() {
                 <Label htmlFor="date">Date</Label>
                 <Input id="date" name="date" type="date" defaultValue={new Date().toISOString().slice(0, 10)} />
               </div>
+              {kind === "expense" && (
+                <label className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <input type="checkbox" name="recurring" className="h-4 w-4 rounded border-border/70" defaultChecked />
+                  Recurring monthly cost
+                </label>
+              )}
               <DialogFooter>
-                <Button type="submit">Save transaction</Button>
+                <Button type="submit" disabled={saving}>
+                  {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Save transaction
+                </Button>
               </DialogFooter>
             </form>
           </DialogContent>
@@ -192,9 +217,9 @@ function Ledger() {
         />
         <SummaryCard
           icon={TrendingUp}
-          label="Runway (at current burn)"
-          value="8.2 months"
-          hint="Includes MRR offset"
+          label="Net Position"
+          value={`$${(totalInv - totalExp).toLocaleString()}`}
+          hint="Investments minus expenses logged"
           accent
         />
       </div>
@@ -206,10 +231,18 @@ function Ledger() {
         </TabsList>
 
         <TabsContent value="investments">
-          <LedgerTable rows={investments} onDelete={setConfirmDelete} />
+          {loading ? (
+            <LoadingCard />
+          ) : (
+            <LedgerTable rows={investments} onDelete={setConfirmDelete} />
+          )}
         </TabsContent>
         <TabsContent value="expenses">
-          <LedgerTable rows={expenses} showRecurring onDelete={setConfirmDelete} />
+          {loading ? (
+            <LoadingCard />
+          ) : (
+            <LedgerTable rows={expenses} showRecurring onDelete={setConfirmDelete} />
+          )}
         </TabsContent>
       </Tabs>
 
@@ -237,6 +270,16 @@ function Ledger() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+  );
+}
+
+function LoadingCard() {
+  return (
+    <Card className="mt-4 border-border/60 overflow-hidden">
+      <div className="flex items-center justify-center py-16 text-sm text-muted-foreground">
+        <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading transactions…
+      </div>
+    </Card>
   );
 }
 
@@ -313,7 +356,7 @@ function LedgerTable({
                 </TableCell>
               )}
               <TableCell className="text-right font-mono font-medium">
-                ${t.amount.toLocaleString()}
+                ${Number(t.amount).toLocaleString()}
               </TableCell>
               <TableCell className="text-right">
                 <Button
