@@ -50,7 +50,14 @@ export const Route = createFileRoute("/api/bot-toggle")({
           .select("bot_status_url,bot_secret")
           .eq("id", clientId)
           .maybeSingle();
-        if (clientError || !client?.bot_status_url || !client?.bot_secret) {
+        if (clientError) {
+          console.error("[bot-toggle] Error reading client row:", clientError);
+          return Response.json(
+            { error: `No se pudo leer el cliente (revisa STAGE_SUPABASE_SERVICE_ROLE_KEY en Netlify): ${clientError.message}` },
+            { status: 500 },
+          );
+        }
+        if (!client?.bot_status_url || !client?.bot_secret) {
           return Response.json(
             { error: "Este cliente no tiene un bot configurado (bot_status_url / bot_secret)." },
             { status: 400 },
