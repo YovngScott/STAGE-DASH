@@ -240,8 +240,8 @@ function Dashboard() {
                 <ResponsiveContainer>
                   <BarChart data={categorySeries} margin={{ left: 0, right: 8, top: 4 }}>
                     <CartesianGrid strokeDasharray="3 6" stroke="var(--border)" vertical={false} />
-                    <XAxis dataKey="category" tickLine={false} axisLine={false} tick={{ fill: "var(--muted-foreground)", fontSize: 10 }} interval={0} angle={-20} textAnchor="end" height={50} />
-                    <ChartTooltip content={<ChartTooltipContent />} />
+                    <XAxis dataKey="category" tickLine={false} axisLine={false} tick={false} height={8} />
+                    <ChartTooltip content={<ChartTooltipContent />} cursor={{ fill: "var(--muted)", opacity: 0.15 }} />
                     <Bar dataKey="amount" fill="var(--chart-3)" radius={[6, 6, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
