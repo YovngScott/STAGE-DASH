@@ -56,6 +56,11 @@ export const Route = createFileRoute("/clients")({
   component: Clients,
 });
 
+// Toggling this service on/off in the edit dialog automatically turns the
+// client's linked bot (bot_status_url/bot_secret) on/off — the messaging
+// service IS the bot from the client's point of view.
+const BOT_TOGGLE_SERVICE = "AI Messaging Suite";
+
 interface Client {
   id: string;
   company_name: string;
@@ -192,6 +197,26 @@ function Clients() {
     e.preventDefault();
     if (!draft.company_name.trim()) return;
     setSaving(true);
+
+    const botStatusUrl = draft.bot_status_url.trim() || null;
+    const botSecret = draft.bot_secret.trim() || null;
+    const hadMessaging = (editing?.services ?? []).includes(BOT_TOGGLE_SERVICE);
+    const hasMessagingNow = draft.services.includes(BOT_TOGGLE_SERVICE);
+    const messagingChanged = editing && hadMessaging !== hasMessagingNow;
+    let botActivo = editing?.bot_activo ?? true;
+
+    if (messagingChanged && botStatusUrl && botSecret) {
+      try {
+        await callBotToggle(editing.id, hasMessagingNow);
+        botActivo = hasMessagingNow;
+        toast.success(`Bot turned ${hasMessagingNow ? "on" : "off"} (AI Messaging Suite ${hasMessagingNow ? "added" : "removed"})`);
+      } catch (err) {
+        toast.error(
+          `Couldn't reach the bot to turn it ${hasMessagingNow ? "on" : "off"}: ${err instanceof Error ? err.message : "unknown error"}. Saving the rest of the changes anyway.`,
+        );
+      }
+    }
+
     const payload = {
       company_name: draft.company_name.trim(),
       contact_name: draft.contact_name.trim() || null,
@@ -203,8 +228,9 @@ function Clients() {
       next_billing_date: nextBillingDate(draft.next_billing_day),
       services: draft.services,
       notes: draft.notes.trim() || null,
-      bot_status_url: draft.bot_status_url.trim() || null,
-      bot_secret: draft.bot_secret.trim() || null,
+      bot_status_url: botStatusUrl,
+      bot_secret: botSecret,
+      bot_activo: botActivo,
     };
     const q = editing
       ? supabase.from("clients").update(payload).eq("id", editing.id)
@@ -230,21 +256,25 @@ function Clients() {
     void load();
   };
 
+  const callBotToggle = async (clientId: string, activo: boolean) => {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData.session?.access_token;
+    if (!token) throw new Error("Your session expired — sign in again.");
+    const res = await fetch("/api/bot-toggle", {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+      body: JSON.stringify({ clientId, activo }),
+    });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body?.error ?? "Failed to reach the bot.");
+  };
+
   const [togglingBot, setTogglingBot] = useState<string | null>(null);
   const toggleBot = async (c: Client) => {
     const next = !c.bot_activo;
     setTogglingBot(c.id);
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const token = sessionData.session?.access_token;
-      if (!token) throw new Error("Your session expired — sign in again.");
-      const res = await fetch("/api/bot-toggle", {
-        method: "POST",
-        headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
-        body: JSON.stringify({ clientId: c.id, activo: next }),
-      });
-      const body = await res.json();
-      if (!res.ok) throw new Error(body?.error ?? "Failed to reach the bot.");
+      await callBotToggle(c.id, next);
       toast.success(`${c.company_name}'s bot turned ${next ? "on" : "off"}`);
       void load();
     } catch (err) {
