@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { Plus, TrendingUp, Receipt } from "lucide-react";
+import { Plus, TrendingUp, Receipt, Trash2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +27,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -74,6 +84,14 @@ function Ledger() {
   const [txs, setTxs] = useState<Tx[]>(seed);
   const [open, setOpen] = useState(false);
   const [kind, setKind] = useState<Kind>("expense");
+  const [confirmDelete, setConfirmDelete] = useState<Tx | null>(null);
+
+  const remove = () => {
+    if (!confirmDelete) return;
+    setTxs((prev) => prev.filter((t) => t.id !== confirmDelete.id));
+    toast.success(`${confirmDelete.label} deleted`);
+    setConfirmDelete(null);
+  };
 
   const investments = useMemo(() => txs.filter((t) => t.kind === "investment"), [txs]);
   const expenses = useMemo(() => txs.filter((t) => t.kind === "expense"), [txs]);
@@ -188,12 +206,36 @@ function Ledger() {
         </TabsList>
 
         <TabsContent value="investments">
-          <LedgerTable rows={investments} />
+          <LedgerTable rows={investments} onDelete={setConfirmDelete} />
         </TabsContent>
         <TabsContent value="expenses">
-          <LedgerTable rows={expenses} showRecurring />
+          <LedgerTable rows={expenses} showRecurring onDelete={setConfirmDelete} />
         </TabsContent>
       </Tabs>
+
+      <AlertDialog
+        open={!!confirmDelete}
+        onOpenChange={(o) => !o && setConfirmDelete(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete transaction?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmDelete?.label} (${confirmDelete?.amount.toLocaleString()}) will be
+              permanently removed from the ledger.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={remove}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -226,7 +268,15 @@ function SummaryCard({
   );
 }
 
-function LedgerTable({ rows, showRecurring }: { rows: Tx[]; showRecurring?: boolean }) {
+function LedgerTable({
+  rows,
+  showRecurring,
+  onDelete,
+}: {
+  rows: Tx[];
+  showRecurring?: boolean;
+  onDelete: (t: Tx) => void;
+}) {
   return (
     <Card className="mt-4 border-border/60 overflow-hidden">
       <Table>
@@ -237,6 +287,7 @@ function LedgerTable({ rows, showRecurring }: { rows: Tx[]; showRecurring?: bool
             <TableHead>Category</TableHead>
             {showRecurring && <TableHead>Cadence</TableHead>}
             <TableHead className="text-right">Amount</TableHead>
+            <TableHead className="text-right">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -264,8 +315,29 @@ function LedgerTable({ rows, showRecurring }: { rows: Tx[]; showRecurring?: bool
               <TableCell className="text-right font-mono font-medium">
                 ${t.amount.toLocaleString()}
               </TableCell>
+              <TableCell className="text-right">
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => onDelete(t)}
+                  title="Delete transaction"
+                  className="text-destructive hover:text-destructive"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </TableCell>
             </TableRow>
           ))}
+          {rows.length === 0 && (
+            <TableRow>
+              <TableCell
+                colSpan={showRecurring ? 6 : 5}
+                className="py-10 text-center text-sm text-muted-foreground"
+              >
+                No transactions yet.
+              </TableCell>
+            </TableRow>
+          )}
         </TableBody>
       </Table>
     </Card>
