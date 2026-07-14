@@ -6,7 +6,7 @@
 insert into public.products (name, category, description, status, monthly_cost)
 select
   'Custom Web Applications',
-  'other',
+  'automation',
   'Bespoke consoles, dashboards, and internal ERPs designed around how the client''s business actually runs.',
   'active',
   0

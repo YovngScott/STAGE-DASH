@@ -62,7 +62,7 @@ const categoryIcon: Record<string, LucideIcon> = {
   messaging: MessageSquare,
   voice: Phone,
   virtual_assistant: Calendar,
-  other: Bot,
+  automation: Bot,
 };
 
 const statusStyles: Record<string, string> = {
@@ -284,7 +284,7 @@ function Products() {
                     <SelectItem value="virtual_assistant">
                       Virtual Assistant
                     </SelectItem>
-                    <SelectItem value="other">Other</SelectItem>
+                    <SelectItem value="automation">Automation</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
