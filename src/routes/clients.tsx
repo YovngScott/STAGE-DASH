@@ -439,19 +439,24 @@ function Clients() {
 
             <div className="space-y-2">
               <Label>Services</Label>
-              {products.length === 0 ? (
+              {products.length === 0 && draft.services.length === 0 ? (
                 <p className="rounded-md border border-dashed border-border/60 bg-muted/30 p-3 text-xs text-muted-foreground">
                   No products yet — create products first in My Products.
                 </p>
               ) : (
                 <div className="flex flex-wrap gap-2">
-                  {products.map((p) => {
-                    const active = draft.services.includes(p.name);
+                  {[
+                    ...products.map((p) => p.name),
+                    // Services picked on the public site (e.g. via a lead conversion) may not
+                    // exist in the product catalog — still show them so they can be removed.
+                    ...draft.services.filter((s) => !products.some((p) => p.name === s)),
+                  ].map((name) => {
+                    const active = draft.services.includes(name);
                     return (
                       <button
                         type="button"
-                        key={p.id}
-                        onClick={() => toggleService(p.name)}
+                        key={name}
+                        onClick={() => toggleService(name)}
                         className={
                           "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs transition-all " +
                           (active
@@ -460,7 +465,7 @@ function Clients() {
                         }
                       >
                         {active && <CheckCircle2 className="h-3.5 w-3.5" />}
-                        {p.name}
+                        {name}
                       </button>
                     );
                   })}

@@ -41,9 +41,9 @@ export const Route = createFileRoute("/leads")({
 interface Lead {
   id: string;
   name: string;
-  company: string;
+  company: string | null;
   email: string;
-  service: string | null;
+  services: string[] | null;
   message: string | null;
   status: string;
   created_at: string;
@@ -83,7 +83,7 @@ function Leads() {
       leads.filter(
         (l) =>
           l.name.toLowerCase().includes(query.toLowerCase()) ||
-          l.company.toLowerCase().includes(query.toLowerCase()) ||
+          (l.company ?? "").toLowerCase().includes(query.toLowerCase()) ||
           l.email.toLowerCase().includes(query.toLowerCase()),
       ),
     [leads, query],
@@ -97,20 +97,20 @@ function Leads() {
       .update({ status })
       .eq("id", lead.id);
     if (error) return toast.error(error.message);
-    toast.success(`${lead.company} marked as ${status}`);
+    toast.success(`${lead.company ?? lead.name} marked as ${status}`);
     void load();
   };
 
   const convertToClient = async (lead: Lead) => {
     setConverting(lead.id);
     const { error: insertError } = await supabase.from("clients").insert({
-      company_name: lead.company,
+      company_name: lead.company || lead.name,
       contact_name: lead.name,
       email: lead.email,
       status: "active",
       mrr: 0,
       billing_cycle: "monthly",
-      services: lead.service ? [lead.service] : [],
+      services: lead.services ?? [],
       notes: lead.message,
     });
     if (insertError) {
@@ -123,7 +123,7 @@ function Leads() {
       .eq("id", lead.id);
     setConverting(null);
     if (updateError) return toast.error(updateError.message);
-    toast.success(`${lead.company} converted to client`);
+    toast.success(`${lead.company ?? lead.name} converted to client`);
     void load();
   };
 
@@ -134,7 +134,7 @@ function Leads() {
       .delete()
       .eq("id", confirmDelete.id);
     if (error) return toast.error(error.message);
-    toast.success(`${confirmDelete.company} deleted`);
+    toast.success(`${confirmDelete.company ?? confirmDelete.name} deleted`);
     setConfirmDelete(null);
     void load();
   };
@@ -174,7 +174,7 @@ function Leads() {
             <TableHeader>
               <TableRow className="border-border/60 hover:bg-transparent">
                 <TableHead>Contact</TableHead>
-                <TableHead>Service</TableHead>
+                <TableHead>Services</TableHead>
                 <TableHead>Message</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Received</TableHead>
@@ -186,10 +186,12 @@ function Leads() {
                 <TableRow key={l.id} className="border-border/60 align-top">
                   <TableCell>
                     <div className="flex flex-col leading-tight">
-                      <span className="font-medium">{l.company}</span>
-                      <span className="text-[11px] text-muted-foreground">
-                        {l.name}
-                      </span>
+                      <span className="font-medium">{l.company || l.name}</span>
+                      {l.company && (
+                        <span className="text-[11px] text-muted-foreground">
+                          {l.name}
+                        </span>
+                      )}
                       <a
                         href={`mailto:${l.email}`}
                         className="mt-1 inline-flex items-center gap-1 text-[11px] text-primary hover:underline"
@@ -199,10 +201,14 @@ function Leads() {
                     </div>
                   </TableCell>
                   <TableCell>
-                    {l.service ? (
-                      <Badge variant="secondary" className="font-normal">
-                        {l.service}
-                      </Badge>
+                    {l.services && l.services.length > 0 ? (
+                      <div className="flex flex-wrap gap-1.5">
+                        {l.services.map((s) => (
+                          <Badge key={s} variant="secondary" className="font-normal">
+                            {s}
+                          </Badge>
+                        ))}
+                      </div>
                     ) : (
                       <span className="text-xs text-muted-foreground">—</span>
                     )}
@@ -302,7 +308,7 @@ function Leads() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete lead?</AlertDialogTitle>
             <AlertDialogDescription>
-              {confirmDelete?.company} will be permanently removed from the
+              {confirmDelete?.company ?? confirmDelete?.name} will be permanently removed from the
               pipeline.
             </AlertDialogDescription>
           </AlertDialogHeader>

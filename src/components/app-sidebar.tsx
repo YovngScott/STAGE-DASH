@@ -55,9 +55,9 @@ export function AppSidebar({
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader className="border-b border-sidebar-border">
-        <div className="flex items-center gap-2.5 px-2 py-3">
+        <div className="flex items-center gap-2.5 px-2 py-3 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
           <div
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white p-1.5"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white p-1.5 group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:w-8 group-data-[collapsible=icon]:p-1"
             style={{ boxShadow: "var(--shadow-glow)" }}
           >
             <img src="/logo.png" alt="Stage AI Labs" className="h-full w-full object-contain" />
