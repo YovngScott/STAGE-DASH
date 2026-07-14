@@ -7,7 +7,6 @@ import {
   Globe,
   Wallet,
   Settings,
-  Sparkles,
   LogOut,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -58,10 +57,10 @@ export function AppSidebar({
       <SidebarHeader className="border-b border-sidebar-border">
         <div className="flex items-center gap-2.5 px-2 py-3">
           <div
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
-            style={{ background: "var(--gradient-primary)", boxShadow: "var(--shadow-glow)" }}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white p-1.5"
+            style={{ boxShadow: "var(--shadow-glow)" }}
           >
-            <Sparkles className="h-4.5 w-4.5 text-primary-foreground" strokeWidth={2.5} />
+            <img src="/logo.png" alt="Stage AI Labs" className="h-full w-full object-contain" />
           </div>
           <div className="flex flex-col leading-tight group-data-[collapsible=icon]:hidden">
             <span className="text-sm font-semibold tracking-tight">Stage AI Labs</span>
