@@ -8,6 +8,8 @@ import {
   Trash2,
   Loader2,
   CheckCircle2,
+  Zap,
+  ZapOff,
 } from "lucide-react";
 import {
   Table,
@@ -67,6 +69,9 @@ interface Client {
   services: string[] | null;
   notes: string | null;
   created_at: string;
+  bot_status_url: string | null;
+  bot_secret: string | null;
+  bot_activo: boolean;
 }
 
 interface Product {
@@ -86,6 +91,8 @@ const emptyDraft = {
   next_billing_day: 5,
   services: [] as string[],
   notes: "",
+  bot_status_url: "",
+  bot_secret: "",
 };
 
 function Clients() {
@@ -156,6 +163,8 @@ function Clients() {
       next_billing_day: day,
       services: Array.isArray(c.services) ? c.services : [],
       notes: c.notes ?? "",
+      bot_status_url: c.bot_status_url ?? "",
+      bot_secret: c.bot_secret ?? "",
     });
     setOpen(true);
   };
@@ -194,6 +203,8 @@ function Clients() {
       next_billing_date: nextBillingDate(draft.next_billing_day),
       services: draft.services,
       notes: draft.notes.trim() || null,
+      bot_status_url: draft.bot_status_url.trim() || null,
+      bot_secret: draft.bot_secret.trim() || null,
     };
     const q = editing
       ? supabase.from("clients").update(payload).eq("id", editing.id)
@@ -217,6 +228,30 @@ function Clients() {
       `${c.company_name} ${next === "active" ? "reactivated" : "paused"}`,
     );
     void load();
+  };
+
+  const [togglingBot, setTogglingBot] = useState<string | null>(null);
+  const toggleBot = async (c: Client) => {
+    const next = !c.bot_activo;
+    setTogglingBot(c.id);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+      if (!token) throw new Error("Your session expired — sign in again.");
+      const res = await fetch("/api/bot-toggle", {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+        body: JSON.stringify({ clientId: c.id, activo: next }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body?.error ?? "Failed to reach the bot.");
+      toast.success(`${c.company_name}'s bot turned ${next ? "on" : "off"}`);
+      void load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to toggle the bot.");
+    } finally {
+      setTogglingBot(null);
+    }
   };
 
   const remove = async () => {
@@ -367,6 +402,24 @@ function Clients() {
                       >
                         <Power className="h-4 w-4" />
                       </Button>
+                      {c.bot_status_url && (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          disabled={togglingBot === c.id}
+                          onClick={() => toggleBot(c)}
+                          title={c.bot_activo ? "Turn bot off" : "Turn bot on"}
+                          className={c.bot_activo ? "text-success hover:text-success" : "text-destructive hover:text-destructive"}
+                        >
+                          {togglingBot === c.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : c.bot_activo ? (
+                            <Zap className="h-4 w-4" />
+                          ) : (
+                            <ZapOff className="h-4 w-4" />
+                          )}
+                        </Button>
+                      )}
                       <Button
                         size="icon"
                         variant="ghost"
@@ -526,6 +579,27 @@ function Clients() {
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+
+            <div className="space-y-2 rounded-md border border-border/60 p-3">
+              <Label className="text-xs uppercase tracking-wider text-muted-foreground">
+                Bot integration (optional)
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Lets you turn this client's bot on/off from the table above (e.g. suspend for
+                non-payment). Leave blank if this client doesn't have one.
+              </p>
+              <Input
+                placeholder="Bot status URL (e.g. https://wiltech-bot.fly.dev)"
+                value={draft.bot_status_url}
+                onChange={(e) => setDraft((d) => ({ ...d, bot_status_url: e.target.value }))}
+              />
+              <Input
+                placeholder="Bot secret (PLATFORM_ADMIN_SECRET)"
+                type="password"
+                value={draft.bot_secret}
+                onChange={(e) => setDraft((d) => ({ ...d, bot_secret: e.target.value }))}
+              />
             </div>
 
             <DialogFooter>
