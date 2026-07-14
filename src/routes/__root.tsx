@@ -113,6 +113,34 @@ const titleMap: Record<string, string> = {
 
 function AppShell() {
   const pathname = useRouterState({ select: (r) => r.location.pathname });
+  const { loading, session, isOwner, signOut } = useAuth();
+
+  const isAuthRoute = pathname === "/auth";
+
+  // While hydrating auth on a protected route, render nothing to avoid a flash.
+  if (loading && !isAuthRoute) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background text-xs text-muted-foreground">
+        Verifying access…
+      </div>
+    );
+  }
+
+  // Public auth page renders standalone (no sidebar/header).
+  if (isAuthRoute) {
+    return (
+      <>
+        <Outlet />
+        <Toaster />
+      </>
+    );
+  }
+
+  // Not signed in OR signed in without owner role → force /auth.
+  if (!session || !isOwner) {
+    return <Navigate to="/auth" />;
+  }
+
   const title =
     titleMap[pathname] ??
     Object.entries(titleMap).find(([k]) => k !== "/" && pathname.startsWith(k))?.[1] ??
@@ -121,7 +149,7 @@ function AppShell() {
   return (
     <SidebarProvider>
       <div className="flex min-h-screen w-full bg-background text-foreground">
-        <AppSidebar />
+        <AppSidebar onSignOut={signOut} email={session.user.email ?? ""} />
         <div className="flex flex-1 flex-col min-w-0">
           <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-border/60 bg-background/70 px-4 backdrop-blur-xl">
             <SidebarTrigger />
@@ -153,7 +181,9 @@ function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   return (
     <QueryClientProvider client={queryClient}>
-      <AppShell />
+      <AuthProvider>
+        <AppShell />
+      </AuthProvider>
     </QueryClientProvider>
   );
 }
