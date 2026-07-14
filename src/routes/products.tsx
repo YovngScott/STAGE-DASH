@@ -67,8 +67,7 @@ const categoryIcon: Record<string, LucideIcon> = {
 
 const statusStyles: Record<string, string> = {
   active: "bg-success/15 text-success border-success/30",
-  in_development: "bg-warning/15 text-warning border-warning/30",
-  testing: "bg-primary/15 text-primary border-primary/30",
+  draft: "bg-warning/15 text-warning border-warning/30",
   paused: "bg-muted text-muted-foreground border-border",
 };
 
@@ -299,10 +298,7 @@ function Products() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="active">Active</SelectItem>
-                    <SelectItem value="in_development">
-                      In development
-                    </SelectItem>
-                    <SelectItem value="testing">Testing</SelectItem>
+                    <SelectItem value="draft">Draft</SelectItem>
                     <SelectItem value="paused">Paused</SelectItem>
                   </SelectContent>
                 </Select>
