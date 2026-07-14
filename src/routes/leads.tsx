@@ -147,7 +147,7 @@ function Leads() {
             Inbound Pipeline
           </p>
           <h2 className="mt-1 text-2xl font-semibold tracking-tight">
-            Interesados
+            Leads
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
             {leads.length} inquiries · {newCount} awaiting review
@@ -156,7 +156,7 @@ function Leads() {
         <div className="relative">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Search interesados…"
+            placeholder="Search leads…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             className="pl-9 w-56"
@@ -167,7 +167,7 @@ function Leads() {
       <Card className="border-border/60 overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center py-16 text-sm text-muted-foreground">
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading interesados…
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading leads…
           </div>
         ) : (
           <Table>
@@ -284,8 +284,8 @@ function Leads() {
                     className="py-10 text-center text-sm text-muted-foreground"
                   >
                     {leads.length === 0
-                      ? "No interesados yet. New inquiries from the landing page will show up here."
-                      : "No interesados match your search."}
+                      ? "No leads yet. New inquiries from the landing page will show up here."
+                      : "No leads match your search."}
                   </TableCell>
                 </TableRow>
               )}
@@ -300,7 +300,7 @@ function Leads() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete interesado?</AlertDialogTitle>
+            <AlertDialogTitle>Delete lead?</AlertDialogTitle>
             <AlertDialogDescription>
               {confirmDelete?.company} will be permanently removed from the
               pipeline.
