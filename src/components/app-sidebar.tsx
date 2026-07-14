@@ -3,6 +3,7 @@ import {
   LayoutDashboard,
   Bot,
   Users,
+  UserPlus,
   Globe,
   Wallet,
   Settings,
@@ -26,6 +27,7 @@ import {
 const items = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
   { title: "My Products", url: "/products", icon: Bot },
+  { title: "Interesados", url: "/leads", icon: UserPlus },
   { title: "Client Manager", url: "/clients", icon: Users },
   { title: "Web Apps", url: "/webapps", icon: Globe },
   { title: "Financial Ledger", url: "/ledger", icon: Wallet },
