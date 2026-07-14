@@ -8,6 +8,7 @@ import {
   Wallet,
   Settings,
   LogOut,
+  Palette,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -92,6 +93,20 @@ export function AppSidebar({
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter className="border-t border-sidebar-border">
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              asChild
+              isActive={isActive("/website")}
+              tooltip="Customize Website"
+            >
+              <Link to="/website">
+                <Palette className="h-4 w-4" />
+                <span>Customize Website</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
         <div className="flex items-center gap-2 px-2 py-2 group-data-[collapsible=icon]:hidden">
           <div className="h-8 w-8 rounded-full bg-accent flex items-center justify-center text-xs font-semibold">
             {initials}
