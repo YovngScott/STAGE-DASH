@@ -617,10 +617,12 @@ function Clients() {
               </Label>
               <p className="text-xs text-muted-foreground">
                 Lets you turn this client's bot on/off from the table above (e.g. suspend for
-                non-payment). Leave blank if this client doesn't have one.
+                non-payment). Leave blank if this client doesn't have one. For a multi-client bot,
+                paste the full endpoint (…/api/&lt;slug&gt;/config/bot-activo); for a single-client
+                bot, its host is enough.
               </p>
               <Input
-                placeholder="Bot status URL (e.g. https://wiltech-bot.fly.dev)"
+                placeholder="Bot status URL (e.g. https://tu-bot.fly.dev/api/<slug>/config/bot-activo)"
                 value={draft.bot_status_url}
                 onChange={(e) => setDraft((d) => ({ ...d, bot_status_url: e.target.value }))}
               />

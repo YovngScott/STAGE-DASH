@@ -64,8 +64,15 @@ export const Route = createFileRoute("/api/bot-toggle")({
           );
         }
 
+        // Un bot single-tenant expone la ruta fija /api/config/bot-activo, así
+        // que basta guardar su host. Uno multi-cliente la expone bajo el slug
+        // (/api/<slug>/config/bot-activo) y no hay forma de derivar esa ruta
+        // desde el host: para esos se guarda la URL completa del endpoint.
+        const base = client.bot_status_url.trim().replace(/\/$/, "");
+        const url = base.endsWith("/bot-activo") ? base : `${base}/api/config/bot-activo`;
+
         try {
-          const res = await fetch(`${client.bot_status_url.replace(/\/$/, "")}/api/config/bot-activo`, {
+          const res = await fetch(url, {
             method: "POST",
             headers: {
               "content-type": "application/json",
