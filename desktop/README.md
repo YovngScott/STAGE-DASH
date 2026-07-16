@@ -14,6 +14,14 @@ private local control panel.
 
 Run `pnpm desktop:build`. The Windows installer is created in `desktop-installer/`.
 
+## Publish an automatic update
+
+Increase the `version` in `package.json`, then run `pnpm desktop:publish`.
+It creates a GitHub release from the private `STAGE_GITHUB_TOKEN` and uploads the
+installer plus its update metadata. Installed copies check GitHub at launch,
+download a pending update in the background, and install it automatically when
+the app is closed or Windows is restarted.
+
 ## First installed launch
 
 The installed app reads private server variables from:

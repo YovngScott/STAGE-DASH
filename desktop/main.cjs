@@ -13,6 +13,10 @@ const isDevelopment = process.argv.includes("--dev");
 let mainWindow;
 let localServer;
 
+function isInstalledBuild() {
+  return app.isPackaged && !process.execPath.includes(`${path.sep}win-unpacked${path.sep}`);
+}
+
 function configPath() {
   return isDevelopment
     ? path.resolve(__dirname, "..", ".env.local")
@@ -114,6 +118,25 @@ function createWindow() {
   });
 
   mainWindow.once("ready-to-show", () => mainWindow.show());
+  mainWindow.loadFile(path.join(__dirname, "splash.html"));
+}
+
+function configureAutoUpdates() {
+  if (isDevelopment || !isInstalledBuild()) return;
+
+  try {
+    const { autoUpdater } = require("electron-updater");
+    autoUpdater.autoDownload = true;
+    autoUpdater.autoInstallOnAppQuit = true;
+    autoUpdater.on("error", (error) => {
+      console.warn("Desktop update check failed:", error.message);
+    });
+    autoUpdater.checkForUpdates().catch((error) => {
+      console.warn("Desktop update check could not start:", error.message);
+    });
+  } catch (error) {
+    console.warn("Desktop auto-update is unavailable:", error);
+  }
 }
 
 async function launchDashboard() {
@@ -138,6 +161,7 @@ app.whenReady().then(async () => {
   }
 
   createWindow();
+  configureAutoUpdates();
 
   try {
     await launchDashboard();

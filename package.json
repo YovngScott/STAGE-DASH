@@ -1,6 +1,6 @@
 {
   "name": "tanstack_start_ts",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Private local control panel for Stage AI Labs LLC.",
   "author": "Stage AI Labs LLC",
   "packageManager": "pnpm@11.9.0",
@@ -18,7 +18,8 @@
     "format": "prettier --write .",
     "desktop:dev": "electron . --dev",
     "desktop:start": "electron .",
-    "desktop:build": "vite build && electron-builder --win nsis"
+    "desktop:build": "vite build && electron-builder --win nsis",
+    "desktop:publish": "vite build && node desktop/publish.cjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -58,6 +59,7 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "date-fns": "^4.1.0",
+    "electron-updater": "6.8.9",
     "embla-carousel-react": "^8.6.0",
     "input-otp": "^1.4.2",
     "lucide-react": "^0.575.0",
@@ -100,6 +102,14 @@
     "appId": "com.stageailabs.ownerconsole",
     "productName": "Stage AI Labs Owner Console",
     "electronDist": "node_modules/electron/dist",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "YovngScott",
+        "repo": "STAGE-DASH",
+        "releaseType": "release"
+      }
+    ],
     "directories": {
       "output": "desktop-installer"
     },
