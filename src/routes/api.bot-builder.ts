@@ -3,6 +3,7 @@ import type {} from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { startProvision } from "@/lib/provisioning";
+import { composeTenantPrompt, normalizeBotBehavior } from "@/lib/bot-prompts";
 
 const DEFAULT_REPO = "YovngScott/Stage-Bot-Template";
 const DEFAULT_BRANCH = "main";
@@ -24,17 +25,12 @@ interface BotBuilderRequest {
     contacto?: string;
     moneda?: string;
     zonaHoraria?: string;
-    adminEmails?: string[];
     servicios?: string[];
-    promptExtra?: string;
+    behavior?: string;
+    companyInfo?: string;
+    extraInstructions?: string;
     googleCalendarId?: string;
   };
-  catalog?: Array<{
-    nombre: string;
-    categoria: string;
-    descripcion: string;
-    precio: number;
-  }>;
   groqModel?: string;
   groqApiKey?: string;
   updateClient?: boolean;
@@ -97,20 +93,13 @@ export const Route = createFileRoute("/api/bot-builder")({
           return Response.json({ error: "No se pudo generar un slug valido." }, { status: 400 });
         }
 
-        const adminEmails = normalizeEmails(body.tenant.adminEmails);
-        if (adminEmails.length === 0 && client.email) adminEmails.push(client.email);
-        if (adminEmails.length === 0) {
-          return Response.json(
-            { error: "El bot necesita al menos un correo admin para el dashboard del cliente." },
-            { status: 400 },
-          );
-        }
+        const behavior = normalizeBotBehavior(body.tenant.behavior);
 
         const tenantConfig = {
           slug,
           nombreBot: body.tenant.nombreBot?.trim() || `${client.company_name} Bot`,
           nombre: body.tenant.nombre?.trim() || client.company_name,
-          descripcion: body.tenant.descripcion?.trim() || "Bot de ventas y atencion al cliente.",
+          descripcion: body.tenant.descripcion?.trim() || (behavior === "technical_support" ? "Bot de soporte técnico especializado." : "Bot de ventas, agendamiento y fidelización."),
           direccion: body.tenant.direccion?.trim() || "Atencion por WhatsApp",
           horario: body.tenant.horario?.trim() || "Lunes a viernes de 9:00 AM a 6:00 PM",
           contacto: body.tenant.contacto?.trim() || client.phone || "",
@@ -118,8 +107,17 @@ export const Route = createFileRoute("/api/bot-builder")({
           servicios: body.tenant.servicios ?? [],
           moneda: body.tenant.moneda?.trim() || "USD",
           zonaHoraria: body.tenant.zonaHoraria?.trim() || "America/Santo_Domingo",
-          adminEmails,
-          promptExtra: body.tenant.promptExtra?.trim() || "",
+          // Dashboard users are created explicitly from Client Manager →
+          // Access. Do not grant access implicitly from a contact email.
+          adminEmails: [],
+          behavior,
+          companyInfo: body.tenant.companyInfo?.trim() || "",
+          extraInstructions: body.tenant.extraInstructions?.trim() || "",
+          promptExtra: composeTenantPrompt({
+            behavior,
+            companyInfo: body.tenant.companyInfo,
+            extraInstructions: body.tenant.extraInstructions,
+          }),
           googleCalendarId: body.tenant.googleCalendarId?.trim() || "primary",
         };
 
@@ -197,8 +195,6 @@ export const Route = createFileRoute("/api/bot-builder")({
           job,
           botStatusUrl: job.botStatusUrl,
           dashboardUrl: job.dashboardUrl,
-          catalogSql: buildCatalogSql(slug, tenantConfig.moneda, body.catalog ?? []),
-          adminSql: `insert into tenant_admins (user_id, tenant_id)\nselect 'EL_USER_UID'::uuid, id from tenants where slug = '${slug}';`,
         }, { status: 202 });
       },
     },
@@ -269,33 +265,4 @@ function sanitizeSlug(value: string) {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 64);
-}
-
-function normalizeEmails(value?: string[]) {
-  return Array.from(
-    new Set(
-      (value ?? [])
-        .map((email) => email.trim().toLowerCase())
-        .filter((email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)),
-    ),
-  );
-}
-
-function sql(value: string) {
-  return value.replace(/'/g, "''");
-}
-
-function buildCatalogSql(
-  slug: string,
-  moneda: string,
-  catalog: Array<{ nombre: string; categoria: string; descripcion: string; precio: number }>,
-) {
-  const rows = catalog
-    .filter((item) => item.nombre.trim())
-    .map(
-      (item) =>
-        `('${sql(item.nombre)}','${sql(item.categoria || "General")}','${sql(item.descripcion || "")}',${Number(item.precio) || 0})`,
-    );
-  if (rows.length === 0) return "";
-  return `insert into servicios (tenant_id, nombre, categoria, descripcion, precio, moneda, disponible)\nselect (select id from tenants where slug = '${sql(slug)}'), d.nombre, d.categoria, d.descripcion, d.precio, '${sql(moneda)}', true\nfrom (values\n  ${rows.join(",\n  ")}\n) as d(nombre,categoria,descripcion,precio)\nwhere not exists (\n  select 1 from servicios s\n  where s.tenant_id = (select id from tenants where slug = '${sql(slug)}')\n    and lower(s.nombre) = lower(d.nombre)\n);`;
 }

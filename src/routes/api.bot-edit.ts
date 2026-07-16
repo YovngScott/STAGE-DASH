@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { redeployBotConfig, type BotKind, type TenantConfigDraft } from "@/lib/provisioning";
+import { composeTenantPrompt, normalizeBotBehavior } from "@/lib/bot-prompts";
 
 const DEFAULT_REPO = "YovngScott/Stage-Bot-Template";
 
@@ -46,7 +47,15 @@ export const Route = createFileRoute("/api/bot-edit")({
         const file = await existing.json();
         const config = JSON.parse(Buffer.from(String(file.content ?? ""), "base64").toString("utf8"));
         config.nombreBot = name;
-        config.promptExtra = promptExtra;
+        // Keep the server-owned behavior and security protocol intact when an
+        // owner changes the visible extra instructions later.
+        config.behavior = normalizeBotBehavior(config.behavior);
+        config.extraInstructions = promptExtra;
+        config.promptExtra = composeTenantPrompt({
+          behavior: config.behavior,
+          companyInfo: String(config.companyInfo ?? ""),
+          extraInstructions: promptExtra,
+        });
         const saved = await fetch(base, { method: "PUT", headers, body: JSON.stringify({ message: `Actualizar bot ${name}`, content: Buffer.from(`${JSON.stringify(config, null, 2)}\n`, "utf8").toString("base64"), branch: "main", sha: file.sha }) });
         const payload = await saved.json().catch(() => null);
         if (!saved.ok) return Response.json({ error: payload?.message ?? `GitHub respondió ${saved.status}.` }, { status: 502 });

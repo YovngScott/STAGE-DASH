@@ -21,6 +21,9 @@ export interface TenantConfigDraft {
   moneda: string;
   zonaHoraria: string;
   adminEmails: string[];
+  behavior?: "sales" | "technical_support";
+  companyInfo?: string;
+  extraInstructions?: string;
   promptExtra: string;
   googleCalendarId: string;
 }

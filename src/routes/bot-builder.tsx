@@ -4,8 +4,6 @@ import {
   Bot,
   BrainCircuit,
   Check,
-  Clipboard,
-  Github,
   Loader2,
   MessageSquare,
   Mic,
@@ -13,7 +11,6 @@ import {
   Sparkles,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -67,11 +64,10 @@ interface BuildResult {
   deployTriggered: boolean;
   botStatusUrl: string;
   dashboardUrl?: string;
-  catalogSql: string;
-  adminSql: string;
-  localOnly?: boolean;
   job?: ProvisionJob;
 }
+
+type BotBehavior = "sales" | "technical_support";
 
 interface ProvisionJob {
   id: string;
@@ -136,12 +132,26 @@ const defaultDraft = {
   contacto: "",
   moneda: "USD",
   zonaHoraria: "America/Santo_Domingo",
-  adminEmails: "",
   cotizaPorChat: true,
+  behavior: "sales" as BotBehavior,
+  companyInfo: "",
   extraPrompt: "",
   groqModel: "meta-llama/llama-4-scout-17b-16e-instruct",
   groqApiKey: "",
   updateClient: true,
+};
+
+const botBehaviors: Record<BotBehavior, { label: string; description: string; icon: typeof Bot }> = {
+  sales: {
+    label: "Ventas, agendamiento y fidelización",
+    description: "Capta clientes, coordina reservas y fortalece la relación post-venta.",
+    icon: Bot,
+  },
+  technical_support: {
+    label: "Soporte técnico especializado",
+    description: "Diagnostica, guía paso a paso y escala casos complejos sin vender.",
+    icon: BrainCircuit,
+  },
 };
 
 const groqModels = [
@@ -241,50 +251,6 @@ function BotBuilder() {
   }, [compatibleProducts]);
 
   const slug = draft.slug || slugify(selectedClient?.company_name ?? "");
-  const generatedPrompt = useMemo(
-    () =>
-      buildPrompt({
-        company: selectedClient?.company_name ?? "el negocio",
-        botType: draft.botType,
-        rubro: draft.rubro,
-        horario: draft.horario,
-        direccion: draft.direccion,
-        cotizaPorChat: draft.cotizaPorChat,
-        servicios: catalog.map((item) => item.nombre).filter(Boolean),
-        extraPrompt: draft.extraPrompt,
-      }),
-    [
-      selectedClient?.company_name,
-      draft.botType,
-      draft.rubro,
-      draft.horario,
-      draft.direccion,
-      draft.cotizaPorChat,
-      draft.extraPrompt,
-      catalog,
-    ],
-  );
-
-  const tenantPreview = useMemo(
-    () => ({
-      slug,
-      nombreBot: draft.nombreBot || `${selectedClient?.company_name ?? "Cliente"} Bot`,
-      nombre: selectedClient?.company_name ?? "",
-      descripcion: draft.descripcion || botTypes[draft.botType].description,
-      direccion: draft.direccion,
-      horario: draft.horario,
-      contacto: draft.contacto || selectedClient?.phone || "",
-      redes: {},
-      servicios: catalog.map((item) => item.nombre).filter(Boolean),
-      moneda: draft.moneda,
-      zonaHoraria: draft.zonaHoraria,
-      adminEmails: splitEmails(draft.adminEmails || selectedClient?.email || ""),
-      promptExtra: generatedPrompt,
-      googleCalendarId: "primary",
-    }),
-    [slug, draft, selectedClient, catalog, generatedPrompt],
-  );
-
   const selectClient = (clientId: string) => {
     const client = clients.find((item) => item.id === clientId);
     setDraft((current) => ({
@@ -293,7 +259,6 @@ function BotBuilder() {
       slug: slugify(client?.company_name ?? ""),
       nombreBot: client ? `${client.company_name} Bot` : current.nombreBot,
       contacto: client?.phone ?? current.contacto,
-      adminEmails: client?.email ?? current.adminEmails,
     }));
   };
 
@@ -325,30 +290,6 @@ function BotBuilder() {
     setCatalog((items) => items.filter((_, itemIndex) => itemIndex !== index));
   };
 
-  const generateDraft = () => {
-    if (!selectedClient) return toast.error("Choose an existing client first.");
-    if (!selectedProduct) return toast.error("Choose the product this bot belongs to.");
-    if (!slug) return toast.error("The bot needs a valid slug.");
-
-    const localDashboardUrl = `http://127.0.0.1:5174/?${new URLSearchParams({
-      tenant: slug,
-      api: `https://stage-${slug}-${draft.botType}.fly.dev`,
-    }).toString()}`;
-
-    setResult({
-      slug,
-      tenantPath: `backend/config/tenants/${slug}.json`,
-      commitUrl: null,
-      deployTriggered: false,
-        botStatusUrl: `https://stage-${slug}-${draft.botType}.fly.dev/api/${slug}/config/bot-activo`,
-      dashboardUrl: localDashboardUrl,
-      catalogSql: buildCatalogSql(slug, draft.moneda, catalog.filter((item) => item.nombre.trim())),
-      adminSql: `insert into tenant_admins (user_id, tenant_id)\nselect 'EL_USER_UID'::uuid, id from tenants where slug = '${slug}';`,
-      localOnly: true,
-    });
-    toast.success("Local bot draft generated.");
-  };
-
   const commitBot = async () => {
     if (!selectedClient) return toast.error("Choose an existing client first.");
     if (!selectedProduct) return toast.error("Choose the product this bot belongs to.");
@@ -369,8 +310,22 @@ function BotBuilder() {
           clientId: selectedClient.id,
           productName: selectedProduct.name,
           botType: draft.botType,
-          tenant: tenantPreview,
-          catalog: catalog.filter((item) => item.nombre.trim()),
+          tenant: {
+            slug,
+            nombreBot: draft.nombreBot || `${selectedClient.company_name} Bot`,
+            nombre: selectedClient.company_name,
+            descripcion: draft.descripcion,
+            direccion: draft.direccion,
+            horario: draft.horario,
+            contacto: draft.contacto || selectedClient.phone || "",
+            moneda: draft.moneda,
+            zonaHoraria: draft.zonaHoraria,
+            servicios: draft.behavior === "sales" ? catalog.map((item) => item.nombre).filter(Boolean) : [],
+            behavior: draft.behavior,
+            companyInfo: draft.companyInfo,
+            extraInstructions: draft.extraPrompt,
+            googleCalendarId: "primary",
+          },
           groqModel: draft.groqModel,
           groqApiKey: draft.groqApiKey || undefined,
           updateClient: draft.updateClient,
@@ -387,11 +342,6 @@ function BotBuilder() {
     }
   };
 
-  const copy = async (value: string, label: string) => {
-    await navigator.clipboard.writeText(value);
-    toast.success(`${label} copied`);
-  };
-
   return (
     <div className="mx-auto max-w-[1400px] p-6 md:p-8 space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -403,33 +353,28 @@ function BotBuilder() {
             Create Client Bot
           </h2>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            Choose a client and product. Owner Console creates the dedicated Fly app, configures AI,
-            saves the tenant to GitHub, and prepares the client dashboard and WhatsApp QR.
+            Elige el cliente, tipo y comportamiento. Owner Console crea la app dedicada, configura la IA,
+            guarda el tenant en GitHub y prepara el dashboard y QR de WhatsApp.
           </p>
         </div>
-        <Button className="gap-2" disabled={loading} onClick={generateDraft}>
-          <Sparkles className="h-4 w-4" />
-          Generate draft
-        </Button>
         <Button variant="outline" className="gap-2" disabled={saving || loading} onClick={commitBot}>
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Rocket className="h-4 w-4" />}
           Create and deploy bot
         </Button>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
-        <div className="space-y-4">
+      <div className="space-y-4">
           <Card className="border-border/60 p-5">
             <div className="flex items-center gap-2">
               <Bot className="h-4 w-4 text-primary" />
-              <h3 className="text-sm font-semibold">1. Client and bot type</h3>
+              <h3 className="text-sm font-semibold">1. Cliente y tipo de bot</h3>
             </div>
             <div className="mt-4 grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <Label>Existing client</Label>
+                <Label>Cliente existente</Label>
                 <Select value={draft.clientId} onValueChange={selectClient}>
                   <SelectTrigger>
-                    <SelectValue placeholder={loading ? "Loading clients..." : "Choose client"} />
+                    <SelectValue placeholder={loading ? "Cargando clientes..." : "Elegir cliente"} />
                   </SelectTrigger>
                   <SelectContent>
                     {clients.map((client) => (
@@ -447,7 +392,7 @@ function BotBuilder() {
                     ? selectedProduct.name
                     : `No hay un producto activo para ${botTypes[draft.botType].label}.`}
                 </div>
-                <p className="text-xs text-muted-foreground">Cambia el tipo de bot para asignar su producto correspondiente.</p>
+                <p className="text-xs text-muted-foreground">Se asigna automáticamente al elegir el tipo de bot.</p>
               </div>
             </div>
             <div className="mt-4 grid gap-3 md:grid-cols-3">
@@ -479,8 +424,38 @@ function BotBuilder() {
 
           <Card className="border-border/60 p-5">
             <div className="flex items-center gap-2">
+              <BrainCircuit className="h-4 w-4 text-primary" />
+              <h3 className="text-sm font-semibold">2. Comportamiento del bot</h3>
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">Se aplica internamente al prompt del bot y puede complementarse con información de la empresa.</p>
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              {(Object.keys(botBehaviors) as BotBehavior[]).map((behavior) => {
+                const Icon = botBehaviors[behavior].icon;
+                const active = draft.behavior === behavior;
+                return (
+                  <button
+                    key={behavior}
+                    type="button"
+                    onClick={() => setDraft((current) => ({ ...current, behavior }))}
+                    className={"rounded-lg border p-4 text-left transition-colors " + (active
+                      ? "border-primary bg-primary/10 text-foreground"
+                      : "border-border/60 bg-card/40 text-muted-foreground hover:border-primary/40 hover:text-foreground")}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Icon className="h-4 w-4" />
+                      <span className="text-sm font-medium">{botBehaviors[behavior].label}</span>
+                    </div>
+                    <p className="mt-2 text-xs leading-5">{botBehaviors[behavior].description}</p>
+                  </button>
+                );
+              })}
+            </div>
+          </Card>
+
+          <Card className="border-border/60 p-5">
+            <div className="flex items-center gap-2">
               <Sparkles className="h-4 w-4 text-primary" />
-              <h3 className="text-sm font-semibold">2. Sales brain</h3>
+              <h3 className="text-sm font-semibold">3. Información del bot</h3>
             </div>
             <div className="mt-4 grid gap-4 md:grid-cols-2">
               <Field label="Slug">
@@ -552,16 +527,7 @@ function BotBuilder() {
                 />
               </Field>
             </div>
-            <div className="mt-4 grid gap-4 md:grid-cols-2">
-              <Field label="Client dashboard admin email">
-                <Input
-                  value={draft.adminEmails}
-                  onChange={(event) =>
-                    setDraft((current) => ({ ...current, adminEmails: event.target.value }))
-                  }
-                  placeholder="owner@client.com"
-                />
-              </Field>
+            <div className="mt-4">
               <div className="flex items-center justify-between rounded-lg border border-border/60 p-3">
                 <div>
                   <Label>Can quote by chat</Label>
@@ -578,6 +544,17 @@ function BotBuilder() {
               </div>
             </div>
             <div className="mt-4 space-y-2">
+              <Label>Información de la empresa</Label>
+              <Textarea
+                rows={5}
+                value={draft.companyInfo}
+                onChange={(event) =>
+                  setDraft((current) => ({ ...current, companyInfo: event.target.value }))
+                }
+                placeholder="Describe a qué se dedica la empresa, sus servicios, políticas, garantías, procesos y cualquier información útil para atender correctamente."
+              />
+            </div>
+            <div className="mt-4 space-y-2">
               <Label>Extra instructions</Label>
               <Textarea
                 rows={4}
@@ -585,7 +562,7 @@ function BotBuilder() {
                 onChange={(event) =>
                   setDraft((current) => ({ ...current, extraPrompt: event.target.value }))
                 }
-                placeholder="Optional rules you want to add on top of the automatic sales prompt."
+                placeholder="Reglas adicionales específicas para este cliente."
               />
             </div>
             <div className="mt-4 grid gap-4 rounded-lg border border-border/60 p-4 md:grid-cols-2">
@@ -617,11 +594,11 @@ function BotBuilder() {
             </div>
           </Card>
 
-          <Card className="border-border/60 p-5">
+          {draft.behavior === "sales" && <Card className="border-border/60 p-5">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
-                <Clipboard className="h-4 w-4 text-primary" />
-                <h3 className="text-sm font-semibold">3. Catalog starter</h3>
+                <Bot className="h-4 w-4 text-primary" />
+                <h3 className="text-sm font-semibold">4. Catálogo inicial</h3>
               </div>
               <Button type="button" variant="outline" size="sm" onClick={addCatalogItem}>
                 Add service
@@ -664,12 +641,12 @@ function BotBuilder() {
                 </div>
               ))}
             </div>
-          </Card>
+          </Card>}
 
           <Card className="border-border/60 p-5">
             <div className="flex items-center gap-2">
-              <Github className="h-4 w-4 text-primary" />
-              <h3 className="text-sm font-semibold">4. Automation options</h3>
+              <Sparkles className="h-4 w-4 text-primary" />
+              <h3 className="text-sm font-semibold">{draft.behavior === "sales" ? "5." : "4."} Opciones de automatización</h3>
             </div>
             <div className="mt-4 grid gap-3">
               <ToggleRow
@@ -680,30 +657,13 @@ function BotBuilder() {
               />
             </div>
           </Card>
-        </div>
 
-        <div className="space-y-4">
-          <Card className="sticky top-20 border-border/60 p-5">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <h3 className="text-sm font-semibold">Tenant preview</h3>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  This is what will be saved from the local dashboard.
-                </p>
-              </div>
-              <Badge variant="outline">{slug || "no-slug"}</Badge>
-            </div>
-            <pre className="mt-4 max-h-[420px] overflow-auto rounded-lg border border-border/60 bg-muted/30 p-3 text-[11px] leading-5 text-muted-foreground">
-              {JSON.stringify(tenantPreview, null, 2)}
-            </pre>
-          </Card>
-
-          {result && (
+        {result && (
             <Card className="border-success/40 bg-success/5 p-5">
               <div className="flex items-center gap-2 text-success">
                 <Check className="h-4 w-4" />
                 <h3 className="text-sm font-semibold">
-                  {result.localOnly ? "Borrador local listo" : result.job?.state === "complete" ? "Bot desplegado" : "Desplegando bot"}
+                  {result.job?.state === "complete" ? "Bot desplegado" : "Desplegando bot"}
                 </h3>
               </div>
               <div className="mt-4 space-y-3 text-sm">
@@ -745,28 +705,9 @@ function BotBuilder() {
                     Open GitHub commit
                   </a>
                 )}
-                {result.catalogSql && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full"
-                    onClick={() => copy(result.catalogSql, "Catalog SQL")}
-                  >
-                    Copy catalog SQL
-                  </Button>
-                )}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full"
-                  onClick={() => copy(result.adminSql, "Admin SQL")}
-                >
-                  Copy admin SQL
-                </Button>
               </div>
             </Card>
           )}
-        </div>
       </div>
     </div>
   );
@@ -820,69 +761,4 @@ function slugify(value: string) {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 64);
-}
-
-function splitEmails(value: string) {
-  return Array.from(
-    new Set(
-      value
-        .split(/[,\n]/)
-        .map((email) => email.trim().toLowerCase())
-        .filter(Boolean),
-    ),
-  );
-}
-
-function buildPrompt(args: {
-  company: string;
-  botType: BotType;
-  rubro: string;
-  horario: string;
-  direccion: string;
-  cotizaPorChat: boolean;
-  servicios: string[];
-  extraPrompt: string;
-}) {
-  const typeLine =
-    args.botType === "voice"
-      ? "Actua como un agente de ventas por voz: respuestas cortas, claras y faciles de decir en una llamada."
-      : args.botType === "assistant"
-        ? "Actua como un asistente comercial: entiende la necesidad, filtra datos importantes y guia al prospecto al siguiente paso."
-        : "Actua como un vendedor por WhatsApp: conversa con naturalidad, responde rapido y mueve al prospecto hacia una cita o compra.";
-
-  const quoteRule = args.cotizaPorChat
-    ? "Puedes orientar sobre precios si el catalogo tiene precios validos. Si falta informacion, pide los datos necesarios antes de prometer un precio final."
-    : "No cotices precios por chat. Si algun servicio tiene precio 0, nunca lo presentes como precio real. Explica que el negocio cotiza despues de revisar el caso.";
-
-  return [
-    typeLine,
-    `Negocio: ${args.company}. Rubro: ${args.rubro || "ventas y atencion al cliente"}.`,
-    `Horario: ${args.horario}. Direccion o modalidad: ${args.direccion}.`,
-    "Objetivo principal: convertir conversaciones en leads calificados, citas o ventas sin sonar robotico.",
-    "Siempre saluda, entiende la necesidad, hace preguntas utiles y propone el siguiente paso concreto.",
-    "Pide nombre, telefono y detalle de la necesidad cuando haga falta para dar seguimiento.",
-    quoteRule,
-    args.servicios.length > 0
-      ? `Servicios iniciales: ${args.servicios.join(", ")}.`
-      : "Si el catalogo esta vacio, pide una descripcion de lo que necesita el cliente y ofrece seguimiento humano.",
-    "No inventes disponibilidad, precios, garantias ni politicas que no esten en la configuracion.",
-    args.extraPrompt.trim(),
-  ]
-    .filter(Boolean)
-    .join("\n");
-}
-
-function escapeSql(value: string) {
-  return value.replace(/'/g, "''");
-}
-
-function buildCatalogSql(slug: string, moneda: string, catalog: CatalogItem[]) {
-  const rows = catalog
-    .filter((item) => item.nombre.trim())
-    .map(
-      (item) =>
-        `('${escapeSql(item.nombre)}','${escapeSql(item.categoria || "General")}','${escapeSql(item.descripcion || "")}',${Number(item.precio) || 0})`,
-    );
-  if (rows.length === 0) return "";
-  return `insert into servicios (tenant_id, nombre, categoria, descripcion, precio, moneda, disponible)\nselect (select id from tenants where slug = '${escapeSql(slug)}'), d.nombre, d.categoria, d.descripcion, d.precio, '${escapeSql(moneda)}', true\nfrom (values\n  ${rows.join(",\n  ")}\n) as d(nombre,categoria,descripcion,precio)\nwhere not exists (\n  select 1 from servicios s\n  where s.tenant_id = (select id from tenants where slug = '${escapeSql(slug)}')\n    and lower(s.nombre) = lower(d.nombre)\n);`;
 }
