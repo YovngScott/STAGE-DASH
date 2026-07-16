@@ -121,7 +121,7 @@ async function deleteOneBot(clientId: string, rawBotId: string, confirmation: st
     throw new Error(`Escribe exactamente el slug ${bot.slug} para eliminar este bot.`);
   }
 
-  await disconnectRemoteBot(bot);
+  await disconnectRemoteBotForDeletion(bot);
   const fly = await destroyDedicatedFlyApp(bot);
   await deleteGitHubTenant(bot.slug);
   const removedUsers = await deleteTenantData(bot.slug);
@@ -145,7 +145,7 @@ async function deleteOneClient(clientId: string, confirmation: string) {
   const bots = await getClientBots(client);
   const outcomes: Array<{ slug: string; fly: FlyDeleteResult; removedUsers: string[] }> = [];
   for (const bot of bots) {
-    await disconnectRemoteBot(bot);
+    await disconnectRemoteBotForDeletion(bot);
     const fly = await destroyDedicatedFlyApp(bot);
     await deleteGitHubTenant(bot.slug);
     const removedUsers = await deleteTenantData(bot.slug);
@@ -214,6 +214,19 @@ async function disconnectRemoteBot(bot: ManagedBot) {
   }
 }
 
+async function disconnectRemoteBotForDeletion(bot: ManagedBot) {
+  try {
+    await disconnectRemoteBot(bot);
+  } catch (error) {
+    // A confirmed permanent deletion can be retried after Fly has already
+    // removed this dedicated app. In that case DNS/fetch cannot reach the
+    // decommission endpoint anymore, but the remaining scoped cleanup must
+    // still be allowed to finish. Shared legacy apps never use this bypass.
+    if (isDedicatedFlyBot(bot) && isUnavailableRemoteBot(error)) return;
+    throw error;
+  }
+}
+
 async function markBotPaused(bot: ManagedBot) {
   if (bot.id) {
     const { error } = await supabaseAdmin.from("client_bots").update({ status: "paused" }).eq("id", bot.id);
@@ -242,12 +255,32 @@ async function deleteTenantData(slug: string): Promise<string[]> {
   const { data: memberships, error: membershipsError } = await admin.from("tenant_admins").select("user_id").eq("tenant_id", tenant.id);
   if (membershipsError) throw new Error(`No se pudieron leer los usuarios del tenant ${slug}: ${membershipsError.message}`);
   const userIds = (memberships ?? []).map((row: { user_id: string }) => row.user_id);
-  // All operational tables in the messaging schema reference tenants with
-  // ON DELETE CASCADE, including tenants_admins, messages, clients, catalog,
-  // appointments, employees and Google OAuth tokens.
+
+  // New installations declare ON DELETE CASCADE. Older customer projects may
+  // still have the original foreign keys without it, so remove every tenant
+  // record explicitly before deleting the tenant. This is deliberately scoped
+  // by tenant_id: no row belonging to another bot can be affected.
+  await deleteTenantOperationalData(admin, tenant.id, slug);
   const { error: deleteError } = await admin.from("tenants").delete().eq("id", tenant.id);
   if (deleteError) throw new Error(`No se pudo borrar el tenant ${slug}: ${deleteError.message}`);
   return deleteOrphanAuthUsers(admin, userIds);
+}
+
+async function deleteTenantOperationalData(admin: MessagingAdmin, tenantId: string, slug: string) {
+  const tables = [
+    "mensajes",
+    "consultas_analiticas",
+    "citas",
+    "servicios",
+    "empleados",
+    "google_oauth_tokens",
+    "tenant_admins",
+    "clientes",
+  ];
+  for (const table of tables) {
+    const { error } = await admin.from(table).delete().eq("tenant_id", tenantId);
+    if (error) throw new Error(`No se pudieron borrar los datos de ${slug} en ${table}: ${error.message}`);
+  }
 }
 
 async function deleteOrphanAuthUsers(admin: MessagingAdmin, userIds: string[]) {
@@ -299,7 +332,13 @@ async function deleteOwnerBotRecords(client: Awaited<ReturnType<typeof getClient
   }
 }
 
-interface FlyDeleteResult { app: string | null; destroyed: boolean; sharedAppPreserved: boolean; volumesDeleted: number }
+interface FlyDeleteResult {
+  app: string | null;
+  destroyed: boolean;
+  sharedAppPreserved: boolean;
+  volumesDeleted: number;
+  alreadyAbsent?: boolean;
+}
 
 async function destroyDedicatedFlyApp(bot: ManagedBot): Promise<FlyDeleteResult> {
   const app = flyAppFromStatusUrl(bot.statusUrl);
@@ -315,18 +354,37 @@ async function destroyDedicatedFlyApp(bot: ManagedBot): Promise<FlyDeleteResult>
   // A Fly volume cannot be removed while a Machine is mounted to it. Destroy
   // the isolated app's machines first; this is safe because app has already
   // been verified as this bot's dedicated stage-<slug>-* app.
-  const machines = safeJsonArray(await runFly("fly", ["machines", "list", "--app", app, "--json"], cwd, env));
+  let machines: any[];
+  try {
+    machines = safeJsonArray(await runFly("fly", ["machines", "list", "--app", app, "--json"], cwd, env));
+  } catch (error) {
+    // A previous attempt may have already destroyed the dedicated app before a
+    // later cleanup step failed. Treat that as success so retry can continue
+    // with GitHub and database cleanup instead of becoming permanently stuck.
+    if (isFlyAppMissing(error)) return { app, destroyed: false, sharedAppPreserved: false, volumesDeleted: 0, alreadyAbsent: true };
+    throw error;
+  }
   for (const machine of machines) {
     const id = typeof machine?.id === "string" ? machine.id : "";
     if (!id) continue;
-    await runFly("fly", ["machines", "destroy", id, "--app", app, "--force"], cwd, env);
+    try {
+      await runFly("fly", ["machines", "destroy", id, "--app", app, "--force"], cwd, env);
+    } catch (error) {
+      if (isFlyAppMissing(error)) return { app, destroyed: false, sharedAppPreserved: false, volumesDeleted: 0, alreadyAbsent: true };
+      throw error;
+    }
   }
 
   // Fly detaches a volume asynchronously after machine destruction. Poll its
   // attachment instead of issuing a delete that can race the detach.
   let volumes: any[] = [];
   for (let attempt = 0; attempt < 20; attempt += 1) {
-    volumes = safeJsonArray(await runFly("fly", ["volumes", "list", "--app", app, "--json"], cwd, env));
+    try {
+      volumes = safeJsonArray(await runFly("fly", ["volumes", "list", "--app", app, "--json"], cwd, env));
+    } catch (error) {
+      if (isFlyAppMissing(error)) return { app, destroyed: false, sharedAppPreserved: false, volumesDeleted: 0, alreadyAbsent: true };
+      throw error;
+    }
     if (volumes.every((volume) => !volume?.attached_machine_id)) break;
     await new Promise((resolve) => setTimeout(resolve, 1000));
   }
@@ -337,10 +395,20 @@ async function destroyDedicatedFlyApp(bot: ManagedBot): Promise<FlyDeleteResult>
     if (volume?.attached_machine_id) {
       throw new Error(`Fly todavía mantiene el volumen ${id} vinculado a una máquina. Intenta de nuevo en unos segundos.`);
     }
-    await runFly("fly", ["volumes", "delete", id, "--app", app, "--yes"], cwd, env);
+    try {
+      await runFly("fly", ["volumes", "delete", id, "--app", app, "--yes"], cwd, env);
+    } catch (error) {
+      if (isFlyAppMissing(error)) return { app, destroyed: false, sharedAppPreserved: false, volumesDeleted, alreadyAbsent: true };
+      throw error;
+    }
     volumesDeleted += 1;
   }
-  await runFly("fly", ["apps", "destroy", app, "--yes"], cwd, env);
+  try {
+    await runFly("fly", ["apps", "destroy", app, "--yes"], cwd, env);
+  } catch (error) {
+    if (isFlyAppMissing(error)) return { app, destroyed: false, sharedAppPreserved: false, volumesDeleted, alreadyAbsent: true };
+    throw error;
+  }
   return { app, destroyed: true, sharedAppPreserved: false, volumesDeleted };
 }
 
@@ -415,6 +483,11 @@ function flyAppFromStatusUrl(value: string | null) {
   }
 }
 
+function isDedicatedFlyBot(bot: ManagedBot) {
+  const app = flyAppFromStatusUrl(bot.statusUrl);
+  return Boolean(app && app.startsWith(`stage-${bot.slug}-`));
+}
+
 function getFlyInfra() {
   const token = process.env.STAGE_FLY_API_TOKEN?.trim();
   if (!token) throw new Error("Falta STAGE_FLY_API_TOKEN; no se puede eliminar la app dedicada de Fly.");
@@ -450,6 +523,16 @@ function githubHeaders(token: string) {
 function compactFlyError(output: string, fallback: string) {
   const clean = output.replace(/FlyV1\s+[A-Za-z0-9_+\/=,.-]+/g, "[token oculto]").replace(/gsk_[A-Za-z0-9]+/g, "[clave oculta]").trim();
   return clean ? clean.slice(-700) : fallback;
+}
+
+function isFlyAppMissing(error: unknown) {
+  const message = messageFrom(error).toLowerCase();
+  return message.includes("could not find app") || message.includes("app not found") || message.includes("app does not exist");
+}
+
+function isUnavailableRemoteBot(error: unknown) {
+  const message = messageFrom(error).toLowerCase();
+  return message.includes("fetch failed") || message.includes("enotfound") || message.includes("econnrefused") || message.includes("failed to fetch");
 }
 
 function messageFrom(error: unknown) {
