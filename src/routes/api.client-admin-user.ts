@@ -103,7 +103,9 @@ export const Route = createFileRoute("/api/client-admin-user")({
 });
 
 async function resolveTenantId(
-  messagingAdmin: ReturnType<typeof createClient>,
+  // This client points at the separate messaging Supabase project, whose
+  // generated Database type is intentionally not shared with Owner Console.
+  messagingAdmin: any,
   tenantSlug: string,
 ) {
   const { data, error } = await messagingAdmin

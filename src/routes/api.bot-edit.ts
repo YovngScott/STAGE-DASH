@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { redeployBotConfig, type BotKind, type TenantConfigDraft } from "@/lib/provisioning";
 
 const DEFAULT_REPO = "YovngScott/Stage-Bot-Template";
 
@@ -20,7 +21,7 @@ export const Route = createFileRoute("/api/bot-edit")({
         if (!body?.botId) return Response.json({ error: "Falta botId." }, { status: 400 });
         const { data: bot, error: botError } = await supabaseAdmin
           .from("client_bots")
-          .select("id,name,slug")
+          .select("id,name,slug,kind,bot_status_url")
           .eq("id", body.botId)
           .maybeSingle();
         if (botError) return Response.json({ error: botError.message }, { status: 500 });
@@ -49,8 +50,34 @@ export const Route = createFileRoute("/api/bot-edit")({
         const saved = await fetch(base, { method: "PUT", headers, body: JSON.stringify({ message: `Actualizar bot ${name}`, content: Buffer.from(`${JSON.stringify(config, null, 2)}\n`, "utf8").toString("base64"), branch: "main", sha: file.sha }) });
         const payload = await saved.json().catch(() => null);
         if (!saved.ok) return Response.json({ error: payload?.message ?? `GitHub respondió ${saved.status}.` }, { status: 502 });
+        const appName = appNameFromStatusUrl(bot.bot_status_url);
+        if (!appName) return Response.json({ error: "El bot no tiene una URL de Fly válida para aplicar el cambio." }, { status: 400 });
+        try {
+          await redeployBotConfig({
+            appName,
+            slug: bot.slug,
+            kind: (bot.kind ?? "messaging") as BotKind,
+            tenantConfig: config as TenantConfigDraft,
+          });
+        } catch (error) {
+          return Response.json({
+            error: `El cambio quedó guardado en GitHub, pero no se pudo desplegar en Fly: ${error instanceof Error ? error.message : "error desconocido"}`,
+            commitUrl: payload?.commit?.html_url ?? null,
+          }, { status: 502 });
+        }
         return Response.json({ ok: true, commitUrl: payload?.commit?.html_url ?? null });
       },
     },
   },
 });
+
+function appNameFromStatusUrl(value: string | null | undefined) {
+  try {
+    const host = new URL(value ?? "").hostname.toLowerCase();
+    if (!host.endsWith(".fly.dev")) return null;
+    const appName = host.slice(0, -".fly.dev".length);
+    return /^[a-z0-9][a-z0-9-]{0,62}$/.test(appName) ? appName : null;
+  } catch {
+    return null;
+  }
+}

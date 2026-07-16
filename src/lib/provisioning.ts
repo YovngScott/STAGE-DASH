@@ -54,6 +54,13 @@ export interface ProvisionJob {
   updatedAt: string;
 }
 
+export interface RedeployBotInput {
+  appName: string;
+  slug: string;
+  kind: BotKind;
+  tenantConfig: TenantConfigDraft;
+}
+
 type JobsStore = Map<string, ProvisionJob>;
 
 const globalStore = globalThis as typeof globalThis & { __stageProvisioningJobs?: JobsStore };
@@ -92,6 +99,33 @@ export function startProvision(input: ProvisionInput): ProvisionJob {
 
 export function getProvisionJob(id: string): ProvisionJob | null {
   return jobs.get(id) ?? null;
+}
+
+/** Rebuilds a live bot after changing the tenant configuration in GitHub. */
+export async function redeployBotConfig(input: RedeployBotInput): Promise<void> {
+  if (!/^[a-z0-9][a-z0-9-]{0,62}$/.test(input.appName)) {
+    throw new Error("La app de Fly asociada al bot no es válida.");
+  }
+  const infra = readInfrastructure();
+  const backendDir = await resolveBackendDirectory();
+  const flyEnv = { ...process.env, FLY_ACCESS_TOKEN: infra.flyToken };
+  const tenantPath = path.join(backendDir, "config", "tenants", `${input.slug}.json`);
+  const previousTenant = await readOptionalFile(tenantPath);
+  const dedicatedApp = input.appName.startsWith("stage-");
+  const flyConfigPath = dedicatedApp ? path.join(backendDir, `.stage-redeploy-${randomUUID()}.toml`) : path.join(backendDir, "fly.toml");
+
+  try {
+    await writeFile(tenantPath, `${JSON.stringify(input.tenantConfig, null, 2)}\n`, "utf8");
+    if (dedicatedApp) {
+      const currentModel = await readFlyModel(input.appName, backendDir, flyEnv);
+      await writeFile(flyConfigPath, flyToml(input.appName, input.slug, currentModel), "utf8");
+    }
+    await runCommand("fly", ["deploy", "--config", flyConfigPath, "--remote-only", "--yes"], backendDir, flyEnv);
+  } finally {
+    await restoreOptionalFile(tenantPath, previousTenant);
+    if (dedicatedApp) await rm(flyConfigPath, { force: true });
+  }
+  await waitForHealth(`https://${input.appName}.fly.dev/health`);
 }
 
 function update(job: ProvisionJob, values: Partial<Omit<ProvisionJob, "id" | "createdAt">>) {
@@ -360,6 +394,16 @@ function safeJsonArray(value: string): any[] {
     return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
+  }
+}
+
+async function readFlyModel(appName: string, cwd: string, env: NodeJS.ProcessEnv) {
+  try {
+    const machines = safeJsonArray(await runCommand("fly", ["machines", "list", "--app", appName, "--json"], cwd, env));
+    const model = machines[0]?.config?.env?.GROQ_MODEL;
+    return typeof model === "string" && model.trim() ? model.trim() : "meta-llama/llama-4-scout-17b-16e-instruct";
+  } catch {
+    return "meta-llama/llama-4-scout-17b-16e-instruct";
   }
 }
 
