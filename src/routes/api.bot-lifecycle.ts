@@ -122,8 +122,8 @@ async function deleteOneBot(clientId: string, rawBotId: string, confirmation: st
   }
 
   await disconnectRemoteBot(bot);
-  await deleteGitHubTenant(bot.slug);
   const fly = await destroyDedicatedFlyApp(bot);
+  await deleteGitHubTenant(bot.slug);
   const removedUsers = await deleteTenantData(bot.slug);
   await deleteOwnerBotRecords(client, bot, removedUsers);
 
@@ -146,8 +146,8 @@ async function deleteOneClient(clientId: string, confirmation: string) {
   const outcomes: Array<{ slug: string; fly: FlyDeleteResult; removedUsers: string[] }> = [];
   for (const bot of bots) {
     await disconnectRemoteBot(bot);
-    await deleteGitHubTenant(bot.slug);
     const fly = await destroyDedicatedFlyApp(bot);
+    await deleteGitHubTenant(bot.slug);
     const removedUsers = await deleteTenantData(bot.slug);
     outcomes.push({ slug: bot.slug, fly, removedUsers });
   }
