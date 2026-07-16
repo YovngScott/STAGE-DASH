@@ -6,7 +6,7 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 const DEFAULT_REPO = "YovngScott/Stage-Bot-Template";
 const DEFAULT_BRANCH = "main";
 const BACKEND_URL = "https://wiltech-bot.fly.dev";
-const LOCAL_CLIENT_DASHBOARD_URL = "http://127.0.0.1:5174/";
+const ONLINE_CLIENT_DASHBOARD_URL = "https://dominguez-dashboard.itssilverio032008.workers.dev/";
 
 type BotType = "assistant" | "messaging" | "voice";
 
@@ -157,7 +157,8 @@ export const Route = createFileRoute("/api/bot-builder")({
 
         const botStatusUrl = `${BACKEND_URL}/api/${slug}/config/bot-activo`;
         const dashboardName = `${tenantConfig.nombre} Dashboard`;
-        const dashboardUrl = process.env.STAGE_LOCAL_CLIENT_DASHBOARD_URL || LOCAL_CLIENT_DASHBOARD_URL;
+        const dashboardBaseUrl = process.env.STAGE_CLIENT_DASHBOARD_URL || ONLINE_CLIENT_DASHBOARD_URL;
+        const dashboardUrl = `${dashboardBaseUrl.replace(/\/$/, "")}/?tenant=${encodeURIComponent(slug)}`;
         let botResourceId: string | null = null;
 
         if (body.updateClient) {
