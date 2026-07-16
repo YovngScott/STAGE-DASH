@@ -1097,7 +1097,7 @@ function Clients() {
                 <Input
                   value={userDraft.tenantSlug}
                   onChange={(e) => setUserDraft((d) => ({ ...d, tenantSlug: e.target.value }))}
-                  placeholder="w-corp"
+                  placeholder="dominguez-auto-pintura"
                   required
                 />
               </div>
