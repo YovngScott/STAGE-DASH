@@ -23,6 +23,9 @@ dist-ssr
 
 # Netlify
 .netlify/
+desktop-installer/
+desktop-release/
+release/
 
 # Editor directories and files
 .vscode/*
