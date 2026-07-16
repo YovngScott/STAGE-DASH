@@ -212,7 +212,9 @@ export const Route = createFileRoute("/api/bot-builder")({
           slug,
           tenantPath,
           commitUrl: createdFile.commitUrl,
-          deployTriggered: false,
+          // El commit en backend/config/tenants dispara .github/workflows/
+          // deploy-backend.yml, que redespliega Fly automáticamente.
+          deployTriggered: true,
           botStatusUrl,
           dashboardUrl,
           catalogSql: buildCatalogSql(slug, tenantConfig.moneda, body.catalog ?? []),
