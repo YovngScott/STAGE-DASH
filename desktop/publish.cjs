@@ -26,15 +26,12 @@ if (!process.env.GH_TOKEN) {
 const builderPath = process.platform === "win32"
   ? path.join(root, "node_modules", ".bin", "electron-builder.cmd")
   : path.join(root, "node_modules", ".bin", "electron-builder");
-const command = process.platform === "win32" ? process.env.ComSpec || "cmd.exe" : builderPath;
-const args = process.platform === "win32"
-  ? ["/d", "/s", "/c", `"${builderPath}" --win nsis --publish always`]
-  : ["--win", "nsis", "--publish", "always"];
 
-const result = spawnSync(command, args, {
+const result = spawnSync(builderPath, ["--win", "nsis", "--publish", "always"], {
   cwd: root,
   env: process.env,
   stdio: "inherit",
+  shell: process.platform === "win32",
 });
 
 if (result.error) throw result.error;
