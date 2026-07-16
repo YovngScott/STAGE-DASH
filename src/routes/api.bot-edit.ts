@@ -29,7 +29,9 @@ export const Route = createFileRoute("/api/bot-edit")({
         const name = String(body.name ?? "").trim();
         const promptExtra = String(body.promptExtra ?? "").trim();
         if (!name) return Response.json({ error: "El nombre del bot es obligatorio." }, { status: 400 });
-        const { error: dbError } = await supabaseAdmin.from("client_bots").update({ name, prompt_extra: promptExtra }).eq("id", bot.id);
+        // GitHub mantiene la configuración canónica. Algunas instalaciones
+        // antiguas todavía no tienen la columna prompt_extra en Supabase.
+        const { error: dbError } = await supabaseAdmin.from("client_bots").update({ name }).eq("id", bot.id);
         if (dbError) return Response.json({ error: dbError.message }, { status: 500 });
 
         const githubToken = process.env.STAGE_GITHUB_TOKEN;

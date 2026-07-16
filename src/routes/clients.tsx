@@ -17,6 +17,7 @@ import {
   Mail,
   KeyRound,
   Link2,
+  QrCode,
 } from "lucide-react";
 import {
   Table,
@@ -149,6 +150,14 @@ interface WebApp {
   client_id?: string | null;
 }
 
+interface WhatsAppStatus {
+  conectado: boolean;
+  numero: string | null;
+  qrDataUrl: string | null;
+  pairingCode: string | null;
+  actualizadoEn: number;
+}
+
 const emptyDraft = {
   company_name: "",
   contact_name: "",
@@ -204,6 +213,10 @@ function Clients() {
   const [botEditBot, setBotEditBot] = useState<ClientBot | null>(null);
   const [botEditDraft, setBotEditDraft] = useState({ ...emptyBotEditDraft });
   const [savingBotEdit, setSavingBotEdit] = useState(false);
+  const [whatsAppDialogOpen, setWhatsAppDialogOpen] = useState(false);
+  const [whatsAppBot, setWhatsAppBot] = useState<ClientBot | null>(null);
+  const [whatsAppStatus, setWhatsAppStatus] = useState<WhatsAppStatus | null>(null);
+  const [whatsAppLoading, setWhatsAppLoading] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -477,6 +490,36 @@ function Clients() {
     } finally {
       setTogglingBot(null);
     }
+  };
+
+  const loadWhatsAppStatus = async (bot: ClientBot) => {
+    if (!selectedClient) return;
+    setWhatsAppLoading(true);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+      if (!token) throw new Error("Tu sesión expiró. Inicia sesión de nuevo.");
+      const response = await fetch("/api/bot-whatsapp", {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+        body: JSON.stringify({ clientId: selectedClient.id, botId: bot.id === "primary" ? undefined : bot.id }),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body?.error ?? "No se pudo leer WhatsApp.");
+      setWhatsAppStatus(body.status as WhatsAppStatus);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "No se pudo leer WhatsApp.");
+      setWhatsAppStatus(null);
+    } finally {
+      setWhatsAppLoading(false);
+    }
+  };
+
+  const openWhatsAppQr = (bot: ClientBot) => {
+    setWhatsAppBot(bot);
+    setWhatsAppStatus(null);
+    setWhatsAppDialogOpen(true);
+    void loadWhatsAppStatus(bot);
   };
 
   const openBotIntegration = (bot: ClientBot) => {
@@ -881,14 +924,24 @@ function Clients() {
                             </p>
                           </div>
                           <div className="flex items-center gap-1">
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              onClick={() => openBotEdit(bot)}
+                           <Button
+                             size="icon"
+                             variant="ghost"
+                             onClick={() => openBotEdit(bot)}
                               title="Editar detalles y prompt extra"
                               className="text-muted-foreground hover:text-primary"
                             >
                               <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              disabled={!bot.bot_status_url}
+                              onClick={() => openWhatsAppQr(bot)}
+                              title="Conectar WhatsApp / ver QR"
+                              className="text-muted-foreground hover:text-primary"
+                            >
+                              <QrCode className="h-4 w-4" />
                             </Button>
                             <Button
                               size="icon"
@@ -1030,6 +1083,39 @@ function Clients() {
           )}
         </SheetContent>
       </Sheet>
+
+      <Dialog open={whatsAppDialogOpen} onOpenChange={setWhatsAppDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Conectar WhatsApp</DialogTitle>
+            <DialogDescription>
+              {whatsAppBot ? `Escanea este QR desde WhatsApp para vincular ${whatsAppBot.name}.` : ""}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {whatsAppLoading ? (
+              <div className="flex min-h-52 items-center justify-center text-sm text-muted-foreground"><Loader2 className="mr-2 h-4 w-4 animate-spin" />Consultando el bot…</div>
+            ) : whatsAppStatus?.conectado ? (
+              <div className="rounded-lg border border-success/40 bg-success/5 p-4 text-sm">
+                <div className="flex items-center gap-2 font-medium text-success"><CheckCircle2 className="h-4 w-4" />WhatsApp conectado</div>
+                {whatsAppStatus.numero && <p className="mt-2 text-muted-foreground">Número: {whatsAppStatus.numero}</p>}
+              </div>
+            ) : whatsAppStatus?.qrDataUrl ? (
+              <div className="rounded-lg border border-border/60 bg-white p-3">
+                <img src={whatsAppStatus.qrDataUrl} alt="Código QR de WhatsApp" className="mx-auto aspect-square w-full max-w-xs object-contain" />
+              </div>
+            ) : (
+              <div className="rounded-lg border border-border/60 p-4 text-sm text-muted-foreground">
+                El QR aún no está listo. Espera unos segundos y actualiza.
+              </div>
+            )}
+            {whatsAppStatus?.pairingCode && <p className="rounded-md bg-muted p-3 text-center font-mono text-lg tracking-widest">{whatsAppStatus.pairingCode}</p>}
+            <Button className="w-full" variant="outline" disabled={!whatsAppBot || whatsAppLoading} onClick={() => whatsAppBot && void loadWhatsAppStatus(whatsAppBot)}>
+              Actualizar estado
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={integrationDialogOpen} onOpenChange={setIntegrationDialogOpen}>
         <DialogContent>

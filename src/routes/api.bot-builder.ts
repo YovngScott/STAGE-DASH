@@ -2,10 +2,10 @@ import { createFileRoute } from "@tanstack/react-router";
 import type {} from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { startProvision } from "@/lib/provisioning";
 
 const DEFAULT_REPO = "YovngScott/Stage-Bot-Template";
 const DEFAULT_BRANCH = "main";
-const BACKEND_URL = "https://wiltech-bot.fly.dev";
 const ONLINE_CLIENT_DASHBOARD_URL = "https://dominguez-dashboard.itssilverio032008.workers.dev/";
 
 type BotType = "assistant" | "messaging" | "voice";
@@ -35,6 +35,8 @@ interface BotBuilderRequest {
     descripcion: string;
     precio: number;
   }>;
+  groqModel?: string;
+  groqApiKey?: string;
   updateClient?: boolean;
 }
 
@@ -155,11 +157,8 @@ export const Route = createFileRoute("/api/bot-builder")({
           return Response.json({ error: createdFile.error }, { status: createdFile.status });
         }
 
-        const botStatusUrl = `${BACKEND_URL}/api/${slug}/config/bot-activo`;
-        const dashboardName = `${tenantConfig.nombre} Dashboard`;
         const dashboardBaseUrl = process.env.STAGE_CLIENT_DASHBOARD_URL || ONLINE_CLIENT_DASHBOARD_URL;
         const dashboardUrl = `${dashboardBaseUrl.replace(/\/$/, "")}/?tenant=${encodeURIComponent(slug)}`;
-        let botResourceId: string | null = null;
 
         if (body.updateClient) {
           const currentServices = Array.isArray(client.services) ? client.services : [];
@@ -170,57 +169,37 @@ export const Route = createFileRoute("/api/bot-builder")({
             .from("clients")
             .update({
               services: nextServices,
-              bot_status_url: botStatusUrl,
-              bot_secret: process.env.STAGE_PLATFORM_ADMIN_SECRET || undefined,
-              bot_activo: true,
             })
             .eq("id", clientId);
-
-          const botInsert = await supabaseAdmin
-            .from("client_bots")
-            .upsert(
-              {
-                client_id: clientId,
-                name: tenantConfig.nombreBot,
-                slug,
-                kind: body.botType ?? "messaging",
-                product_name: body.productName ?? null,
-                status: "active",
-                bot_status_url: botStatusUrl,
-                bot_secret: process.env.STAGE_PLATFORM_ADMIN_SECRET || null,
-                dashboard_url: dashboardUrl,
-                github_commit_url: createdFile.commitUrl,
-              },
-              { onConflict: "slug" },
-            )
-            .select("id")
-            .maybeSingle();
-          if (!botInsert.error) botResourceId = botInsert.data?.id ?? null;
-
-          await supabaseAdmin.from("client_dashboards").insert({
-            client_id: clientId,
-            bot_id: botResourceId,
-            name: dashboardName,
-            slug,
-            url: dashboardUrl,
-            provider: "local",
-            status: "local",
-          });
         }
+
+        const job = startProvision({
+          clientId,
+          clientName: client.company_name,
+          slug,
+          kind: body.botType ?? "messaging",
+          productName: body.productName ?? null,
+          tenantConfig,
+          githubCommitUrl: createdFile.commitUrl,
+          dashboardUrl,
+          groqModel: body.groqModel?.trim() || "meta-llama/llama-4-scout-17b-16e-instruct",
+          groqApiKey: body.groqApiKey?.trim(),
+        });
 
         return Response.json({
           ok: true,
           slug,
           tenantPath,
           commitUrl: createdFile.commitUrl,
-          // El commit en backend/config/tenants dispara .github/workflows/
-          // deploy-backend.yml, que redespliega Fly automáticamente.
-          deployTriggered: true,
-          botStatusUrl,
+          // El JSON queda versionado en GitHub. El job local crea y despliega
+          // su app dedicada; así un bot nuevo nunca reinicia una app ajena.
+          deployTriggered: false,
+          job,
+          botStatusUrl: job.botStatusUrl,
           dashboardUrl,
           catalogSql: buildCatalogSql(slug, tenantConfig.moneda, body.catalog ?? []),
           adminSql: `insert into tenant_admins (user_id, tenant_id)\nselect 'EL_USER_UID'::uuid, id from tenants where slug = '${slug}';`,
-        });
+        }, { status: 202 });
       },
     },
   },

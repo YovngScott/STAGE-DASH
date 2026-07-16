@@ -19,7 +19,9 @@ import { Route as ClientsRouteImport } from './routes/clients'
 import { Route as BotBuilderRouteImport } from './routes/bot-builder'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiProvisionStatusRouteImport } from './routes/api.provision-status'
 import { Route as ApiClientAdminUserRouteImport } from './routes/api.client-admin-user'
+import { Route as ApiBotWhatsappRouteImport } from './routes/api.bot-whatsapp'
 import { Route as ApiBotToggleRouteImport } from './routes/api.bot-toggle'
 import { Route as ApiBotEditRouteImport } from './routes/api.bot-edit'
 import { Route as ApiBotBuilderRouteImport } from './routes/api.bot-builder'
@@ -74,9 +76,19 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiProvisionStatusRoute = ApiProvisionStatusRouteImport.update({
+  id: '/api/provision-status',
+  path: '/api/provision-status',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiClientAdminUserRoute = ApiClientAdminUserRouteImport.update({
   id: '/api/client-admin-user',
   path: '/api/client-admin-user',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiBotWhatsappRoute = ApiBotWhatsappRouteImport.update({
+  id: '/api/bot-whatsapp',
+  path: '/api/bot-whatsapp',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiBotToggleRoute = ApiBotToggleRouteImport.update({
@@ -109,7 +121,9 @@ export interface FileRoutesByFullPath {
   '/api/bot-builder': typeof ApiBotBuilderRoute
   '/api/bot-edit': typeof ApiBotEditRoute
   '/api/bot-toggle': typeof ApiBotToggleRoute
+  '/api/bot-whatsapp': typeof ApiBotWhatsappRoute
   '/api/client-admin-user': typeof ApiClientAdminUserRoute
+  '/api/provision-status': typeof ApiProvisionStatusRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -125,7 +139,9 @@ export interface FileRoutesByTo {
   '/api/bot-builder': typeof ApiBotBuilderRoute
   '/api/bot-edit': typeof ApiBotEditRoute
   '/api/bot-toggle': typeof ApiBotToggleRoute
+  '/api/bot-whatsapp': typeof ApiBotWhatsappRoute
   '/api/client-admin-user': typeof ApiClientAdminUserRoute
+  '/api/provision-status': typeof ApiProvisionStatusRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -142,7 +158,9 @@ export interface FileRoutesById {
   '/api/bot-builder': typeof ApiBotBuilderRoute
   '/api/bot-edit': typeof ApiBotEditRoute
   '/api/bot-toggle': typeof ApiBotToggleRoute
+  '/api/bot-whatsapp': typeof ApiBotWhatsappRoute
   '/api/client-admin-user': typeof ApiClientAdminUserRoute
+  '/api/provision-status': typeof ApiProvisionStatusRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -160,7 +178,9 @@ export interface FileRouteTypes {
     | '/api/bot-builder'
     | '/api/bot-edit'
     | '/api/bot-toggle'
+    | '/api/bot-whatsapp'
     | '/api/client-admin-user'
+    | '/api/provision-status'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -176,7 +196,9 @@ export interface FileRouteTypes {
     | '/api/bot-builder'
     | '/api/bot-edit'
     | '/api/bot-toggle'
+    | '/api/bot-whatsapp'
     | '/api/client-admin-user'
+    | '/api/provision-status'
   id:
     | '__root__'
     | '/'
@@ -192,7 +214,9 @@ export interface FileRouteTypes {
     | '/api/bot-builder'
     | '/api/bot-edit'
     | '/api/bot-toggle'
+    | '/api/bot-whatsapp'
     | '/api/client-admin-user'
+    | '/api/provision-status'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -209,7 +233,9 @@ export interface RootRouteChildren {
   ApiBotBuilderRoute: typeof ApiBotBuilderRoute
   ApiBotEditRoute: typeof ApiBotEditRoute
   ApiBotToggleRoute: typeof ApiBotToggleRoute
+  ApiBotWhatsappRoute: typeof ApiBotWhatsappRoute
   ApiClientAdminUserRoute: typeof ApiClientAdminUserRoute
+  ApiProvisionStatusRoute: typeof ApiProvisionStatusRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -284,11 +310,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/provision-status': {
+      id: '/api/provision-status'
+      path: '/api/provision-status'
+      fullPath: '/api/provision-status'
+      preLoaderRoute: typeof ApiProvisionStatusRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/client-admin-user': {
       id: '/api/client-admin-user'
       path: '/api/client-admin-user'
       fullPath: '/api/client-admin-user'
       preLoaderRoute: typeof ApiClientAdminUserRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/bot-whatsapp': {
+      id: '/api/bot-whatsapp'
+      path: '/api/bot-whatsapp'
+      fullPath: '/api/bot-whatsapp'
+      preLoaderRoute: typeof ApiBotWhatsappRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/bot-toggle': {
@@ -329,7 +369,9 @@ const rootRouteChildren: RootRouteChildren = {
   ApiBotBuilderRoute: ApiBotBuilderRoute,
   ApiBotEditRoute: ApiBotEditRoute,
   ApiBotToggleRoute: ApiBotToggleRoute,
+  ApiBotWhatsappRoute: ApiBotWhatsappRoute,
   ApiClientAdminUserRoute: ApiClientAdminUserRoute,
+  ApiProvisionStatusRoute: ApiProvisionStatusRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

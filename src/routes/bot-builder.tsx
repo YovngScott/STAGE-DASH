@@ -9,6 +9,7 @@ import {
   Loader2,
   MessageSquare,
   Mic,
+  Rocket,
   Sparkles,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
@@ -25,6 +26,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -68,6 +70,21 @@ interface BuildResult {
   catalogSql: string;
   adminSql: string;
   localOnly?: boolean;
+  job?: ProvisionJob;
+}
+
+interface ProvisionJob {
+  id: string;
+  state: "queued" | "running" | "complete" | "failed";
+  progress: number;
+  phase: string;
+  error: string | null;
+  appName: string;
+  clientId: string;
+  slug: string;
+  botStatusUrl: string;
+  dashboardUrl: string;
+  botId: string | null;
 }
 
 const botTypes: Record<
@@ -122,8 +139,17 @@ const defaultDraft = {
   adminEmails: "",
   cotizaPorChat: true,
   extraPrompt: "",
+  groqModel: "meta-llama/llama-4-scout-17b-16e-instruct",
+  groqApiKey: "",
   updateClient: true,
 };
+
+const groqModels = [
+  { id: "meta-llama/llama-4-scout-17b-16e-instruct", label: "Llama 4 Scout — recommended" },
+  { id: "llama-3.3-70b-versatile", label: "Llama 3.3 70B — strong reasoning" },
+  { id: "qwen/qwen3-32b", label: "Qwen 3 32B — balanced" },
+  { id: "llama-3.1-8b-instant", label: "Llama 3.1 8B — fastest" },
+];
 
 function BotBuilder() {
   const [clients, setClients] = useState<Client[]>([]);
@@ -155,6 +181,40 @@ function BotBuilder() {
     };
     void load();
   }, []);
+
+  useEffect(() => {
+    const jobId = result?.job?.id;
+    const jobState = result?.job?.state;
+    if (!jobId || jobState === "complete" || jobState === "failed") return;
+
+    let cancelled = false;
+    const refresh = async () => {
+      try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const token = sessionData.session?.access_token;
+        if (!token) return;
+        const response = await fetch(`/api/provision-status?jobId=${encodeURIComponent(jobId)}`, {
+          headers: { authorization: `Bearer ${token}` },
+        });
+        const body = await response.json();
+        if (!response.ok) throw new Error(body?.error ?? "No se pudo leer el provisioning.");
+        if (!cancelled) {
+          setResult((current) => current ? { ...current, job: body.job as ProvisionJob, botStatusUrl: body.job.botStatusUrl } : current);
+          if (body.job.state === "complete") toast.success("Bot desplegado. Ya puedes abrir el QR desde Client Manager.");
+          if (body.job.state === "failed") toast.error(body.job.error ?? "El provisioning falló.");
+        }
+      } catch (error) {
+        if (!cancelled) toast.error(error instanceof Error ? error.message : "No se pudo leer el provisioning.");
+      }
+    };
+
+    void refresh();
+    const timer = window.setInterval(() => void refresh(), 3000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [result?.job?.id, result?.job?.state]);
 
   const selectedClient = clients.find((client) => client.id === draft.clientId);
   const selectedProduct = products.find((product) => product.id === draft.productId);
@@ -259,12 +319,12 @@ function BotBuilder() {
     if (!selectedProduct) return toast.error("Choose the product this bot belongs to.");
     if (!slug) return toast.error("The bot needs a valid slug.");
 
-    setResult({
+      setResult({
       slug,
       tenantPath: `backend/config/tenants/${slug}.json`,
       commitUrl: null,
       deployTriggered: false,
-      botStatusUrl: `https://wiltech-bot.fly.dev/api/${slug}/config/bot-activo`,
+        botStatusUrl: `https://stage-${slug}-${draft.botType}.fly.dev/api/${slug}/config/bot-activo`,
       dashboardUrl: "http://127.0.0.1:5174/",
       catalogSql: buildCatalogSql(slug, draft.moneda, catalog.filter((item) => item.nombre.trim())),
       adminSql: `insert into tenant_admins (user_id, tenant_id)\nselect 'EL_USER_UID'::uuid, id from tenants where slug = '${slug}';`,
@@ -295,13 +355,15 @@ function BotBuilder() {
           botType: draft.botType,
           tenant: tenantPreview,
           catalog: catalog.filter((item) => item.nombre.trim()),
+          groqModel: draft.groqModel,
+          groqApiKey: draft.groqApiKey || undefined,
           updateClient: draft.updateClient,
         }),
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body?.error ?? "The bot could not be created.");
       setResult(body as BuildResult);
-      toast.success("Bot tenant saved from local dashboard.");
+      toast.success("Provisioning iniciado. Puedes seguir usando el Owner Console.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "The bot could not be created.");
     } finally {
@@ -325,8 +387,8 @@ function BotBuilder() {
             Create Client Bot
           </h2>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            Pick an existing client, choose the bot product, generate the sales prompt, and
-            save the tenant config from this local dashboard.
+            Choose a client and product. Owner Console creates the dedicated Fly app, configures AI,
+            saves the tenant to GitHub, and prepares the client dashboard and WhatsApp QR.
           </p>
         </div>
         <Button className="gap-2" disabled={loading} onClick={generateDraft}>
@@ -334,8 +396,8 @@ function BotBuilder() {
           Generate draft
         </Button>
         <Button variant="outline" className="gap-2" disabled={saving || loading} onClick={commitBot}>
-          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Github className="h-4 w-4" />}
-          Save to GitHub
+          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Rocket className="h-4 w-4" />}
+          Create and deploy bot
         </Button>
       </div>
 
@@ -519,6 +581,33 @@ function BotBuilder() {
                 placeholder="Optional rules you want to add on top of the automatic sales prompt."
               />
             </div>
+            <div className="mt-4 grid gap-4 rounded-lg border border-border/60 p-4 md:grid-cols-2">
+              <Field label="Groq model">
+                <Select
+                  value={draft.groqModel}
+                  onValueChange={(groqModel) => setDraft((current) => ({ ...current, groqModel }))}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {groqModels.map((model) => (
+                      <SelectItem key={model.id} value={model.id}>{model.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field label="Groq API key override (optional)">
+                <Input
+                  type="password"
+                  autoComplete="off"
+                  value={draft.groqApiKey}
+                  onChange={(event) => setDraft((current) => ({ ...current, groqApiKey: event.target.value }))}
+                  placeholder="Uses the local default when left empty"
+                />
+              </Field>
+              <p className="text-xs text-muted-foreground md:col-span-2">
+                The selected model and key are configured only inside this client&apos;s Fly app. Groq keys must be created manually in Groq Console.
+              </p>
+            </div>
           </Card>
 
           <Card className="border-border/60 p-5">
@@ -607,10 +696,21 @@ function BotBuilder() {
               <div className="flex items-center gap-2 text-success">
                 <Check className="h-4 w-4" />
                 <h3 className="text-sm font-semibold">
-                  {result.localOnly ? "Local draft ready" : "Bot created"}
+                  {result.localOnly ? "Local draft ready" : result.job?.state === "complete" ? "Bot ready" : "Provisioning bot"}
                 </h3>
               </div>
               <div className="mt-4 space-y-3 text-sm">
+                {result.job && (
+                  <div className="rounded-lg border border-border/60 bg-background/40 p-3">
+                    <div className="flex items-center justify-between gap-3 text-xs">
+                      <span className="font-medium">{result.job.phase}</span>
+                      <span className="text-muted-foreground">{result.job.progress}%</span>
+                    </div>
+                    <Progress className="mt-3 h-2" value={result.job.progress} />
+                    <p className="mt-2 text-xs text-muted-foreground">Fly app: {result.job.appName}</p>
+                    {result.job.error && <p className="mt-2 text-xs text-destructive">{result.job.error}</p>}
+                  </div>
+                )}
                 <ResultLine label="Tenant file" value={result.tenantPath} />
                 <ResultLine label="Bot URL" value={result.botStatusUrl} />
                 {result.dashboardUrl && (
@@ -620,7 +720,7 @@ function BotBuilder() {
                     rel="noreferrer"
                     className="block rounded-md border border-border/60 px-3 py-2 text-center text-xs font-medium text-primary underline-offset-4 hover:underline"
                   >
-                    Open local client dashboard
+                    Open client dashboard
                   </a>
                 )}
                 {result.commitUrl && (
