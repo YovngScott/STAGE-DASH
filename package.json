@@ -117,10 +117,10 @@
       "desktop/**/*",
       "package.json"
     ],
-    "extraResources": [
+    "extraFiles": [
       {
         "from": ".output",
-        "to": "app-server",
+        "to": "resources/app-server",
         "filter": [
           "**/*"
         ]

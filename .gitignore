@@ -26,6 +26,9 @@ dist-ssr
 desktop-installer/
 desktop-release/
 release/
+desktop-next/
+desktop-next-incomplete/
+desktop-run-log/
 
 # Editor directories and files
 .vscode/*
