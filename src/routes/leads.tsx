@@ -44,6 +44,7 @@ interface Lead {
   company: string | null;
   email: string;
   services: string[] | null;
+  service?: string | null;
   message: string | null;
   status: string;
   created_at: string;
@@ -70,7 +71,19 @@ function Leads() {
       .select("*")
       .order("created_at", { ascending: false });
     if (error) toast.error(error.message);
-    else setLeads((data ?? []) as Lead[]);
+    else {
+      setLeads(
+        (data ?? []).map((lead) => ({
+          ...lead,
+          services: Array.isArray(lead.services)
+            ? lead.services
+            : String(lead.service ?? "")
+                .split(",")
+                .map((service) => service.trim())
+                .filter(Boolean),
+        })) as Lead[],
+      );
+    }
     setLoading(false);
   };
 
