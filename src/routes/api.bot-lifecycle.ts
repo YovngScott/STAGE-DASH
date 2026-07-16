@@ -125,7 +125,7 @@ async function deleteOneBot(clientId: string, rawBotId: string, confirmation: st
   await deleteGitHubTenant(bot.slug);
   const fly = await destroyDedicatedFlyApp(bot);
   const removedUsers = await deleteTenantData(bot.slug);
-  await deleteOwnerBotRecords(client, bot);
+  await deleteOwnerBotRecords(client, bot, removedUsers);
 
   return {
     action: "botDeleted",
@@ -264,7 +264,7 @@ async function deleteOrphanAuthUsers(admin: MessagingAdmin, userIds: string[]) {
   return deleted;
 }
 
-async function deleteOwnerBotRecords(client: Awaited<ReturnType<typeof getClient>>, bot: ManagedBot) {
+async function deleteOwnerBotRecords(client: Awaited<ReturnType<typeof getClient>>, bot: ManagedBot, removedUsers: string[]) {
   const { error: dashboardsError } = await supabaseAdmin
     .from("client_dashboards")
     .delete()
@@ -287,6 +287,16 @@ async function deleteOwnerBotRecords(client: Awaited<ReturnType<typeof getClient
     })
     .eq("id", client.id);
   if (clientError) throw new Error(`No se pudo actualizar el cliente después de eliminar el bot: ${clientError.message}`);
+  // client_email_accounts is client-level (not tenant-level). Remove only
+  // accounts whose auth user was actually deleted; a shared account remains
+  // tracked if it still serves another bot/customer.
+  if (removedUsers.length) {
+    const { error: accountsError } = await supabaseAdmin
+      .from("client_email_accounts")
+      .delete()
+      .in("email", removedUsers);
+    if (accountsError) throw new Error(`No se pudieron limpiar los accesos eliminados: ${accountsError.message}`);
+  }
 }
 
 interface FlyDeleteResult { app: string | null; destroyed: boolean; sharedAppPreserved: boolean; volumesDeleted: number }
