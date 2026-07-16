@@ -327,6 +327,7 @@ async function deleteOwnerBotRecords(client: Awaited<ReturnType<typeof getClient
     const { error: accountsError } = await supabaseAdmin
       .from("client_email_accounts")
       .delete()
+      .eq("client_id", client.id)
       .in("email", removedUsers);
     if (accountsError) throw new Error(`No se pudieron limpiar los accesos eliminados: ${accountsError.message}`);
   }
