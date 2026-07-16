@@ -105,6 +105,7 @@ function RootShell({ children }: { children: ReactNode }) {
 const titleMap: Record<string, string> = {
   "/": "Dashboard",
   "/products": "My Products",
+  "/bot-builder": "Bot Builder",
   "/clients": "Client Manager",
   "/webapps": "Web Apps",
   "/ledger": "Financial Ledger",

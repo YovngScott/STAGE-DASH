@@ -9,15 +9,26 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as WebsiteRouteImport } from './routes/website'
 import { Route as WebappsRouteImport } from './routes/webapps'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ProductsRouteImport } from './routes/products'
 import { Route as LedgerRouteImport } from './routes/ledger'
 import { Route as LeadsRouteImport } from './routes/leads'
 import { Route as ClientsRouteImport } from './routes/clients'
+import { Route as BotBuilderRouteImport } from './routes/bot-builder'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiClientAdminUserRouteImport } from './routes/api.client-admin-user'
+import { Route as ApiBotToggleRouteImport } from './routes/api.bot-toggle'
+import { Route as ApiBotEditRouteImport } from './routes/api.bot-edit'
+import { Route as ApiBotBuilderRouteImport } from './routes/api.bot-builder'
 
+const WebsiteRoute = WebsiteRouteImport.update({
+  id: '/website',
+  path: '/website',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const WebappsRoute = WebappsRouteImport.update({
   id: '/webapps',
   path: '/webapps',
@@ -48,6 +59,11 @@ const ClientsRoute = ClientsRouteImport.update({
   path: '/clients',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BotBuilderRoute = BotBuilderRouteImport.update({
+  id: '/bot-builder',
+  path: '/bot-builder',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
   path: '/auth',
@@ -58,84 +74,153 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiClientAdminUserRoute = ApiClientAdminUserRouteImport.update({
+  id: '/api/client-admin-user',
+  path: '/api/client-admin-user',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiBotToggleRoute = ApiBotToggleRouteImport.update({
+  id: '/api/bot-toggle',
+  path: '/api/bot-toggle',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiBotEditRoute = ApiBotEditRouteImport.update({
+  id: '/api/bot-edit',
+  path: '/api/bot-edit',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiBotBuilderRoute = ApiBotBuilderRouteImport.update({
+  id: '/api/bot-builder',
+  path: '/api/bot-builder',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/bot-builder': typeof BotBuilderRoute
   '/clients': typeof ClientsRoute
   '/leads': typeof LeadsRoute
   '/ledger': typeof LedgerRoute
   '/products': typeof ProductsRoute
   '/settings': typeof SettingsRoute
   '/webapps': typeof WebappsRoute
+  '/website': typeof WebsiteRoute
+  '/api/bot-builder': typeof ApiBotBuilderRoute
+  '/api/bot-edit': typeof ApiBotEditRoute
+  '/api/bot-toggle': typeof ApiBotToggleRoute
+  '/api/client-admin-user': typeof ApiClientAdminUserRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/bot-builder': typeof BotBuilderRoute
   '/clients': typeof ClientsRoute
   '/leads': typeof LeadsRoute
   '/ledger': typeof LedgerRoute
   '/products': typeof ProductsRoute
   '/settings': typeof SettingsRoute
   '/webapps': typeof WebappsRoute
+  '/website': typeof WebsiteRoute
+  '/api/bot-builder': typeof ApiBotBuilderRoute
+  '/api/bot-edit': typeof ApiBotEditRoute
+  '/api/bot-toggle': typeof ApiBotToggleRoute
+  '/api/client-admin-user': typeof ApiClientAdminUserRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/bot-builder': typeof BotBuilderRoute
   '/clients': typeof ClientsRoute
   '/leads': typeof LeadsRoute
   '/ledger': typeof LedgerRoute
   '/products': typeof ProductsRoute
   '/settings': typeof SettingsRoute
   '/webapps': typeof WebappsRoute
+  '/website': typeof WebsiteRoute
+  '/api/bot-builder': typeof ApiBotBuilderRoute
+  '/api/bot-edit': typeof ApiBotEditRoute
+  '/api/bot-toggle': typeof ApiBotToggleRoute
+  '/api/client-admin-user': typeof ApiClientAdminUserRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
     | '/auth'
+    | '/bot-builder'
     | '/clients'
     | '/leads'
     | '/ledger'
     | '/products'
     | '/settings'
     | '/webapps'
+    | '/website'
+    | '/api/bot-builder'
+    | '/api/bot-edit'
+    | '/api/bot-toggle'
+    | '/api/client-admin-user'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/auth'
+    | '/bot-builder'
     | '/clients'
     | '/leads'
     | '/ledger'
     | '/products'
     | '/settings'
     | '/webapps'
+    | '/website'
+    | '/api/bot-builder'
+    | '/api/bot-edit'
+    | '/api/bot-toggle'
+    | '/api/client-admin-user'
   id:
     | '__root__'
     | '/'
     | '/auth'
+    | '/bot-builder'
     | '/clients'
     | '/leads'
     | '/ledger'
     | '/products'
     | '/settings'
     | '/webapps'
+    | '/website'
+    | '/api/bot-builder'
+    | '/api/bot-edit'
+    | '/api/bot-toggle'
+    | '/api/client-admin-user'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthRoute: typeof AuthRoute
+  BotBuilderRoute: typeof BotBuilderRoute
   ClientsRoute: typeof ClientsRoute
   LeadsRoute: typeof LeadsRoute
   LedgerRoute: typeof LedgerRoute
   ProductsRoute: typeof ProductsRoute
   SettingsRoute: typeof SettingsRoute
   WebappsRoute: typeof WebappsRoute
+  WebsiteRoute: typeof WebsiteRoute
+  ApiBotBuilderRoute: typeof ApiBotBuilderRoute
+  ApiBotEditRoute: typeof ApiBotEditRoute
+  ApiBotToggleRoute: typeof ApiBotToggleRoute
+  ApiClientAdminUserRoute: typeof ApiClientAdminUserRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/website': {
+      id: '/website'
+      path: '/website'
+      fullPath: '/website'
+      preLoaderRoute: typeof WebsiteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/webapps': {
       id: '/webapps'
       path: '/webapps'
@@ -178,6 +263,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ClientsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/bot-builder': {
+      id: '/bot-builder'
+      path: '/bot-builder'
+      fullPath: '/bot-builder'
+      preLoaderRoute: typeof BotBuilderRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/auth': {
       id: '/auth'
       path: '/auth'
@@ -192,18 +284,52 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/client-admin-user': {
+      id: '/api/client-admin-user'
+      path: '/api/client-admin-user'
+      fullPath: '/api/client-admin-user'
+      preLoaderRoute: typeof ApiClientAdminUserRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/bot-toggle': {
+      id: '/api/bot-toggle'
+      path: '/api/bot-toggle'
+      fullPath: '/api/bot-toggle'
+      preLoaderRoute: typeof ApiBotToggleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/bot-edit': {
+      id: '/api/bot-edit'
+      path: '/api/bot-edit'
+      fullPath: '/api/bot-edit'
+      preLoaderRoute: typeof ApiBotEditRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/bot-builder': {
+      id: '/api/bot-builder'
+      path: '/api/bot-builder'
+      fullPath: '/api/bot-builder'
+      preLoaderRoute: typeof ApiBotBuilderRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthRoute: AuthRoute,
+  BotBuilderRoute: BotBuilderRoute,
   ClientsRoute: ClientsRoute,
   LeadsRoute: LeadsRoute,
   LedgerRoute: LedgerRoute,
   ProductsRoute: ProductsRoute,
   SettingsRoute: SettingsRoute,
   WebappsRoute: WebappsRoute,
+  WebsiteRoute: WebsiteRoute,
+  ApiBotBuilderRoute: ApiBotBuilderRoute,
+  ApiBotEditRoute: ApiBotEditRoute,
+  ApiBotToggleRoute: ApiBotToggleRoute,
+  ApiClientAdminUserRoute: ApiClientAdminUserRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

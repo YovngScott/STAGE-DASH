@@ -21,16 +21,25 @@ export const Route = createFileRoute("/api/bot-toggle")({
           return Response.json({ error: "No autorizado." }, { status: 401 });
         }
 
-        let body: { clientId?: string; activo?: boolean };
+        let body: {
+          clientId?: string;
+          botId?: string;
+          botSlug?: string;
+          activo?: boolean;
+          botStatusUrl?: string;
+          botSecret?: string;
+        };
         try {
           body = await request.json();
         } catch {
           return Response.json({ error: "Body inválido." }, { status: 400 });
         }
         const clientId = String(body.clientId ?? "");
+        const botId = String(body.botId ?? "");
+        const botSlug = sanitizeSlug(String(body.botSlug ?? ""));
         const activo = Boolean(body.activo);
-        if (!clientId) {
-          return Response.json({ error: "Falta clientId." }, { status: 400 });
+        if (!clientId && !botId && (!body.botStatusUrl || !body.botSecret)) {
+          return Response.json({ error: "Falta clientId, botId o credenciales locales del bot." }, { status: 400 });
         }
 
         const { data: userData, error: userError } = await supabase.auth.getUser(token);
@@ -45,19 +54,42 @@ export const Route = createFileRoute("/api/bot-toggle")({
           return Response.json({ error: "No autorizado." }, { status: 401 });
         }
 
-        const { data: client, error: clientError } = await supabaseAdmin
-          .from("clients")
-          .select("bot_status_url,bot_secret")
-          .eq("id", clientId)
-          .maybeSingle();
-        if (clientError) {
-          console.error("[bot-toggle] Error reading client row:", clientError);
-          return Response.json(
-            { error: `No se pudo leer el cliente (revisa STAGE_SUPABASE_SERVICE_ROLE_KEY en Netlify): ${clientError.message}` },
-            { status: 500 },
-          );
+        let botStatusUrl = body.botStatusUrl?.trim() || "";
+        let botSecret = body.botSecret?.trim() || "";
+
+        if (!botStatusUrl || !botSecret) {
+          if (botId) {
+            const { data: bot, error: botError } = await supabaseAdmin
+              .from("client_bots")
+              .select("bot_status_url,bot_secret")
+              .eq("id", botId)
+              .maybeSingle();
+            if (botError) {
+              return Response.json(
+                { error: `No se pudo leer el bot (revisa STAGE_SUPABASE_SERVICE_ROLE_KEY en tu entorno local): ${botError.message}` },
+                { status: 500 },
+              );
+            }
+            botStatusUrl = bot?.bot_status_url ?? "";
+            botSecret = bot?.bot_secret ?? "";
+          } else {
+            const { data: client, error: clientError } = await supabaseAdmin
+              .from("clients")
+              .select("bot_status_url,bot_secret")
+              .eq("id", clientId)
+              .maybeSingle();
+            if (clientError) {
+              console.error("[bot-toggle] Error reading client row:", clientError);
+              return Response.json(
+                { error: `No se pudo leer el cliente (revisa STAGE_SUPABASE_SERVICE_ROLE_KEY en tu entorno local): ${clientError.message}` },
+                { status: 500 },
+              );
+            }
+            botStatusUrl = client?.bot_status_url ?? "";
+            botSecret = client?.bot_secret ?? "";
+          }
         }
-        if (!client?.bot_status_url || !client?.bot_secret) {
+        if (!botStatusUrl || !botSecret) {
           return Response.json(
             { error: "Este cliente no tiene un bot configurado (bot_status_url / bot_secret)." },
             { status: 400 },
@@ -68,15 +100,14 @@ export const Route = createFileRoute("/api/bot-toggle")({
         // que basta guardar su host. Uno multi-cliente la expone bajo el slug
         // (/api/<slug>/config/bot-activo) y no hay forma de derivar esa ruta
         // desde el host: para esos se guarda la URL completa del endpoint.
-        const base = client.bot_status_url.trim().replace(/\/$/, "");
-        const url = base.endsWith("/bot-activo") ? base : `${base}/api/config/bot-activo`;
+        const url = buildBotStatusUrl(botStatusUrl, botSlug);
 
         try {
           const res = await fetch(url, {
             method: "POST",
             headers: {
               "content-type": "application/json",
-              "x-platform-secret": client.bot_secret,
+              "x-platform-secret": botSecret,
             },
             body: JSON.stringify({ activo }),
           });
@@ -94,10 +125,35 @@ export const Route = createFileRoute("/api/bot-toggle")({
           );
         }
 
-        await supabaseAdmin.from("clients").update({ bot_activo: activo }).eq("id", clientId);
+        if (botId) {
+          await supabaseAdmin
+            .from("client_bots")
+            .update({ status: activo ? "active" : "paused" })
+            .eq("id", botId);
+        }
+        if (clientId) {
+          await supabaseAdmin.from("clients").update({ bot_activo: activo }).eq("id", clientId);
+        }
 
         return Response.json({ ok: true, activo });
       },
     },
   },
 });
+
+function buildBotStatusUrl(rawUrl: string, slug: string) {
+  const base = rawUrl.trim().replace(/\/$/, "");
+  if (base.endsWith("/bot-activo")) return base;
+  if (slug) return `${base}/api/${slug}/config/bot-activo`;
+  return `${base}/api/config/bot-activo`;
+}
+
+function sanitizeSlug(value: string) {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 64);
+}

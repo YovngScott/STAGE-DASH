@@ -54,18 +54,26 @@ interface WebApp {
   tech_stack: string[] | null;
   status: string;
   monthly_hosting_cost: number;
+  client_id: string | null;
+}
+
+interface Client {
+  id: string;
+  company_name: string;
 }
 
 const emptyDraft = {
   name: "",
   url: "",
-  hosting_provider: "",
+  hosting_provider: "Local",
+  client_id: "none",
   tech_stack: "",
-  status: "live",
+  status: "local",
   monthly_hosting_cost: 0,
 };
 
 const statusStyles: Record<string, string> = {
+  local: "bg-primary/15 text-primary border-primary/30",
   live: "bg-success/15 text-success border-success/30",
   maintenance: "bg-warning/15 text-warning border-warning/30",
   offline: "bg-destructive/15 text-destructive border-destructive/30",
@@ -73,6 +81,7 @@ const statusStyles: Record<string, string> = {
 
 function WebApps() {
   const [apps, setApps] = useState<WebApp[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<WebApp | null>(null);
@@ -82,12 +91,17 @@ function WebApps() {
 
   const load = async () => {
     setLoading(true);
-    const { data, error } = await supabase
+    const [{ data, error }, clientsRes] = await Promise.all([
+      supabase
       .from("web_apps")
-      .select("id,name,url,hosting_provider,tech_stack,status,monthly_hosting_cost")
-      .order("created_at", { ascending: true });
+      .select("id,name,url,hosting_provider,tech_stack,status,monthly_hosting_cost,client_id")
+      .order("created_at", { ascending: true }),
+      supabase.from("clients").select("id,company_name").order("company_name"),
+    ]);
     if (error) toast.error(error.message);
     else setApps((data ?? []) as WebApp[]);
+    if (clientsRes.error) toast.error(clientsRes.error.message);
+    else setClients((clientsRes.data ?? []) as Client[]);
     setLoading(false);
   };
 
@@ -106,6 +120,7 @@ function WebApps() {
       name: a.name,
       url: a.url ?? "",
       hosting_provider: a.hosting_provider ?? "",
+      client_id: a.client_id ?? "none",
       tech_stack: (a.tech_stack ?? []).join(", "),
       status: a.status,
       monthly_hosting_cost: Number(a.monthly_hosting_cost),
@@ -120,6 +135,7 @@ function WebApps() {
       name: draft.name.trim(),
       url: draft.url.trim() || null,
       hosting_provider: draft.hosting_provider.trim() || null,
+      client_id: draft.client_id === "none" ? null : draft.client_id,
       tech_stack: draft.tech_stack
         .split(",")
         .map((s) => s.trim())
@@ -161,7 +177,7 @@ function WebApps() {
             Web Apps Showcase
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            {apps.length} deployed platforms · manage deployments & hosting.
+            {apps.length} local projects · manage client web apps from this dashboard.
           </p>
         </div>
         <Button className="gap-2" onClick={openNew}>
@@ -266,7 +282,7 @@ function WebApps() {
             <DialogTitle>
               {editing ? `Edit ${editing.name}` : "New web app"}
             </DialogTitle>
-            <DialogDescription>Custom deployment for a client.</DialogDescription>
+            <DialogDescription>Local or external web app associated with a client.</DialogDescription>
           </DialogHeader>
           <form onSubmit={save} className="space-y-4">
             <div className="space-y-2">
@@ -297,7 +313,7 @@ function WebApps() {
                 <Label htmlFor="w-host">Hosting provider</Label>
                 <Input
                   id="w-host"
-                  placeholder="Vercel, Netlify…"
+                  placeholder="Local, Cloudflare, VPS..."
                   value={draft.hosting_provider}
                   onChange={(e) =>
                     setDraft((d) => ({ ...d, hosting_provider: e.target.value }))
@@ -314,12 +330,32 @@ function WebApps() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="local">Local</SelectItem>
                     <SelectItem value="live">Live</SelectItem>
                     <SelectItem value="maintenance">Maintenance</SelectItem>
                     <SelectItem value="offline">Offline</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Client</Label>
+              <Select
+                value={draft.client_id}
+                onValueChange={(client_id) => setDraft((d) => ({ ...d, client_id }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Associate with a client" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No client</SelectItem>
+                  {clients.map((client) => (
+                    <SelectItem key={client.id} value={client.id}>
+                      {client.company_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
               <Label htmlFor="w-stack">Tech stack (comma separated)</Label>

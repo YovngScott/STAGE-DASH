@@ -2,6 +2,7 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import {
   LayoutDashboard,
   Bot,
+  BrainCircuit,
   Users,
   UserPlus,
   Globe,
@@ -27,6 +28,7 @@ import {
 const items = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
   { title: "My Products", url: "/products", icon: Bot },
+  { title: "Bot Builder", url: "/bot-builder", icon: BrainCircuit },
   { title: "Leads", url: "/leads", icon: UserPlus },
   { title: "Client Manager", url: "/clients", icon: Users },
   { title: "Web Apps", url: "/webapps", icon: Globe },
