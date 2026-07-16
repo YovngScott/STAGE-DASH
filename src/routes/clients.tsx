@@ -232,6 +232,37 @@ function Clients() {
   const [whatsAppStatus, setWhatsAppStatus] = useState<WhatsAppStatus | null>(null);
   const [whatsAppLoading, setWhatsAppLoading] = useState(false);
 
+  // Every dialog is controlled locally.  Closing a parent workspace must also
+  // close any child dialog it launched; otherwise an invisible nested overlay
+  // can make the close "X" look unresponsive.
+  const closeClientDialog = () => {
+    setOpen(false);
+    setEditing(null);
+    setDraft({ ...emptyDraft });
+  };
+
+  const closeClientWorkspace = () => {
+    setSelectedClient(null);
+    setUserManagerOpen(false);
+    setUserDialogOpen(false);
+    setEditingDashboardUser(null);
+    setIntegrationDialogOpen(false);
+    setBotEditDialogOpen(false);
+    setWhatsAppDialogOpen(false);
+  };
+
+  const closeUserManager = () => {
+    setUserManagerOpen(false);
+    setUserDialogOpen(false);
+    setEditingDashboardUser(null);
+  };
+
+  const closeUserDialog = () => {
+    setUserDialogOpen(false);
+    setEditingDashboardUser(null);
+    setUserDraft({ ...emptyUserDraft });
+  };
+
   const load = async () => {
     setLoading(true);
     const [cRes, pRes] = await Promise.all([
@@ -659,6 +690,8 @@ function Clients() {
   const getSelectedTenantSlug = () =>
     bots[0]?.slug || extractSlugFromBotUrl(selectedClient?.bot_status_url ?? "") || "";
 
+  const availableTenantBots = bots.filter((bot) => Boolean(bot.slug));
+
   const loadDashboardUsers = async (client: Client, tenantSlug = getSelectedTenantSlug()) => {
     if (!tenantSlug) {
       setDashboardUsers([]);
@@ -744,9 +777,7 @@ function Clients() {
       const body = await res.json();
       if (!res.ok) throw new Error(body?.error ?? "No se pudo guardar el usuario.");
       toast.success(editingDashboardUser ? `${userDraft.email} actualizado` : `${userDraft.email} creado para ${selectedClient.company_name}`);
-      setUserDialogOpen(false);
-      setUserDraft({ ...emptyUserDraft });
-      setEditingDashboardUser(null);
+      closeUserDialog();
       void loadClientResources(selectedClient);
       void loadDashboardUsers(selectedClient, userDraft.tenantSlug);
     } catch (err) {
@@ -992,7 +1023,9 @@ function Clients() {
 
       <Sheet
         open={!!selectedClient}
-        onOpenChange={(openSheet) => !openSheet && setSelectedClient(null)}
+        onOpenChange={(openSheet) => {
+          if (!openSheet) closeClientWorkspace();
+        }}
       >
         <SheetContent className="w-full overflow-y-auto sm:max-w-3xl">
           {selectedClient && (
@@ -1128,9 +1161,10 @@ function Clients() {
                             </p>
                           </div>
                           {dashboard.url && (
-                            <Button size="icon" variant="ghost" asChild title="Open dashboard">
+                            <Button size="sm" variant="outline" className="shrink-0 gap-2" asChild>
                               <a href={dashboard.url} target="_blank" rel="noreferrer">
                                 <ExternalLink className="h-4 w-4" />
+                                Abrir dashboard local
                               </a>
                             </Button>
                           )}
@@ -1217,7 +1251,13 @@ function Clients() {
         </SheetContent>
       </Sheet>
 
-      <Dialog open={whatsAppDialogOpen} onOpenChange={setWhatsAppDialogOpen}>
+      <Dialog open={whatsAppDialogOpen} onOpenChange={(next) => {
+        setWhatsAppDialogOpen(next);
+        if (!next) {
+          setWhatsAppBot(null);
+          setWhatsAppStatus(null);
+        }
+      }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Conectar WhatsApp</DialogTitle>
@@ -1250,7 +1290,10 @@ function Clients() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={integrationDialogOpen} onOpenChange={setIntegrationDialogOpen}>
+      <Dialog open={integrationDialogOpen} onOpenChange={(next) => {
+        setIntegrationDialogOpen(next);
+        if (!next) setIntegrationBot(null);
+      }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Bot connection</DialogTitle>
@@ -1287,7 +1330,10 @@ function Clients() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={botEditDialogOpen} onOpenChange={setBotEditDialogOpen}>
+      <Dialog open={botEditDialogOpen} onOpenChange={(next) => {
+        setBotEditDialogOpen(next);
+        if (!next) setBotEditBot(null);
+      }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Editar bot</DialogTitle>
@@ -1301,7 +1347,10 @@ function Clients() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={userManagerOpen} onOpenChange={setUserManagerOpen}>
+      <Dialog open={userManagerOpen} onOpenChange={(next) => {
+        if (!next) closeUserManager();
+        else setUserManagerOpen(true);
+      }}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Usuarios del dashboard</DialogTitle>
@@ -1353,8 +1402,8 @@ function Clients() {
       </Dialog>
 
       <Dialog open={userDialogOpen} onOpenChange={(next) => {
-        setUserDialogOpen(next);
-        if (!next) setEditingDashboardUser(null);
+        if (!next) closeUserDialog();
+        else setUserDialogOpen(true);
       }}>
         <DialogContent>
           <DialogHeader>
@@ -1368,13 +1417,24 @@ function Clients() {
           <form onSubmit={saveDashboardUser} className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
-                <Label>Tenant slug</Label>
-                <Input
+                <Label>Bot / tenant slug</Label>
+                <Select
                   value={userDraft.tenantSlug}
-                  onChange={(e) => setUserDraft((d) => ({ ...d, tenantSlug: e.target.value }))}
-                  placeholder="dominguez-auto-pintura"
+                  onValueChange={(tenantSlug) => setUserDraft((d) => ({ ...d, tenantSlug }))}
                   required
-                />
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecciona un bot" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableTenantBots.map((bot) => (
+                      <SelectItem key={bot.slug} value={bot.slug}>
+                        {bot.name} · {bot.slug}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">El acceso se guarda en la base de datos para este slug.</p>
               </div>
               <div className="space-y-2">
                 <Label>Display name</Label>
@@ -1414,7 +1474,10 @@ function Clients() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={(next) => {
+        if (!next) closeClientDialog();
+        else setOpen(true);
+      }}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>

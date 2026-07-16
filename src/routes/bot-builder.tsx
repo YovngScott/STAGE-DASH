@@ -229,6 +229,17 @@ function BotBuilder() {
     [products, draft.botType],
   );
 
+  // The bot type is the source of truth.  Keep the matching active product
+  // assigned automatically, including on the initial Messaging selection.
+  useEffect(() => {
+    const automaticProduct = compatibleProducts[0];
+    setDraft((current) =>
+      current.productId === (automaticProduct?.id ?? "")
+        ? current
+        : { ...current, productId: automaticProduct?.id ?? "" },
+    );
+  }, [compatibleProducts]);
+
   const slug = draft.slug || slugify(selectedClient?.company_name ?? "");
   const generatedPrompt = useMemo(
     () =>
@@ -319,13 +330,18 @@ function BotBuilder() {
     if (!selectedProduct) return toast.error("Choose the product this bot belongs to.");
     if (!slug) return toast.error("The bot needs a valid slug.");
 
-      setResult({
+    const localDashboardUrl = `http://127.0.0.1:5174/?${new URLSearchParams({
+      tenant: slug,
+      api: `https://stage-${slug}-${draft.botType}.fly.dev`,
+    }).toString()}`;
+
+    setResult({
       slug,
       tenantPath: `backend/config/tenants/${slug}.json`,
       commitUrl: null,
       deployTriggered: false,
         botStatusUrl: `https://stage-${slug}-${draft.botType}.fly.dev/api/${slug}/config/bot-activo`,
-      dashboardUrl: "http://127.0.0.1:5174/",
+      dashboardUrl: localDashboardUrl,
       catalogSql: buildCatalogSql(slug, draft.moneda, catalog.filter((item) => item.nombre.trim())),
       adminSql: `insert into tenant_admins (user_id, tenant_id)\nselect 'EL_USER_UID'::uuid, id from tenants where slug = '${slug}';`,
       localOnly: true,
@@ -425,22 +441,13 @@ function BotBuilder() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Product</Label>
-                <Select
-                  value={draft.productId}
-                  onValueChange={(productId) => setDraft((current) => ({ ...current, productId }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Choose product" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {compatibleProducts.map((product) => (
-                      <SelectItem key={product.id} value={product.id}>
-                        {product.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label>Producto asignado automáticamente</Label>
+                <div className="flex min-h-10 items-center rounded-md border border-input bg-muted/30 px-3 text-sm">
+                  {selectedProduct
+                    ? selectedProduct.name
+                    : `No hay un producto activo para ${botTypes[draft.botType].label}.`}
+                </div>
+                <p className="text-xs text-muted-foreground">Cambia el tipo de bot para asignar su producto correspondiente.</p>
               </div>
             </div>
             <div className="mt-4 grid gap-3 md:grid-cols-3">
