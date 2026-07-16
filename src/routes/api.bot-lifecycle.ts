@@ -312,12 +312,31 @@ async function destroyDedicatedFlyApp(bot: ManagedBot): Promise<FlyDeleteResult>
   const infra = getFlyInfra();
   const cwd = await resolveBackendDirectory();
   const env = { ...process.env, FLY_ACCESS_TOKEN: infra.token };
-  const listed = await runFly("fly", ["volumes", "list", "--app", app, "--json"], cwd, env);
-  const volumes = safeJsonArray(listed);
+  // A Fly volume cannot be removed while a Machine is mounted to it. Destroy
+  // the isolated app's machines first; this is safe because app has already
+  // been verified as this bot's dedicated stage-<slug>-* app.
+  const machines = safeJsonArray(await runFly("fly", ["machines", "list", "--app", app, "--json"], cwd, env));
+  for (const machine of machines) {
+    const id = typeof machine?.id === "string" ? machine.id : "";
+    if (!id) continue;
+    await runFly("fly", ["machines", "destroy", id, "--app", app, "--force"], cwd, env);
+  }
+
+  // Fly detaches a volume asynchronously after machine destruction. Poll its
+  // attachment instead of issuing a delete that can race the detach.
+  let volumes: any[] = [];
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    volumes = safeJsonArray(await runFly("fly", ["volumes", "list", "--app", app, "--json"], cwd, env));
+    if (volumes.every((volume) => !volume?.attached_machine_id)) break;
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+  }
   let volumesDeleted = 0;
   for (const volume of volumes) {
     const id = typeof volume?.id === "string" ? volume.id : "";
     if (!id) continue;
+    if (volume?.attached_machine_id) {
+      throw new Error(`Fly todavía mantiene el volumen ${id} vinculado a una máquina. Intenta de nuevo en unos segundos.`);
+    }
     await runFly("fly", ["volumes", "delete", id, "--app", app, "--yes"], cwd, env);
     volumesDeleted += 1;
   }
