@@ -1,6 +1,6 @@
 @echo off
 setlocal
-title Stage AI Labs Owner Console
+title Stage AI Labs Dashboard
 cd /d "%~dp0"
 
 rem If the dashboard is already running, just open it in the browser.
