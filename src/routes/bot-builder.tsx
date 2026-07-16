@@ -696,7 +696,7 @@ function BotBuilder() {
               <div className="flex items-center gap-2 text-success">
                 <Check className="h-4 w-4" />
                 <h3 className="text-sm font-semibold">
-                  {result.localOnly ? "Local draft ready" : result.job?.state === "complete" ? "Bot ready" : "Provisioning bot"}
+                  {result.localOnly ? "Borrador local listo" : result.job?.state === "complete" ? "Bot desplegado" : "Desplegando bot"}
                 </h3>
               </div>
               <div className="mt-4 space-y-3 text-sm">
@@ -713,6 +713,11 @@ function BotBuilder() {
                 )}
                 <ResultLine label="Tenant file" value={result.tenantPath} />
                 <ResultLine label="Bot URL" value={result.botStatusUrl} />
+                {result.job?.state === "complete" && (
+                  <p className="rounded-md border border-warning/40 bg-warning/5 p-3 text-xs text-muted-foreground">
+                    Falta crear el usuario del cliente en Client Manager → Access → Administrar usuarios, y luego conectar WhatsApp desde el QR.
+                  </p>
+                )}
                 {result.dashboardUrl && (
                   <a
                     href={result.dashboardUrl}

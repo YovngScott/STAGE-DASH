@@ -196,7 +196,7 @@ export const Route = createFileRoute("/api/bot-builder")({
           deployTriggered: false,
           job,
           botStatusUrl: job.botStatusUrl,
-          dashboardUrl,
+          dashboardUrl: job.dashboardUrl,
           catalogSql: buildCatalogSql(slug, tenantConfig.moneda, body.catalog ?? []),
           adminSql: `insert into tenant_admins (user_id, tenant_id)\nselect 'EL_USER_UID'::uuid, id from tenants where slug = '${slug}';`,
         }, { status: 202 });

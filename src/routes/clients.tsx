@@ -18,6 +18,7 @@ import {
   KeyRound,
   Link2,
   QrCode,
+  UsersRound,
 } from "lucide-react";
 import {
   Table,
@@ -141,6 +142,14 @@ interface ClientEmailAccount {
   created_at: string;
 }
 
+interface DashboardUser {
+  id: string;
+  email: string;
+  displayName: string;
+  createdAt: string | null;
+  lastSignInAt: string | null;
+}
+
 interface WebApp {
   id: string;
   name: string;
@@ -206,6 +215,11 @@ function Clients() {
   const [userDialogOpen, setUserDialogOpen] = useState(false);
   const [userDraft, setUserDraft] = useState({ ...emptyUserDraft });
   const [creatingUser, setCreatingUser] = useState(false);
+  const [userManagerOpen, setUserManagerOpen] = useState(false);
+  const [dashboardUsers, setDashboardUsers] = useState<DashboardUser[]>([]);
+  const [dashboardUsersLoading, setDashboardUsersLoading] = useState(false);
+  const [editingDashboardUser, setEditingDashboardUser] = useState<DashboardUser | null>(null);
+  const [deletingDashboardUserId, setDeletingDashboardUserId] = useState<string | null>(null);
   const [integrationDialogOpen, setIntegrationDialogOpen] = useState(false);
   const [integrationBot, setIntegrationBot] = useState<ClientBot | null>(null);
   const [integrationDraft, setIntegrationDraft] = useState({ ...emptyIntegrationDraft });
@@ -613,7 +627,69 @@ function Clients() {
     toast.success("Bot integration saved");
   };
 
-  const createDashboardUser = async (e: React.FormEvent) => {
+  const getSelectedTenantSlug = () =>
+    bots[0]?.slug || extractSlugFromBotUrl(selectedClient?.bot_status_url ?? "") || "";
+
+  const loadDashboardUsers = async (client: Client, tenantSlug = getSelectedTenantSlug()) => {
+    if (!tenantSlug) {
+      setDashboardUsers([]);
+      return;
+    }
+    setDashboardUsersLoading(true);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+      if (!token) throw new Error("Tu sesión expiró. Inicia sesión de nuevo.");
+      const params = new URLSearchParams({ clientId: client.id, tenantSlug });
+      const res = await fetch(`/api/client-admin-user?${params.toString()}`, {
+        headers: { authorization: `Bearer ${token}` },
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body?.error ?? "No se pudieron cargar los usuarios.");
+      setDashboardUsers(body.users ?? []);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "No se pudieron cargar los usuarios.");
+      setDashboardUsers([]);
+    } finally {
+      setDashboardUsersLoading(false);
+    }
+  };
+
+  const openUserManager = () => {
+    if (!selectedClient) return;
+    const tenantSlug = getSelectedTenantSlug();
+    if (!tenantSlug) {
+      toast.error("Este cliente todavía no tiene un bot con tenant asignado.");
+      return;
+    }
+    setUserManagerOpen(true);
+    void loadDashboardUsers(selectedClient, tenantSlug);
+  };
+
+  const openNewDashboardUser = () => {
+    if (!selectedClient) return;
+    setEditingDashboardUser(null);
+    setUserDraft({
+      tenantSlug: getSelectedTenantSlug(),
+      email: selectedClient.email ?? "",
+      password: "",
+      displayName: selectedClient.contact_name ?? "",
+    });
+    setUserDialogOpen(true);
+  };
+
+  const openEditDashboardUser = (user: DashboardUser) => {
+    setEditingDashboardUser(user);
+    setUserDraft({
+      tenantSlug: getSelectedTenantSlug(),
+      email: user.email,
+      password: "",
+      displayName: user.displayName,
+    });
+    setUserDialogOpen(true);
+  };
+
+  const saveDashboardUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedClient) return;
     setCreatingUser(true);
@@ -622,7 +698,7 @@ function Clients() {
       const token = sessionData.session?.access_token;
       if (!token) throw new Error("Your session expired — sign in again.");
       const res = await fetch("/api/client-admin-user", {
-        method: "POST",
+        method: editingDashboardUser ? "PATCH" : "POST",
         headers: {
           "content-type": "application/json",
           authorization: `Bearer ${token}`,
@@ -630,21 +706,49 @@ function Clients() {
         body: JSON.stringify({
           clientId: selectedClient.id,
           tenantSlug: userDraft.tenantSlug,
+          userId: editingDashboardUser?.id,
           email: userDraft.email,
           password: userDraft.password,
           displayName: userDraft.displayName,
         }),
       });
       const body = await res.json();
-      if (!res.ok) throw new Error(body?.error ?? "Could not create the user.");
-      toast.success(`${userDraft.email} created for ${selectedClient.company_name}`);
+      if (!res.ok) throw new Error(body?.error ?? "No se pudo guardar el usuario.");
+      toast.success(editingDashboardUser ? `${userDraft.email} actualizado` : `${userDraft.email} creado para ${selectedClient.company_name}`);
       setUserDialogOpen(false);
       setUserDraft({ ...emptyUserDraft });
+      setEditingDashboardUser(null);
       void loadClientResources(selectedClient);
+      void loadDashboardUsers(selectedClient, userDraft.tenantSlug);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not create the user.");
+      toast.error(err instanceof Error ? err.message : "No se pudo guardar el usuario.");
     } finally {
       setCreatingUser(false);
+    }
+  };
+
+  const deleteDashboardUser = async (user: DashboardUser) => {
+    if (!selectedClient) return;
+    if (!window.confirm(`¿Eliminar el acceso de ${user.email}? Si no tiene acceso a otro cliente, su cuenta también será eliminada.`)) return;
+    setDeletingDashboardUserId(user.id);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+      if (!token) throw new Error("Tu sesión expiró. Inicia sesión de nuevo.");
+      const res = await fetch("/api/client-admin-user", {
+        method: "DELETE",
+        headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+        body: JSON.stringify({ clientId: selectedClient.id, tenantSlug: getSelectedTenantSlug(), userId: user.id }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body?.error ?? "No se pudo eliminar el usuario.");
+      toast.success(body.deletedAccount ? "Usuario y acceso eliminados" : "Acceso eliminado de este cliente");
+      void loadClientResources(selectedClient);
+      void loadDashboardUsers(selectedClient);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "No se pudo eliminar el usuario.");
+    } finally {
+      setDeletingDashboardUserId(null);
     }
   };
 
@@ -1040,34 +1144,33 @@ function Clients() {
                 </TabsContent>
 
                 <TabsContent value="access" className="space-y-3 pt-3">
-                  <div className="flex justify-end">
+                  <div className="flex flex-wrap justify-end gap-2">
                     <Button
                       className="gap-2"
-                      onClick={() => {
-                        setUserDraft({
-                          tenantSlug: bots[0]?.slug || extractSlugFromBotUrl(selectedClient.bot_status_url ?? "") || "",
-                          email: selectedClient.email ?? "",
-                          password: "",
-                          displayName: selectedClient.contact_name ?? "",
-                        });
-                        setUserDialogOpen(true);
-                      }}
+                      onClick={openUserManager}
                     >
-                      <KeyRound className="h-4 w-4" />
-                      Create dashboard user
+                      <UsersRound className="h-4 w-4" />
+                      Administrar usuarios
                     </Button>
                   </div>
-                  {emailAccounts.length === 0 ? (
-                    <EmptyResource label="No dashboard users tracked yet." />
+                  {dashboardUsersLoading ? (
+                    <LoadingLine label="Cargando usuarios del dashboard..." />
+                  ) : dashboardUsers.length === 0 ? (
+                    <EmptyResource label="Aún no hay usuarios con acceso. Abre Administrar usuarios para crear el primero." />
                   ) : (
-                    emailAccounts.map((account) => (
-                      <ResourceCard key={account.id}>
+                    dashboardUsers.map((user) => {
+                      const account = { display_name: user.displayName, provider: "dashboard" };
+                      return (
+                      <ResourceCard key={user.id}>
                         <div className="flex items-center justify-between gap-3">
                           <div>
                             <div className="flex items-center gap-2">
                               <Mail className="h-4 w-4 text-primary" />
-                              <h4 className="font-medium">{account.email}</h4>
-                              <Badge variant="outline">{account.status}</Badge>
+                              <h4 className="font-medium">{user.email}</h4>
+                              <Badge variant="outline">activo</Badge>
+                              <Button size="sm" variant="outline" onClick={() => openEditDashboardUser(user)}>
+                                Editar
+                              </Button>
                             </div>
                             <p className="mt-1 text-xs text-muted-foreground">
                               {account.display_name || "No display name"} · {account.provider}
@@ -1075,7 +1178,8 @@ function Clients() {
                           </div>
                         </div>
                       </ResourceCard>
-                    ))
+                      );
+                    })
                   )}
                 </TabsContent>
               </Tabs>
@@ -1168,15 +1272,71 @@ function Clients() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={userDialogOpen} onOpenChange={setUserDialogOpen}>
-        <DialogContent>
+      <Dialog open={userManagerOpen} onOpenChange={setUserManagerOpen}>
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Create dashboard user</DialogTitle>
+            <DialogTitle>Usuarios del dashboard</DialogTitle>
             <DialogDescription>
-              Creates the user in the bot Supabase project and grants access to the selected tenant.
+              Crea, modifica o revoca el acceso de las personas que pueden entrar al dashboard de {selectedClient?.company_name ?? "este cliente"}.
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={createDashboardUser} className="space-y-4">
+          <div className="flex justify-end">
+            <Button className="gap-2" onClick={openNewDashboardUser}>
+              <Plus className="h-4 w-4" />
+              Agregar usuario
+            </Button>
+          </div>
+          {dashboardUsersLoading ? (
+            <LoadingLine label="Cargando usuarios..." />
+          ) : dashboardUsers.length === 0 ? (
+            <EmptyResource label="No hay usuarios autorizados todavía." />
+          ) : (
+            <div className="max-h-[50vh] space-y-2 overflow-y-auto pr-1">
+              {dashboardUsers.map((user) => (
+                <ResourceCard key={user.id}>
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate font-medium">{user.email}</p>
+                      <p className="text-sm text-muted-foreground">{user.displayName || "Sin nombre visible"}</p>
+                      {user.lastSignInAt && <p className="mt-1 text-xs text-muted-foreground">Último acceso: {new Date(user.lastSignInAt).toLocaleString()}</p>}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button size="sm" variant="outline" onClick={() => openEditDashboardUser(user)}>
+                        <Pencil className="mr-1 h-3.5 w-3.5" /> Editar
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-destructive hover:text-destructive"
+                        disabled={deletingDashboardUserId === user.id}
+                        onClick={() => void deleteDashboardUser(user)}
+                      >
+                        {deletingDashboardUserId === user.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="mr-1 h-3.5 w-3.5" />}
+                        Eliminar
+                      </Button>
+                    </div>
+                  </div>
+                </ResourceCard>
+              ))}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={userDialogOpen} onOpenChange={(next) => {
+        setUserDialogOpen(next);
+        if (!next) setEditingDashboardUser(null);
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editingDashboardUser ? "Editar usuario del dashboard" : "Crear usuario del dashboard"}</DialogTitle>
+            <DialogDescription>
+              {editingDashboardUser
+                ? "Actualiza el correo, nombre visible o contraseña. Deja la contraseña vacía para conservarla."
+                : "Crea la cuenta en la Supabase del bot y le da acceso solo a este cliente."}
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={saveDashboardUser} className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label>Tenant slug</Label>
@@ -1206,19 +1366,19 @@ function Clients() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Temporary password</Label>
+              <Label>{editingDashboardUser ? "Nueva contraseña (opcional)" : "Contraseña temporal"}</Label>
               <Input
                 type="password"
                 value={userDraft.password}
                 onChange={(e) => setUserDraft((d) => ({ ...d, password: e.target.value }))}
                 minLength={8}
-                required
+                required={!editingDashboardUser}
               />
             </div>
             <DialogFooter>
               <Button type="submit" disabled={creatingUser}>
                 {creatingUser && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Create user
+                {editingDashboardUser ? "Guardar usuario" : "Crear usuario"}
               </Button>
             </DialogFooter>
           </form>

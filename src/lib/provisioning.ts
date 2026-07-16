@@ -72,6 +72,7 @@ const FLY_REGION = "ewr";
 export function startProvision(input: ProvisionInput): ProvisionJob {
   const id = randomUUID();
   const appName = makeFlyAppName(input.slug, input.kind);
+  const dashboardUrl = buildDashboardUrl(input.dashboardUrl, input.slug, appName);
   const now = new Date().toISOString();
   const job: ProvisionJob = {
     id,
@@ -83,7 +84,7 @@ export function startProvision(input: ProvisionInput): ProvisionJob {
     clientId: input.clientId,
     slug: input.slug,
     botStatusUrl: `https://${appName}.fly.dev/api/${input.slug}/config/bot-activo`,
-    dashboardUrl: input.dashboardUrl,
+    dashboardUrl,
     botId: null,
     createdAt: now,
     updatedAt: now,
@@ -269,7 +270,24 @@ async function runProvision(job: ProvisionJob, input: ProvisionInput) {
     .eq("slug", input.slug);
   if (dashboardError) throw new Error(`El bot se desplegó, pero no se pudo activar su dashboard: ${dashboardError.message}`);
 
-  update(job, { state: "complete", progress: 100, phase: "Bot listo. Puedes abrir el QR para conectar WhatsApp.", error: null });
+  update(job, {
+    state: "complete",
+    progress: 100,
+    phase: "Bot desplegado. Crea un usuario del dashboard y después abre el QR para conectar WhatsApp.",
+    error: null,
+  });
+}
+
+function buildDashboardUrl(baseUrl: string, slug: string, appName: string) {
+  try {
+    const url = new URL(baseUrl);
+    url.searchParams.set("tenant", slug);
+    url.searchParams.set("api", `https://${appName}.fly.dev`);
+    return url.toString();
+  } catch {
+    const separator = baseUrl.includes("?") ? "&" : "?";
+    return `${baseUrl}${separator}tenant=${encodeURIComponent(slug)}&api=${encodeURIComponent(`https://${appName}.fly.dev`)}`;
+  }
 }
 
 function readInfrastructure(groqOverride?: string) {
