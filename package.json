@@ -4,7 +4,6 @@
   "description": "Private local control panel for Stage AI Labs LLC.",
   "author": "Stage AI Labs LLC",
   "packageManager": "pnpm@11.9.0",
-  "main": "desktop/main.cjs",
   "private": true,
   "sideEffects": false,
   "type": "module",
@@ -15,11 +14,7 @@
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "lint": "eslint .",
-    "format": "prettier --write .",
-    "desktop:dev": "electron . --dev",
-    "desktop:start": "electron .",
-    "desktop:build": "vite build && electron-builder --win nsis",
-    "desktop:publish": "vite build && node desktop/publish.cjs"
+    "format": "prettier --write ."
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -59,7 +54,6 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "date-fns": "^4.1.0",
-    "electron-updater": "6.8.9",
     "embla-carousel-react": "^8.6.0",
     "input-otp": "^1.4.2",
     "lucide-react": "^0.575.0",
@@ -84,8 +78,6 @@
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "@vitejs/plugin-react": "^5.2.0",
-    "electron": "43.1.1",
-    "electron-builder": "26.15.3",
     "eslint": "^9.32.0",
     "eslint-config-prettier": "^10.1.1",
     "eslint-plugin-prettier": "^5.2.6",
@@ -97,50 +89,5 @@
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.56.1",
     "vite": "^8.0.16"
-  },
-  "build": {
-    "appId": "com.stageailabs.ownerconsole",
-    "productName": "Stage AI Labs Owner Console",
-    "electronDist": "node_modules/electron/dist",
-    "publish": [
-      {
-        "provider": "github",
-        "owner": "YovngScott",
-        "repo": "STAGE-DASH",
-        "releaseType": "release"
-      }
-    ],
-    "directories": {
-      "output": "desktop-installer"
-    },
-    "files": [
-      "desktop/**/*",
-      "package.json"
-    ],
-    "extraFiles": [
-      {
-        "from": ".output",
-        "to": "resources/app-server",
-        "filter": [
-          "**/*"
-        ]
-      }
-    ],
-    "asar": true,
-    "asarUnpack": [
-      "**/*.node"
-    ],
-    "win": {
-      "target": [
-        "nsis"
-      ],
-      "artifactName": "${productName}-Setup-${version}.${ext}"
-    },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true,
-      "createStartMenuShortcut": true
-    }
   }
 }

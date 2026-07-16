@@ -17,18 +17,20 @@ dist-ssr
 *.local
 *.tsbuildinfo
 
+# Local desktop build artifacts (not part of the web dashboard)
+desktop-installer/
+desktop-release/
+desktop-next/
+desktop-next-incomplete/
+desktop-run-log/
+release/
+
 # Wrangler / Cloudflare
 .wrangler/
 .dev.vars
 
 # Netlify
 .netlify/
-desktop-installer/
-desktop-release/
-release/
-desktop-next/
-desktop-next-incomplete/
-desktop-run-log/
 
 # Editor directories and files
 .vscode/*
