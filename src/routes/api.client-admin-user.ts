@@ -257,18 +257,29 @@ async function findAuthUserByEmail(messagingAdmin: MessagingAdmin, email: string
 }
 
 async function trackClientAccount(args: { clientId: string; userId: string; email: string; displayName: string }) {
-  const { error } = await supabaseAdmin.from("client_email_accounts").upsert(
-    {
-      client_id: args.clientId,
-      email: args.email,
-      display_name: args.displayName || null,
-      provider: "supabase-auth",
-      status: "active",
-      auth_user_id: args.userId,
-    },
-    { onConflict: "email" },
-  );
-  if (error) throw new Error(`No se pudo registrar la cuenta en Client Manager: ${error.message}`);
+  const payload = {
+    client_id: args.clientId,
+    email: args.email,
+    display_name: args.displayName || null,
+    provider: "supabase-auth",
+    status: "active",
+    auth_user_id: args.userId,
+  };
+
+  // The current schema has a functional unique index on lower(email), not a
+  // Postgres unique constraint. PostgREST cannot target that index with
+  // `onConflict=email`, so reconcile the tracking row explicitly instead.
+  const { data: existing, error: findError } = await supabaseAdmin
+    .from("client_email_accounts")
+    .select("id")
+    .ilike("email", args.email)
+    .maybeSingle();
+  if (findError) throw new Error(`No se pudo revisar la cuenta en Client Manager: ${findError.message}`);
+
+  const result = existing?.id
+    ? await supabaseAdmin.from("client_email_accounts").update(payload).eq("id", existing.id)
+    : await supabaseAdmin.from("client_email_accounts").insert(payload);
+  if (result.error) throw new Error(`No se pudo registrar la cuenta en Client Manager: ${result.error.message}`);
 }
 
 function serializeAuthUser(user: any) {
