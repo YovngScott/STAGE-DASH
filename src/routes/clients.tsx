@@ -276,9 +276,38 @@ function Clients() {
 
     const fallbackBots = buildFallbackBots(client);
     const loadedBots = botsRes.error ? [] : ((botsRes.data ?? []) as ClientBot[]);
+    const effectiveBots = loadedBots.length > 0 ? loadedBots : fallbackBots;
+    const storedDashboards = dashboardsRes.error ? [] : ((dashboardsRes.data ?? []) as ClientDashboard[]);
+    const localDashboards = storedDashboards.map((dashboard) => {
+      const bot = effectiveBots.find((candidate) => candidate.slug === dashboard.slug);
+      return {
+        ...dashboard,
+        url: makeLocalDashboardUrl(dashboard.slug, bot?.bot_status_url ?? client.bot_status_url),
+        provider: "local",
+        status: "local",
+      };
+    });
+    // Older clients were created before client_dashboards existed. Give every
+    // registered bot a local dashboard link during the trial, even when there
+    // is no persisted dashboard record yet.
+    const dashboardsWithFallbacks = [...localDashboards];
+    for (const bot of effectiveBots) {
+      if (dashboardsWithFallbacks.some((dashboard) => dashboard.slug === bot.slug)) continue;
+      dashboardsWithFallbacks.push({
+        id: `local-${bot.id}`,
+        client_id: client.id,
+        bot_id: bot.id === "primary" ? null : bot.id,
+        name: `${bot.name} Dashboard`,
+        slug: bot.slug,
+        url: makeLocalDashboardUrl(bot.slug, bot.bot_status_url),
+        provider: "local",
+        status: "local",
+        created_at: bot.created_at,
+      });
+    }
 
-    setBots(loadedBots.length > 0 ? loadedBots : fallbackBots);
-    setDashboards(dashboardsRes.error ? [] : ((dashboardsRes.data ?? []) as ClientDashboard[]));
+    setBots(effectiveBots);
+    setDashboards(dashboardsWithFallbacks);
     setClientWebApps(webAppsRes.error ? [] : ((webAppsRes.data ?? []) as WebApp[]));
     setEmailAccounts(emailsRes.error ? [] : ((emailsRes.data ?? []) as ClientEmailAccount[]));
     setResourcesLoading(false);
@@ -1612,6 +1641,18 @@ function InfoCard({
 function extractSlugFromBotUrl(url: string) {
   const match = url.match(/\/api\/([^/]+)\/config\/bot-activo/);
   return match?.[1] ?? "";
+}
+
+function makeLocalDashboardUrl(slug: string, botStatusUrl: string | null | undefined) {
+  let apiUrl = "https://wiltech-bot.fly.dev";
+  try {
+    if (botStatusUrl) apiUrl = new URL(botStatusUrl).origin;
+  } catch {
+    // The fallback keeps older bot records usable while their connection data
+    // is completed from Client Manager.
+  }
+  const params = new URLSearchParams({ tenant: slug, api: apiUrl });
+  return `http://127.0.0.1:5174/?${params.toString()}`;
 }
 
 function buildFallbackBots(client: Client): ClientBot[] {

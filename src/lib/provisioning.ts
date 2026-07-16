@@ -180,7 +180,7 @@ async function runProvision(job: ProvisionJob, input: ProvisionInput) {
     name: `${input.tenantConfig.nombre} Dashboard`,
     slug: input.slug,
     url: job.dashboardUrl,
-    provider: "cloudflare",
+    provider: "local",
     status: "draft",
   };
   const dashboardResult = existingDashboard

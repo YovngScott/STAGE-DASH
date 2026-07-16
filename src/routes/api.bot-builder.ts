@@ -6,7 +6,7 @@ import { startProvision } from "@/lib/provisioning";
 
 const DEFAULT_REPO = "YovngScott/Stage-Bot-Template";
 const DEFAULT_BRANCH = "main";
-const ONLINE_CLIENT_DASHBOARD_URL = "https://dominguez-dashboard.itssilverio032008.workers.dev/";
+const LOCAL_CLIENT_DASHBOARD_URL = "http://127.0.0.1:5174/";
 
 type BotType = "assistant" | "messaging" | "voice";
 
@@ -157,7 +157,7 @@ export const Route = createFileRoute("/api/bot-builder")({
           return Response.json({ error: createdFile.error }, { status: createdFile.status });
         }
 
-        const dashboardBaseUrl = process.env.STAGE_CLIENT_DASHBOARD_URL || ONLINE_CLIENT_DASHBOARD_URL;
+        const dashboardBaseUrl = process.env.STAGE_CLIENT_DASHBOARD_URL || LOCAL_CLIENT_DASHBOARD_URL;
         const dashboardUrl = `${dashboardBaseUrl.replace(/\/$/, "")}/?tenant=${encodeURIComponent(slug)}`;
 
         if (body.updateClient) {
