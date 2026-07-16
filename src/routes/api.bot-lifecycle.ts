@@ -309,13 +309,23 @@ async function deleteOwnerBotRecords(client: Awaited<ReturnType<typeof getClient
     if (botError) throw new Error(`No se pudo eliminar el bot de Client Manager: ${botError.message}`);
   }
 
-  const remaining = await getClientBots(client);
-  const primary = remaining[0];
+  // Do not use getClientBots here: it intentionally returns a legacy fallback
+  // from clients.bot_status_url when no database bot exists. After a real
+  // deletion that fallback would incorrectly preserve the stale endpoint and
+  // make the deleted bot/dashboard appear again in the UI.
+  const { data: remainingRows, error: remainingError } = await supabaseAdmin
+    .from("client_bots")
+    .select("bot_status_url,bot_secret")
+    .eq("client_id", client.id)
+    .order("created_at", { ascending: false })
+    .limit(1);
+  if (remainingError) throw new Error(`No se pudo comprobar los bots restantes: ${remainingError.message}`);
+  const primary = remainingRows?.[0] as { bot_status_url: string | null; bot_secret: string | null } | undefined;
   const { error: clientError } = await supabaseAdmin
     .from("clients")
     .update({
-      bot_status_url: primary?.statusUrl ?? null,
-      bot_secret: primary?.secret ?? null,
+      bot_status_url: primary?.bot_status_url ?? null,
+      bot_secret: primary?.bot_secret ?? null,
       bot_activo: false,
     })
     .eq("id", client.id);

@@ -1807,8 +1807,10 @@ function makeLocalDashboardUrl(slug: string, botStatusUrl: string | null | undef
 }
 
 function buildFallbackBots(client: Client): ClientBot[] {
-  const hasMessaging = (client.services ?? []).includes(BOT_TOGGLE_SERVICE);
-  if (!client.bot_status_url && !hasMessaging) return [];
+  // Only historical clients with an actual saved endpoint get a fallback.
+  // A service subscription by itself is not a bot; otherwise a deleted bot
+  // would reappear as a fake local dashboard after its records are removed.
+  if (!client.bot_status_url) return [];
 
   const slug = extractSlugFromBotUrl(client.bot_status_url ?? "") || knownTenantSlug(client);
   const endpoint = client.bot_status_url || (slug ? `https://wiltech-bot.fly.dev/api/${slug}/config/bot-activo` : null);
