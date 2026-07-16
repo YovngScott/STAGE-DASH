@@ -23,6 +23,7 @@ import { Route as ApiProvisionStatusRouteImport } from './routes/api.provision-s
 import { Route as ApiClientAdminUserRouteImport } from './routes/api.client-admin-user'
 import { Route as ApiBotWhatsappRouteImport } from './routes/api.bot-whatsapp'
 import { Route as ApiBotToggleRouteImport } from './routes/api.bot-toggle'
+import { Route as ApiBotLifecycleRouteImport } from './routes/api.bot-lifecycle'
 import { Route as ApiBotEditRouteImport } from './routes/api.bot-edit'
 import { Route as ApiBotBuilderRouteImport } from './routes/api.bot-builder'
 
@@ -96,6 +97,11 @@ const ApiBotToggleRoute = ApiBotToggleRouteImport.update({
   path: '/api/bot-toggle',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiBotLifecycleRoute = ApiBotLifecycleRouteImport.update({
+  id: '/api/bot-lifecycle',
+  path: '/api/bot-lifecycle',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiBotEditRoute = ApiBotEditRouteImport.update({
   id: '/api/bot-edit',
   path: '/api/bot-edit',
@@ -120,6 +126,7 @@ export interface FileRoutesByFullPath {
   '/website': typeof WebsiteRoute
   '/api/bot-builder': typeof ApiBotBuilderRoute
   '/api/bot-edit': typeof ApiBotEditRoute
+  '/api/bot-lifecycle': typeof ApiBotLifecycleRoute
   '/api/bot-toggle': typeof ApiBotToggleRoute
   '/api/bot-whatsapp': typeof ApiBotWhatsappRoute
   '/api/client-admin-user': typeof ApiClientAdminUserRoute
@@ -138,6 +145,7 @@ export interface FileRoutesByTo {
   '/website': typeof WebsiteRoute
   '/api/bot-builder': typeof ApiBotBuilderRoute
   '/api/bot-edit': typeof ApiBotEditRoute
+  '/api/bot-lifecycle': typeof ApiBotLifecycleRoute
   '/api/bot-toggle': typeof ApiBotToggleRoute
   '/api/bot-whatsapp': typeof ApiBotWhatsappRoute
   '/api/client-admin-user': typeof ApiClientAdminUserRoute
@@ -157,6 +165,7 @@ export interface FileRoutesById {
   '/website': typeof WebsiteRoute
   '/api/bot-builder': typeof ApiBotBuilderRoute
   '/api/bot-edit': typeof ApiBotEditRoute
+  '/api/bot-lifecycle': typeof ApiBotLifecycleRoute
   '/api/bot-toggle': typeof ApiBotToggleRoute
   '/api/bot-whatsapp': typeof ApiBotWhatsappRoute
   '/api/client-admin-user': typeof ApiClientAdminUserRoute
@@ -177,6 +186,7 @@ export interface FileRouteTypes {
     | '/website'
     | '/api/bot-builder'
     | '/api/bot-edit'
+    | '/api/bot-lifecycle'
     | '/api/bot-toggle'
     | '/api/bot-whatsapp'
     | '/api/client-admin-user'
@@ -195,6 +205,7 @@ export interface FileRouteTypes {
     | '/website'
     | '/api/bot-builder'
     | '/api/bot-edit'
+    | '/api/bot-lifecycle'
     | '/api/bot-toggle'
     | '/api/bot-whatsapp'
     | '/api/client-admin-user'
@@ -213,6 +224,7 @@ export interface FileRouteTypes {
     | '/website'
     | '/api/bot-builder'
     | '/api/bot-edit'
+    | '/api/bot-lifecycle'
     | '/api/bot-toggle'
     | '/api/bot-whatsapp'
     | '/api/client-admin-user'
@@ -232,6 +244,7 @@ export interface RootRouteChildren {
   WebsiteRoute: typeof WebsiteRoute
   ApiBotBuilderRoute: typeof ApiBotBuilderRoute
   ApiBotEditRoute: typeof ApiBotEditRoute
+  ApiBotLifecycleRoute: typeof ApiBotLifecycleRoute
   ApiBotToggleRoute: typeof ApiBotToggleRoute
   ApiBotWhatsappRoute: typeof ApiBotWhatsappRoute
   ApiClientAdminUserRoute: typeof ApiClientAdminUserRoute
@@ -338,6 +351,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiBotToggleRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/bot-lifecycle': {
+      id: '/api/bot-lifecycle'
+      path: '/api/bot-lifecycle'
+      fullPath: '/api/bot-lifecycle'
+      preLoaderRoute: typeof ApiBotLifecycleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/bot-edit': {
       id: '/api/bot-edit'
       path: '/api/bot-edit'
@@ -368,6 +388,7 @@ const rootRouteChildren: RootRouteChildren = {
   WebsiteRoute: WebsiteRoute,
   ApiBotBuilderRoute: ApiBotBuilderRoute,
   ApiBotEditRoute: ApiBotEditRoute,
+  ApiBotLifecycleRoute: ApiBotLifecycleRoute,
   ApiBotToggleRoute: ApiBotToggleRoute,
   ApiBotWhatsappRoute: ApiBotWhatsappRoute,
   ApiClientAdminUserRoute: ApiClientAdminUserRoute,

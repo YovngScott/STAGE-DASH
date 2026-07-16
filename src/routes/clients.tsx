@@ -57,16 +57,6 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -118,6 +108,10 @@ interface ClientBot {
   created_at: string;
   prompt_extra?: string | null;
 }
+
+type DeleteTarget =
+  | { kind: "bot"; client: Client; bot: ClientBot }
+  | { kind: "client"; client: Client };
 
 interface ClientDashboard {
   id: string;
@@ -204,7 +198,10 @@ function Clients() {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Client | null>(null);
   const [draft, setDraft] = useState({ ...emptyDraft });
-  const [confirmDelete, setConfirmDelete] = useState<Client | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
+  const [deletingResource, setDeletingResource] = useState(false);
+  const [decommissioningClientId, setDecommissioningClientId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [bots, setBots] = useState<ClientBot[]>([]);
@@ -249,6 +246,8 @@ function Clients() {
     setIntegrationDialogOpen(false);
     setBotEditDialogOpen(false);
     setWhatsAppDialogOpen(false);
+    setDeleteTarget(null);
+    setDeleteConfirmation("");
   };
 
   const closeUserManager = () => {
@@ -471,16 +470,42 @@ function Clients() {
   };
 
   const toggleActive = async (c: Client) => {
-    const next = c.status === "active" ? "paused" : "active";
-    const { error } = await supabase
-      .from("clients")
-      .update({ status: next })
-      .eq("id", c.id);
-    if (error) return toast.error(error.message);
-    toast.success(
-      `${c.company_name} ${next === "active" ? "reactivated" : "paused"}`,
-    );
-    void load();
+    if (c.status !== "active") {
+      const { error } = await supabase.from("clients").update({ status: "active" }).eq("id", c.id);
+      if (error) return toast.error(error.message);
+      toast.success(`${c.company_name} reactivado. Enciende cada bot y vuelve a vincular WhatsApp con el QR.`);
+      void load();
+      return;
+    }
+    setDecommissioningClientId(c.id);
+    try {
+      await callLifecycle("decommissionClient", c.id);
+      toast.success(`${c.company_name} dado de baja: bots apagados, WhatsApp desconectado y accesos revocados.`);
+      if (selectedClient?.id === c.id) closeClientWorkspace();
+      void load();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "No se pudo dar de baja el cliente.");
+    } finally {
+      setDecommissioningClientId(null);
+    }
+  };
+
+  const callLifecycle = async (
+    action: "decommissionBot" | "decommissionClient" | "deleteBot" | "deleteClient",
+    clientId: string,
+    options: { botId?: string; confirmation?: string } = {},
+  ) => {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData.session?.access_token;
+    if (!token) throw new Error("Tu sesión expiró. Inicia sesión de nuevo.");
+    const response = await fetch("/api/bot-lifecycle", {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+      body: JSON.stringify({ action, clientId, ...options }),
+    });
+    const body = await response.json().catch(() => null);
+    if (!response.ok) throw new Error(body?.error ?? "No se pudo completar la operación.");
+    return body;
   };
 
   const callBotToggle = async (
@@ -537,12 +562,16 @@ function Clients() {
     const next = bot.status !== "active";
     setTogglingBot(bot.id);
     try {
-      await callBotToggle(selectedClient.id, next, {
-        botId: bot.id === "primary" ? undefined : bot.id,
-        botSlug: bot.slug,
-        botStatusUrl: bot.bot_status_url,
-        botSecret: bot.bot_secret,
-      });
+      if (next) {
+        await callBotToggle(selectedClient.id, true, {
+          botId: bot.id === "primary" ? undefined : bot.id,
+          botSlug: bot.slug,
+          botStatusUrl: bot.bot_status_url,
+          botSecret: bot.bot_secret,
+        });
+      } else {
+        await callLifecycle("decommissionBot", selectedClient.id, { botId: bot.id });
+      }
       setBots((items) =>
         items.map((item) =>
           item.id === bot.id ? { ...item, status: next ? "active" : "paused" } : item,
@@ -558,7 +587,7 @@ function Clients() {
           client.id === selectedClient.id ? { ...client, bot_activo: next } : client,
         ),
       );
-      toast.success(`${bot.name} turned ${next ? "on" : "off"}`);
+      toast.success(next ? `${bot.name} encendido. Abre el QR para reconectar WhatsApp.` : `${bot.name} apagado, WhatsApp desconectado y accesos revocados.`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to toggle the bot.");
     } finally {
@@ -812,16 +841,42 @@ function Clients() {
     }
   };
 
+  const openDeleteBot = (bot: ClientBot) => {
+    if (!selectedClient) return;
+    setDeleteConfirmation("");
+    setDeleteTarget({ kind: "bot", client: selectedClient, bot });
+  };
+
+  const openDeleteClient = (client: Client) => {
+    setDeleteConfirmation("");
+    setDeleteTarget({ kind: "client", client });
+  };
+
   const remove = async () => {
-    if (!confirmDelete) return;
-    const { error } = await supabase
-      .from("clients")
-      .delete()
-      .eq("id", confirmDelete.id);
-    if (error) return toast.error(error.message);
-    toast.success(`${confirmDelete.company_name} deleted`);
-    setConfirmDelete(null);
-    void load();
+    if (!deleteTarget) return;
+    setDeletingResource(true);
+    try {
+      if (deleteTarget.kind === "bot") {
+        const result = await callLifecycle("deleteBot", deleteTarget.client.id, {
+          botId: deleteTarget.bot.id,
+          confirmation: deleteConfirmation,
+        });
+        const flyNote = result.fly?.sharedAppPreserved ? " El backend compartido se conservó para no tocar otros clientes." : "";
+        toast.success(`${deleteTarget.bot.name} eliminado de Fly, GitHub y las bases de datos.${flyNote}`);
+        await loadClientResources(deleteTarget.client);
+      } else {
+        await callLifecycle("deleteClient", deleteTarget.client.id, { confirmation: deleteConfirmation });
+        toast.success(`${deleteTarget.client.company_name} y todos sus recursos fueron eliminados.`);
+        closeClientWorkspace();
+        void load();
+      }
+      setDeleteTarget(null);
+      setDeleteConfirmation("");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "No se pudo eliminar el recurso.");
+    } finally {
+      setDeletingResource(false);
+    }
   };
 
   return (
@@ -958,6 +1013,7 @@ function Clients() {
                       <Button
                         size="icon"
                         variant="ghost"
+                        disabled={decommissioningClientId === c.id}
                         onClick={(event) => {
                           event.stopPropagation();
                           void toggleActive(c);
@@ -968,7 +1024,7 @@ function Clients() {
                             : "Reactivate client"
                         }
                       >
-                        <Power className="h-4 w-4" />
+                        {decommissioningClientId === c.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Power className="h-4 w-4" />}
                       </Button>
                       {(c.bot_status_url || (c.services ?? []).includes(BOT_TOGGLE_SERVICE)) && (
                         <Button
@@ -993,7 +1049,7 @@ function Clients() {
                         variant="ghost"
                         onClick={(event) => {
                           event.stopPropagation();
-                          setConfirmDelete(c);
+                          openDeleteClient(c);
                         }}
                         title="Delete client"
                         className="text-destructive hover:text-destructive"
@@ -1133,6 +1189,16 @@ function Clients() {
                               ) : (
                                 <ZapOff className="h-4 w-4" />
                               )}
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              disabled={deletingResource}
+                              onClick={() => openDeleteBot(bot)}
+                              title="Eliminar bot permanentemente"
+                              className="text-destructive hover:text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>
                         </div>
@@ -1618,29 +1684,51 @@ function Clients() {
         </DialogContent>
       </Dialog>
 
-      <AlertDialog
-        open={!!confirmDelete}
-        onOpenChange={(o) => !o && setConfirmDelete(null)}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete client?</AlertDialogTitle>
-            <AlertDialogDescription>
-              {confirmDelete?.company_name} and their billing history will be
-              permanently removed.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={remove}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+      <Dialog open={!!deleteTarget} onOpenChange={(next) => {
+        if (!next && !deletingResource) {
+          setDeleteTarget(null);
+          setDeleteConfirmation("");
+        }
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {deleteTarget?.kind === "bot" ? "Eliminar bot permanentemente" : "Eliminar cliente permanentemente"}
+            </DialogTitle>
+            <DialogDescription>
+              {deleteTarget?.kind === "bot"
+                ? "Se borrará el tenant, la app y volumen dedicado de Fly, el archivo vigente de GitHub, el dashboard y sus datos de base de datos. Esta acción no se puede deshacer."
+                : "Se borrará este cliente, todos sus bots, dashboards, aplicaciones web, accesos y datos asociados. Esta acción no se puede deshacer."}
+            </DialogDescription>
+          </DialogHeader>
+          {deleteTarget && (() => {
+            const phrase = deleteTarget.kind === "bot" ? deleteTarget.bot.slug : `ELIMINAR ${deleteTarget.client.company_name}`;
+            return (
+              <div className="space-y-2">
+                <Label htmlFor="delete-confirmation">Para confirmar, escribe exactamente: <span className="font-mono text-destructive">{phrase}</span></Label>
+                <Input
+                  id="delete-confirmation"
+                  value={deleteConfirmation}
+                  onChange={(event) => setDeleteConfirmation(event.target.value)}
+                  autoComplete="off"
+                  disabled={deletingResource}
+                />
+              </div>
+            );
+          })()}
+          <DialogFooter>
+            <Button variant="outline" disabled={deletingResource} onClick={() => { setDeleteTarget(null); setDeleteConfirmation(""); }}>Cancelar</Button>
+            <Button
+              variant="destructive"
+              disabled={deletingResource || !deleteTarget || deleteConfirmation !== (deleteTarget.kind === "bot" ? deleteTarget.bot.slug : `ELIMINAR ${deleteTarget.client.company_name}`)}
+              onClick={() => void remove()}
             >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+              {deletingResource && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Eliminar permanentemente
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
