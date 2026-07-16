@@ -23,11 +23,15 @@ if (!process.env.GH_TOKEN) {
   throw new Error("STAGE_GITHUB_TOKEN or GH_TOKEN is required to publish a desktop update.");
 }
 
-const command = process.platform === "win32"
+const builderPath = process.platform === "win32"
   ? path.join(root, "node_modules", ".bin", "electron-builder.cmd")
   : path.join(root, "node_modules", ".bin", "electron-builder");
+const command = process.platform === "win32" ? process.env.ComSpec || "cmd.exe" : builderPath;
+const args = process.platform === "win32"
+  ? ["/d", "/s", "/c", `"${builderPath}" --win nsis --publish always`]
+  : ["--win", "nsis", "--publish", "always"];
 
-const result = spawnSync(command, ["--win", "nsis", "--publish", "always"], {
+const result = spawnSync(command, args, {
   cwd: root,
   env: process.env,
   stdio: "inherit",
