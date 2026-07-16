@@ -417,8 +417,6 @@ function Clients() {
         botId: target?.botId,
         botSlug: target?.botSlug,
         activo,
-        botStatusUrl: target?.botStatusUrl,
-        botSecret: target?.botSecret,
       }),
     });
     const body = await res.json();

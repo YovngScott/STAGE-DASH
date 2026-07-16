@@ -54,41 +54,43 @@ export const Route = createFileRoute("/api/bot-toggle")({
           return Response.json({ error: "No autorizado." }, { status: 401 });
         }
 
-        let botStatusUrl = body.botStatusUrl?.trim() || "";
-        let botSecret = body.botSecret?.trim() || "";
-
-        if (!botStatusUrl || !botSecret) {
-          if (botId) {
-            const { data: bot, error: botError } = await supabaseAdmin
-              .from("client_bots")
-              .select("bot_status_url,bot_secret")
-              .eq("id", botId)
-              .maybeSingle();
-            if (botError) {
-              return Response.json(
-                { error: `No se pudo leer el bot (revisa STAGE_SUPABASE_SERVICE_ROLE_KEY en tu entorno local): ${botError.message}` },
-                { status: 500 },
-              );
-            }
-            botStatusUrl = bot?.bot_status_url ?? "";
-            botSecret = bot?.bot_secret ?? "";
-          } else {
-            const { data: client, error: clientError } = await supabaseAdmin
-              .from("clients")
-              .select("bot_status_url,bot_secret")
-              .eq("id", clientId)
-              .maybeSingle();
-            if (clientError) {
-              console.error("[bot-toggle] Error reading client row:", clientError);
-              return Response.json(
-                { error: `No se pudo leer el cliente (revisa STAGE_SUPABASE_SERVICE_ROLE_KEY en tu entorno local): ${clientError.message}` },
-                { status: 500 },
-              );
-            }
-            botStatusUrl = client?.bot_status_url ?? "";
-            botSecret = client?.bot_secret ?? "";
+        // Las credenciales nunca deben venir del navegador: además de ser un
+        // riesgo, dejan secretos antiguos después de una rotación. Siempre se
+        // lee la URL/secret desde la fila administrativa y se prefiere el
+        // secreto global vigente del backend local.
+        let botStatusUrl = "";
+        let botSecret = "";
+        if (botId) {
+          const { data: bot, error: botError } = await supabaseAdmin
+            .from("client_bots")
+            .select("bot_status_url,bot_secret")
+            .eq("id", botId)
+            .maybeSingle();
+          if (botError) {
+            return Response.json(
+              { error: `No se pudo leer el bot (revisa STAGE_SUPABASE_SERVICE_ROLE_KEY en tu entorno local): ${botError.message}` },
+              { status: 500 },
+            );
           }
+          botStatusUrl = bot?.bot_status_url ?? "";
+          botSecret = bot?.bot_secret ?? "";
+        } else {
+          const { data: client, error: clientError } = await supabaseAdmin
+            .from("clients")
+            .select("bot_status_url,bot_secret")
+            .eq("id", clientId)
+            .maybeSingle();
+          if (clientError) {
+            console.error("[bot-toggle] Error reading client row:", clientError);
+            return Response.json(
+              { error: `No se pudo leer el cliente (revisa STAGE_SUPABASE_SERVICE_ROLE_KEY en tu entorno local): ${clientError.message}` },
+              { status: 500 },
+            );
+          }
+          botStatusUrl = client?.bot_status_url ?? "";
+          botSecret = client?.bot_secret ?? "";
         }
+        botSecret = process.env.STAGE_PLATFORM_ADMIN_SECRET?.trim() || botSecret;
         if (!botStatusUrl || !botSecret) {
           return Response.json(
             { error: "Este cliente no tiene un bot configurado (bot_status_url / bot_secret)." },
@@ -128,11 +130,14 @@ export const Route = createFileRoute("/api/bot-toggle")({
         if (botId) {
           await supabaseAdmin
             .from("client_bots")
-            .update({ status: activo ? "active" : "paused" })
+            .update({ status: activo ? "active" : "paused", bot_secret: botSecret })
             .eq("id", botId);
         }
         if (clientId) {
-          await supabaseAdmin.from("clients").update({ bot_activo: activo }).eq("id", clientId);
+          await supabaseAdmin
+            .from("clients")
+            .update({ bot_activo: activo, bot_secret: botSecret })
+            .eq("id", clientId);
         }
 
         return Response.json({ ok: true, activo });
