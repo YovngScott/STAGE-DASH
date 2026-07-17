@@ -42,3 +42,6 @@ release/
 *.njsproj
 *.sln
 *.sw?
+
+# Stray npm lockfile — repo uses bun.lock / pnpm-lock.yaml
+package-lock.json
