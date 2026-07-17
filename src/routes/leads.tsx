@@ -1,14 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import {
-  Search,
-  Trash2,
-  Loader2,
-  UserPlus,
-  MessageCircle,
-  XCircle,
-  Mail,
-} from "lucide-react";
+import { Search, Trash2, Loader2, UserPlus, MessageCircle, XCircle, Mail } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -31,6 +23,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { ClientsLeadsNav } from "@/components/clients-leads-nav";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -105,10 +98,7 @@ function Leads() {
   const newCount = leads.filter((l) => l.status === "new").length;
 
   const setStatus = async (lead: Lead, status: string) => {
-    const { error } = await supabase
-      .from("leads")
-      .update({ status })
-      .eq("id", lead.id);
+    const { error } = await supabase.from("leads").update({ status }).eq("id", lead.id);
     if (error) return toast.error(error.message);
     toast.success(`${lead.company ?? lead.name} marked as ${status}`);
     void load();
@@ -142,10 +132,7 @@ function Leads() {
 
   const remove = async () => {
     if (!confirmDelete) return;
-    const { error } = await supabase
-      .from("leads")
-      .delete()
-      .eq("id", confirmDelete.id);
+    const { error } = await supabase.from("leads").delete().eq("id", confirmDelete.id);
     if (error) return toast.error(error.message);
     toast.success(`${confirmDelete.company ?? confirmDelete.name} deleted`);
     setConfirmDelete(null);
@@ -159,9 +146,7 @@ function Leads() {
           <p className="text-xs uppercase tracking-widest text-muted-foreground">
             Inbound Pipeline
           </p>
-          <h2 className="mt-1 text-2xl font-semibold tracking-tight">
-            Leads
-          </h2>
+          <h2 className="mt-1 text-2xl font-semibold tracking-tight">Leads</h2>
           <p className="mt-1 text-sm text-muted-foreground">
             {leads.length} inquiries · {newCount} awaiting review
           </p>
@@ -176,6 +161,8 @@ function Leads() {
           />
         </div>
       </div>
+
+      <ClientsLeadsNav />
 
       <Card className="border-border/60 overflow-hidden">
         {loading ? (
@@ -201,9 +188,7 @@ function Leads() {
                     <div className="flex flex-col leading-tight">
                       <span className="font-medium">{l.company || l.name}</span>
                       {l.company && (
-                        <span className="text-[11px] text-muted-foreground">
-                          {l.name}
-                        </span>
+                        <span className="text-[11px] text-muted-foreground">{l.name}</span>
                       )}
                       <a
                         href={`mailto:${l.email}`}
@@ -227,15 +212,10 @@ function Leads() {
                     )}
                   </TableCell>
                   <TableCell className="max-w-xs">
-                    <p className="text-xs text-muted-foreground line-clamp-3">
-                      {l.message || "—"}
-                    </p>
+                    <p className="text-xs text-muted-foreground line-clamp-3">{l.message || "—"}</p>
                   </TableCell>
                   <TableCell>
-                    <Badge
-                      variant="outline"
-                      className={statusStyle[l.status] ?? statusStyle.new}
-                    >
+                    <Badge variant="outline" className={statusStyle[l.status] ?? statusStyle.new}>
                       <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-current" />
                       {l.status}
                     </Badge>
@@ -313,10 +293,7 @@ function Leads() {
         )}
       </Card>
 
-      <AlertDialog
-        open={!!confirmDelete}
-        onOpenChange={(o) => !o && setConfirmDelete(null)}
-      >
+      <AlertDialog open={!!confirmDelete} onOpenChange={(o) => !o && setConfirmDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete lead?</AlertDialogTitle>

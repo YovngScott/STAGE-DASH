@@ -2,8 +2,10 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import {
   LayoutDashboard,
   Bot,
+  BotMessageSquare,
   BrainCircuit,
   Users,
+  UsersRound,
   UserPlus,
   Globe,
   Wallet,
@@ -11,7 +13,6 @@ import {
   LogOut,
   Palette,
   Activity,
-  LayoutGrid,
   ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -33,23 +34,25 @@ import {
 } from "@/components/ui/sidebar";
 
 // Orden lógico del menú: primero el panorama (Dashboard), luego todo lo
-// relacionado a bots y la aplicación web agrupado bajo "Servicios" (colapsable),
-// y por último la operación comercial (Leads, clientes, finanzas).
+// relacionado a bots y la aplicación web agrupado bajo "Services" (colapsable),
+// después la gestión comercial (clientes + leads) y por último las finanzas.
 const mainItems = [{ title: "Dashboard", url: "/", icon: LayoutDashboard }];
 
 // Todo lo relacionado a bots y a la aplicación web vive aquí adentro.
-const servicios = [
+const services = [
   { title: "Bot Builder", url: "/bot-builder", icon: BrainCircuit },
   { title: "Salud de bots", url: "/health", icon: Activity },
   { title: "My Products", url: "/products", icon: Bot },
   { title: "Web Apps", url: "/webapps", icon: Globe },
 ];
 
-const businessItems = [
+// Leads vive dentro de Client Manager como una subpestaña.
+const clientManager = [
+  { title: "Clients", url: "/clients", icon: UsersRound },
   { title: "Leads", url: "/leads", icon: UserPlus },
-  { title: "Client Manager", url: "/clients", icon: Users },
-  { title: "Financial Ledger", url: "/ledger", icon: Wallet },
 ];
+
+const businessItems = [{ title: "Financial Ledger", url: "/ledger", icon: Wallet }];
 
 export function AppSidebar({
   onSignOut,
@@ -60,7 +63,8 @@ export function AppSidebar({
 }) {
   const pathname = useRouterState({ select: (r) => r.location.pathname });
   const isActive = (path: string) => (path === "/" ? pathname === "/" : pathname.startsWith(path));
-  const serviciosActive = servicios.some((s) => isActive(s.url));
+  const servicesActive = services.some((s) => isActive(s.url));
+  const clientsActive = clientManager.some((s) => isActive(s.url));
 
   const initials =
     email
@@ -102,19 +106,46 @@ export function AppSidebar({
                 </SidebarMenuItem>
               ))}
 
-              {/* Servicios: un solo botón que despliega todo lo de bots y la web app. */}
-              <Collapsible defaultOpen={serviciosActive} className="group/servicios" asChild>
+              {/* Services: un solo botón (ícono de bot) que despliega todo lo de bots y la web app. */}
+              <Collapsible defaultOpen={servicesActive} className="group/services" asChild>
                 <SidebarMenuItem>
                   <CollapsibleTrigger asChild>
-                    <SidebarMenuButton isActive={serviciosActive} tooltip="Servicios">
-                      <LayoutGrid className="h-4 w-4" />
-                      <span>Servicios</span>
-                      <ChevronRight className="ml-auto h-4 w-4 transition-transform duration-200 group-data-[state=open]/servicios:rotate-90" />
+                    <SidebarMenuButton isActive={servicesActive} tooltip="Services">
+                      <BotMessageSquare className="h-4 w-4" />
+                      <span>Services</span>
+                      <ChevronRight className="ml-auto h-4 w-4 transition-transform duration-200 group-data-[state=open]/services:rotate-90" />
                     </SidebarMenuButton>
                   </CollapsibleTrigger>
                   <CollapsibleContent>
                     <SidebarMenuSub>
-                      {servicios.map((item) => (
+                      {services.map((item) => (
+                        <SidebarMenuSubItem key={item.title}>
+                          <SidebarMenuSubButton asChild isActive={isActive(item.url)}>
+                            <Link to={item.url}>
+                              <item.icon className="h-4 w-4" />
+                              <span>{item.title}</span>
+                            </Link>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                      ))}
+                    </SidebarMenuSub>
+                  </CollapsibleContent>
+                </SidebarMenuItem>
+              </Collapsible>
+
+              {/* Client Manager: los Leads viven adentro como subpestaña. */}
+              <Collapsible defaultOpen={clientsActive} className="group/clients" asChild>
+                <SidebarMenuItem>
+                  <CollapsibleTrigger asChild>
+                    <SidebarMenuButton isActive={clientsActive} tooltip="Client Manager">
+                      <Users className="h-4 w-4" />
+                      <span>Client Manager</span>
+                      <ChevronRight className="ml-auto h-4 w-4 transition-transform duration-200 group-data-[state=open]/clients:rotate-90" />
+                    </SidebarMenuButton>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <SidebarMenuSub>
+                      {clientManager.map((item) => (
                         <SidebarMenuSubItem key={item.title}>
                           <SidebarMenuSubButton asChild isActive={isActive(item.url)}>
                             <Link to={item.url}>

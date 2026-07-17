@@ -57,6 +57,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ClientsLeadsNav } from "@/components/clients-leads-nav";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -110,8 +111,7 @@ interface ClientBot {
 }
 
 type DeleteTarget =
-  | { kind: "bot"; client: Client; bot: ClientBot }
-  | { kind: "client"; client: Client };
+  { kind: "bot"; client: Client; bot: ClientBot } | { kind: "client"; client: Client };
 
 interface ClientDashboard {
   id: string;
@@ -307,7 +307,9 @@ function Clients() {
     const fallbackBots = buildFallbackBots(client);
     const loadedBots = botsRes.error ? [] : ((botsRes.data ?? []) as ClientBot[]);
     const effectiveBots = loadedBots.length > 0 ? loadedBots : fallbackBots;
-    const storedDashboards = dashboardsRes.error ? [] : ((dashboardsRes.data ?? []) as ClientDashboard[]);
+    const storedDashboards = dashboardsRes.error
+      ? []
+      : ((dashboardsRes.data ?? []) as ClientDashboard[]);
     const localDashboards = storedDashboards.map((dashboard) => {
       const bot = effectiveBots.find((candidate) => candidate.slug === dashboard.slug);
       return {
@@ -355,23 +357,14 @@ function Clients() {
   };
 
   const filtered = useMemo(
-    () =>
-      clients.filter((c) =>
-        c.company_name.toLowerCase().includes(query.toLowerCase()),
-      ),
+    () => clients.filter((c) => c.company_name.toLowerCase().includes(query.toLowerCase())),
     [clients, query],
   );
 
-  const totalMrr = clients.reduce(
-    (s, c) => s + (c.status === "active" ? Number(c.mrr) : 0),
-    0,
-  );
+  const totalMrr = clients.reduce((s, c) => s + (c.status === "active" ? Number(c.mrr) : 0), 0);
 
   const sumServices = (services: string[]) =>
-    services.reduce(
-      (s, name) => s + (products.find((p) => p.name === name)?.monthly_cost ?? 0),
-      0,
-    );
+    services.reduce((s, name) => s + (products.find((p) => p.name === name)?.monthly_cost ?? 0), 0);
 
   const openNew = () => {
     setEditing(null);
@@ -380,9 +373,7 @@ function Clients() {
   };
   const openEdit = (c: Client) => {
     setEditing(c);
-    const day = c.next_billing_date
-      ? new Date(c.next_billing_date).getUTCDate()
-      : 5;
+    const day = c.next_billing_date ? new Date(c.next_billing_date).getUTCDate() : 5;
     setDraft({
       company_name: c.company_name,
       contact_name: c.contact_name ?? "",
@@ -414,8 +405,7 @@ function Clients() {
     const d = new Date(
       Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), Math.min(28, Math.max(1, day))),
     );
-    if (d.getTime() < now.getTime())
-      d.setUTCMonth(d.getUTCMonth() + 1);
+    if (d.getTime() < now.getTime()) d.setUTCMonth(d.getUTCMonth() + 1);
     return d.toISOString().slice(0, 10);
   };
 
@@ -435,7 +425,9 @@ function Clients() {
       try {
         await callBotToggle(editing.id, hasMessagingNow);
         botActivo = hasMessagingNow;
-        toast.success(`Bot turned ${hasMessagingNow ? "on" : "off"} (AI Messaging Suite ${hasMessagingNow ? "added" : "removed"})`);
+        toast.success(
+          `Bot turned ${hasMessagingNow ? "on" : "off"} (AI Messaging Suite ${hasMessagingNow ? "added" : "removed"})`,
+        );
       } catch (err) {
         toast.error(
           `Couldn't reach the bot to turn it ${hasMessagingNow ? "on" : "off"}: ${err instanceof Error ? err.message : "unknown error"}. Saving the rest of the changes anyway.`,
@@ -473,14 +465,18 @@ function Clients() {
     if (c.status !== "active") {
       const { error } = await supabase.from("clients").update({ status: "active" }).eq("id", c.id);
       if (error) return toast.error(error.message);
-      toast.success(`${c.company_name} reactivado. Enciende cada bot y vuelve a vincular WhatsApp con el QR.`);
+      toast.success(
+        `${c.company_name} reactivado. Enciende cada bot y vuelve a vincular WhatsApp con el QR.`,
+      );
       void load();
       return;
     }
     setDecommissioningClientId(c.id);
     try {
       await callLifecycle("decommissionClient", c.id);
-      toast.success(`${c.company_name} dado de baja: bots apagados, WhatsApp desconectado y accesos revocados.`);
+      toast.success(
+        `${c.company_name} dado de baja: bots apagados, WhatsApp desconectado y accesos revocados.`,
+      );
       if (selectedClient?.id === c.id) closeClientWorkspace();
       void load();
     } catch (error) {
@@ -556,7 +552,9 @@ function Clients() {
   const toggleClientBot = async (bot: ClientBot) => {
     if (!selectedClient) return;
     if (!bot.bot_secret) {
-      toast.error("Este bot necesita Bot secret para apagar/encender en local. Edita el cliente y pega PLATFORM_ADMIN_SECRET.");
+      toast.error(
+        "Este bot necesita Bot secret para apagar/encender en local. Edita el cliente y pega PLATFORM_ADMIN_SECRET.",
+      );
       return;
     }
     const next = bot.status !== "active";
@@ -578,16 +576,18 @@ function Clients() {
         ),
       );
       setSelectedClient((client) =>
-        client && client.id === selectedClient.id
-          ? { ...client, bot_activo: next }
-          : client,
+        client && client.id === selectedClient.id ? { ...client, bot_activo: next } : client,
       );
       setClients((items) =>
         items.map((client) =>
           client.id === selectedClient.id ? { ...client, bot_activo: next } : client,
         ),
       );
-      toast.success(next ? `${bot.name} encendido. Abre el QR para reconectar WhatsApp.` : `${bot.name} apagado, WhatsApp desconectado y accesos revocados.`);
+      toast.success(
+        next
+          ? `${bot.name} encendido. Abre el QR para reconectar WhatsApp.`
+          : `${bot.name} apagado, WhatsApp desconectado y accesos revocados.`,
+      );
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to toggle the bot.");
     } finally {
@@ -605,7 +605,10 @@ function Clients() {
       const response = await fetch("/api/bot-whatsapp", {
         method: "POST",
         headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
-        body: JSON.stringify({ clientId: selectedClient.id, botId: bot.id === "primary" ? undefined : bot.id }),
+        body: JSON.stringify({
+          clientId: selectedClient.id,
+          botId: bot.id === "primary" ? undefined : bot.id,
+        }),
       });
       const body = await response.json();
       if (!response.ok) throw new Error(body?.error ?? "No se pudo leer WhatsApp.");
@@ -651,11 +654,21 @@ function Clients() {
       const res = await fetch("/api/bot-edit", {
         method: "POST",
         headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
-        body: JSON.stringify({ botId: botEditBot.id, name: botEditDraft.name, promptExtra: botEditDraft.promptExtra }),
+        body: JSON.stringify({
+          botId: botEditBot.id,
+          name: botEditDraft.name,
+          promptExtra: botEditDraft.promptExtra,
+        }),
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body?.error ?? "No se pudo actualizar el bot.");
-      setBots((items) => items.map((item) => item.id === botEditBot.id ? { ...item, name: botEditDraft.name, prompt_extra: botEditDraft.promptExtra } : item));
+      setBots((items) =>
+        items.map((item) =>
+          item.id === botEditBot.id
+            ? { ...item, name: botEditDraft.name, prompt_extra: botEditDraft.promptExtra }
+            : item,
+        ),
+      );
       toast.success("Bot actualizado y guardado en GitHub.");
       setBotEditDialogOpen(false);
     } catch (err) {
@@ -677,10 +690,7 @@ function Clients() {
       bot_secret: botSecret,
     };
 
-    const clientUpdate = await supabase
-      .from("clients")
-      .update(updates)
-      .eq("id", selectedClient.id);
+    const clientUpdate = await supabase.from("clients").update(updates).eq("id", selectedClient.id);
     if (clientUpdate.error) return toast.error(clientUpdate.error.message);
 
     if (integrationBot.id !== "primary") {
@@ -805,7 +815,11 @@ function Clients() {
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body?.error ?? "No se pudo guardar el usuario.");
-      toast.success(editingDashboardUser ? `${userDraft.email} actualizado` : `${userDraft.email} creado para ${selectedClient.company_name}`);
+      toast.success(
+        editingDashboardUser
+          ? `${userDraft.email} actualizado`
+          : `${userDraft.email} creado para ${selectedClient.company_name}`,
+      );
       closeUserDialog();
       void loadClientResources(selectedClient);
       void loadDashboardUsers(selectedClient, userDraft.tenantSlug);
@@ -818,7 +832,12 @@ function Clients() {
 
   const deleteDashboardUser = async (user: DashboardUser) => {
     if (!selectedClient) return;
-    if (!window.confirm(`¿Eliminar el acceso de ${user.email}? Si no tiene acceso a otro cliente, su cuenta también será eliminada.`)) return;
+    if (
+      !window.confirm(
+        `¿Eliminar el acceso de ${user.email}? Si no tiene acceso a otro cliente, su cuenta también será eliminada.`,
+      )
+    )
+      return;
     setDeletingDashboardUserId(user.id);
     try {
       const { data: sessionData } = await supabase.auth.getSession();
@@ -827,11 +846,17 @@ function Clients() {
       const res = await fetch("/api/client-admin-user", {
         method: "DELETE",
         headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
-        body: JSON.stringify({ clientId: selectedClient.id, tenantSlug: getSelectedTenantSlug(), userId: user.id }),
+        body: JSON.stringify({
+          clientId: selectedClient.id,
+          tenantSlug: getSelectedTenantSlug(),
+          userId: user.id,
+        }),
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body?.error ?? "No se pudo eliminar el usuario.");
-      toast.success(body.deletedAccount ? "Usuario y acceso eliminados" : "Acceso eliminado de este cliente");
+      toast.success(
+        body.deletedAccount ? "Usuario y acceso eliminados" : "Acceso eliminado de este cliente",
+      );
       void loadClientResources(selectedClient);
       void loadDashboardUsers(selectedClient);
     } catch (err) {
@@ -861,12 +886,20 @@ function Clients() {
           botId: deleteTarget.bot.id,
           confirmation: deleteConfirmation,
         });
-        const flyNote = result.fly?.sharedAppPreserved ? " El backend compartido se conservó para no tocar otros clientes." : "";
-        toast.success(`${deleteTarget.bot.name} eliminado de Fly, GitHub y las bases de datos.${flyNote}`);
+        const flyNote = result.fly?.sharedAppPreserved
+          ? " El backend compartido se conservó para no tocar otros clientes."
+          : "";
+        toast.success(
+          `${deleteTarget.bot.name} eliminado de Fly, GitHub y las bases de datos.${flyNote}`,
+        );
         await loadClientResources(deleteTarget.client);
       } else {
-        await callLifecycle("deleteClient", deleteTarget.client.id, { confirmation: deleteConfirmation });
-        toast.success(`${deleteTarget.client.company_name} y todos sus recursos fueron eliminados.`);
+        await callLifecycle("deleteClient", deleteTarget.client.id, {
+          confirmation: deleteConfirmation,
+        });
+        toast.success(
+          `${deleteTarget.client.company_name} y todos sus recursos fueron eliminados.`,
+        );
         closeClientWorkspace();
         void load();
       }
@@ -883,12 +916,8 @@ function Clients() {
     <div className="mx-auto max-w-[1400px] p-6 md:p-8 space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-xs uppercase tracking-widest text-muted-foreground">
-            B2B Accounts
-          </p>
-          <h2 className="mt-1 text-2xl font-semibold tracking-tight">
-            Client Manager
-          </h2>
+          <p className="text-xs uppercase tracking-widest text-muted-foreground">B2B Accounts</p>
+          <h2 className="mt-1 text-2xl font-semibold tracking-tight">Client Manager</h2>
           <p className="mt-1 text-sm text-muted-foreground">
             {clients.length} clients · ${totalMrr.toLocaleString()} MRR contracted
           </p>
@@ -908,6 +937,8 @@ function Clients() {
           </Button>
         </div>
       </div>
+
+      <ClientsLeadsNav />
 
       <Card className="border-border/60 overflow-hidden">
         {loading ? (
@@ -952,18 +983,12 @@ function Clients() {
                   <TableCell>
                     <div className="flex flex-wrap gap-1.5">
                       {(c.services ?? []).map((s) => (
-                        <Badge
-                          key={s}
-                          variant="secondary"
-                          className="font-normal"
-                        >
+                        <Badge key={s} variant="secondary" className="font-normal">
                           {s}
                         </Badge>
                       ))}
                       {(!c.services || c.services.length === 0) && (
-                        <span className="text-xs text-muted-foreground">
-                          —
-                        </span>
+                        <span className="text-xs text-muted-foreground">—</span>
                       )}
                     </div>
                   </TableCell>
@@ -985,10 +1010,10 @@ function Clients() {
                   </TableCell>
                   <TableCell className="text-muted-foreground">
                     {c.next_billing_date
-                      ? new Date(c.next_billing_date).toLocaleDateString(
-                          "en-US",
-                          { month: "short", day: "numeric" },
-                        )
+                      ? new Date(c.next_billing_date).toLocaleDateString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                        })
                       : "—"}
                   </TableCell>
                   <TableCell className="text-muted-foreground">
@@ -1018,13 +1043,13 @@ function Clients() {
                           event.stopPropagation();
                           void toggleActive(c);
                         }}
-                        title={
-                          c.status === "active"
-                            ? "Pause client"
-                            : "Reactivate client"
-                        }
+                        title={c.status === "active" ? "Pause client" : "Reactivate client"}
                       >
-                        {decommissioningClientId === c.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Power className="h-4 w-4" />}
+                        {decommissioningClientId === c.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Power className="h-4 w-4" />
+                        )}
                       </Button>
                       {(c.bot_status_url || (c.services ?? []).includes(BOT_TOGGLE_SERVICE)) && (
                         <Button
@@ -1035,7 +1060,11 @@ function Clients() {
                             openClientProfile(c);
                           }}
                           title="Open bot controls"
-                          className={c.bot_activo ? "text-success hover:text-success" : "text-destructive hover:text-destructive"}
+                          className={
+                            c.bot_activo
+                              ? "text-success hover:text-success"
+                              : "text-destructive hover:text-destructive"
+                          }
                         >
                           {c.bot_activo ? (
                             <Zap className="h-4 w-4" />
@@ -1089,7 +1118,8 @@ function Clients() {
               <SheetHeader>
                 <SheetTitle>{selectedClient.company_name}</SheetTitle>
                 <SheetDescription>
-                  {selectedClient.contact_name || "Client workspace"} · {selectedClient.email || "No email"}
+                  {selectedClient.contact_name || "Client workspace"} ·{" "}
+                  {selectedClient.email || "No email"}
                 </SheetDescription>
               </SheetHeader>
 
@@ -1146,10 +1176,10 @@ function Clients() {
                             </p>
                           </div>
                           <div className="flex items-center gap-1">
-                           <Button
-                             size="icon"
-                             variant="ghost"
-                             onClick={() => openBotEdit(bot)}
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => openBotEdit(bot)}
                               title="Editar detalles y prompt extra"
                               className="text-muted-foreground hover:text-primary"
                             >
@@ -1170,7 +1200,11 @@ function Clients() {
                               variant="ghost"
                               onClick={() => openBotIntegration(bot)}
                               title="Editar conexión del bot"
-                              className={bot.bot_status_url && bot.bot_secret ? "text-primary hover:text-primary" : "text-warning hover:text-warning"}
+                              className={
+                                bot.bot_status_url && bot.bot_secret
+                                  ? "text-primary hover:text-primary"
+                                  : "text-warning hover:text-warning"
+                              }
                             >
                               <Link2 className="h-4 w-4" />
                             </Button>
@@ -1180,7 +1214,11 @@ function Clients() {
                               disabled={!bot.bot_status_url || togglingBot === bot.id}
                               onClick={() => void toggleClientBot(bot)}
                               title={bot.status === "active" ? "Turn bot off" : "Turn bot on"}
-                              className={bot.status === "active" ? "text-success hover:text-success" : "text-destructive hover:text-destructive"}
+                              className={
+                                bot.status === "active"
+                                  ? "text-success hover:text-success"
+                                  : "text-destructive hover:text-destructive"
+                              }
                             >
                               {togglingBot === bot.id ? (
                                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -1274,10 +1312,7 @@ function Clients() {
 
                 <TabsContent value="access" className="space-y-3 pt-3">
                   <div className="flex flex-wrap justify-end gap-2">
-                    <Button
-                      className="gap-2"
-                      onClick={openUserManager}
-                    >
+                    <Button className="gap-2" onClick={openUserManager}>
                       <UsersRound className="h-4 w-4" />
                       Administrar usuarios
                     </Button>
@@ -1290,23 +1325,27 @@ function Clients() {
                     dashboardUsers.map((user) => {
                       const account = { display_name: user.displayName, provider: "dashboard" };
                       return (
-                      <ResourceCard key={user.id}>
-                        <div className="flex items-center justify-between gap-3">
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <Mail className="h-4 w-4 text-primary" />
-                              <h4 className="font-medium">{user.email}</h4>
-                              <Badge variant="outline">activo</Badge>
-                              <Button size="sm" variant="outline" onClick={() => openEditDashboardUser(user)}>
-                                Editar
-                              </Button>
+                        <ResourceCard key={user.id}>
+                          <div className="flex items-center justify-between gap-3">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <Mail className="h-4 w-4 text-primary" />
+                                <h4 className="font-medium">{user.email}</h4>
+                                <Badge variant="outline">activo</Badge>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => openEditDashboardUser(user)}
+                                >
+                                  Editar
+                                </Button>
+                              </div>
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                {account.display_name || "No display name"} · {account.provider}
+                              </p>
                             </div>
-                            <p className="mt-1 text-xs text-muted-foreground">
-                              {account.display_name || "No display name"} · {account.provider}
-                            </p>
                           </div>
-                        </div>
-                      </ResourceCard>
+                        </ResourceCard>
                       );
                     })
                   )}
@@ -1317,54 +1356,84 @@ function Clients() {
         </SheetContent>
       </Sheet>
 
-      <Dialog open={whatsAppDialogOpen} onOpenChange={(next) => {
-        setWhatsAppDialogOpen(next);
-        if (!next) {
-          setWhatsAppBot(null);
-          setWhatsAppStatus(null);
-        }
-      }}>
+      <Dialog
+        open={whatsAppDialogOpen}
+        onOpenChange={(next) => {
+          setWhatsAppDialogOpen(next);
+          if (!next) {
+            setWhatsAppBot(null);
+            setWhatsAppStatus(null);
+          }
+        }}
+      >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Conectar WhatsApp</DialogTitle>
             <DialogDescription>
-              {whatsAppBot ? `Escanea este QR desde WhatsApp para vincular ${whatsAppBot.name}.` : ""}
+              {whatsAppBot
+                ? `Escanea este QR desde WhatsApp para vincular ${whatsAppBot.name}.`
+                : ""}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             {whatsAppLoading ? (
-              <div className="flex min-h-52 items-center justify-center text-sm text-muted-foreground"><Loader2 className="mr-2 h-4 w-4 animate-spin" />Consultando el bot…</div>
+              <div className="flex min-h-52 items-center justify-center text-sm text-muted-foreground">
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Consultando el bot…
+              </div>
             ) : whatsAppStatus?.conectado ? (
               <div className="rounded-lg border border-success/40 bg-success/5 p-4 text-sm">
-                <div className="flex items-center gap-2 font-medium text-success"><CheckCircle2 className="h-4 w-4" />WhatsApp conectado</div>
-                {whatsAppStatus.numero && <p className="mt-2 text-muted-foreground">Número: {whatsAppStatus.numero}</p>}
+                <div className="flex items-center gap-2 font-medium text-success">
+                  <CheckCircle2 className="h-4 w-4" />
+                  WhatsApp conectado
+                </div>
+                {whatsAppStatus.numero && (
+                  <p className="mt-2 text-muted-foreground">Número: {whatsAppStatus.numero}</p>
+                )}
               </div>
             ) : whatsAppStatus?.qrDataUrl ? (
               <div className="rounded-lg border border-border/60 bg-white p-3">
-                <img src={whatsAppStatus.qrDataUrl} alt="Código QR de WhatsApp" className="mx-auto aspect-square w-full max-w-xs object-contain" />
+                <img
+                  src={whatsAppStatus.qrDataUrl}
+                  alt="Código QR de WhatsApp"
+                  className="mx-auto aspect-square w-full max-w-xs object-contain"
+                />
               </div>
             ) : (
               <div className="rounded-lg border border-border/60 p-4 text-sm text-muted-foreground">
                 El QR aún no está listo. Espera unos segundos y actualiza.
               </div>
             )}
-            {whatsAppStatus?.pairingCode && <p className="rounded-md bg-muted p-3 text-center font-mono text-lg tracking-widest">{whatsAppStatus.pairingCode}</p>}
-            <Button className="w-full" variant="outline" disabled={!whatsAppBot || whatsAppLoading} onClick={() => whatsAppBot && void loadWhatsAppStatus(whatsAppBot)}>
+            {whatsAppStatus?.pairingCode && (
+              <p className="rounded-md bg-muted p-3 text-center font-mono text-lg tracking-widest">
+                {whatsAppStatus.pairingCode}
+              </p>
+            )}
+            <Button
+              className="w-full"
+              variant="outline"
+              disabled={!whatsAppBot || whatsAppLoading}
+              onClick={() => whatsAppBot && void loadWhatsAppStatus(whatsAppBot)}
+            >
               Actualizar estado
             </Button>
           </div>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={integrationDialogOpen} onOpenChange={(next) => {
-        setIntegrationDialogOpen(next);
-        if (!next) setIntegrationBot(null);
-      }}>
+      <Dialog
+        open={integrationDialogOpen}
+        onOpenChange={(next) => {
+          setIntegrationDialogOpen(next);
+          if (!next) setIntegrationBot(null);
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Bot connection</DialogTitle>
             <DialogDescription>
-              Guarda los datos técnicos para que el rayo pueda encender/apagar este bot desde el dashboard local.
+              Guarda los datos técnicos para que el rayo pueda encender/apagar este bot desde el
+              dashboard local.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={saveBotIntegration} className="space-y-4">
@@ -1396,32 +1465,60 @@ function Clients() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={botEditDialogOpen} onOpenChange={(next) => {
-        setBotEditDialogOpen(next);
-        if (!next) setBotEditBot(null);
-      }}>
+      <Dialog
+        open={botEditDialogOpen}
+        onOpenChange={(next) => {
+          setBotEditDialogOpen(next);
+          if (!next) setBotEditBot(null);
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Editar bot</DialogTitle>
-            <DialogDescription>Actualiza el nombre y el prompt extra. El tenant se sincroniza en GitHub.</DialogDescription>
+            <DialogDescription>
+              Actualiza el nombre y el prompt extra. El tenant se sincroniza en GitHub.
+            </DialogDescription>
           </DialogHeader>
           <form onSubmit={saveBotEdit} className="space-y-4">
-            <div className="space-y-2"><Label>Nombre del bot</Label><Input value={botEditDraft.name} onChange={(e) => setBotEditDraft((d) => ({ ...d, name: e.target.value }))} required /></div>
-            <div className="space-y-2"><Label>Prompt extra</Label><Textarea value={botEditDraft.promptExtra} onChange={(e) => setBotEditDraft((d) => ({ ...d, promptExtra: e.target.value }))} placeholder="Instrucciones adicionales para este cliente..." rows={6} /></div>
-            <DialogFooter><Button type="submit" disabled={savingBotEdit}>{savingBotEdit ? <Loader2 className="h-4 w-4 animate-spin" /> : "Guardar cambios"}</Button></DialogFooter>
+            <div className="space-y-2">
+              <Label>Nombre del bot</Label>
+              <Input
+                value={botEditDraft.name}
+                onChange={(e) => setBotEditDraft((d) => ({ ...d, name: e.target.value }))}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Prompt extra</Label>
+              <Textarea
+                value={botEditDraft.promptExtra}
+                onChange={(e) => setBotEditDraft((d) => ({ ...d, promptExtra: e.target.value }))}
+                placeholder="Instrucciones adicionales para este cliente..."
+                rows={6}
+              />
+            </div>
+            <DialogFooter>
+              <Button type="submit" disabled={savingBotEdit}>
+                {savingBotEdit ? <Loader2 className="h-4 w-4 animate-spin" /> : "Guardar cambios"}
+              </Button>
+            </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={userManagerOpen} onOpenChange={(next) => {
-        if (!next) closeUserManager();
-        else setUserManagerOpen(true);
-      }}>
+      <Dialog
+        open={userManagerOpen}
+        onOpenChange={(next) => {
+          if (!next) closeUserManager();
+          else setUserManagerOpen(true);
+        }}
+      >
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Usuarios del dashboard</DialogTitle>
             <DialogDescription>
-              Crea, modifica o revoca el acceso de las personas que pueden entrar al dashboard de {selectedClient?.company_name ?? "este cliente"}.
+              Crea, modifica o revoca el acceso de las personas que pueden entrar al dashboard de{" "}
+              {selectedClient?.company_name ?? "este cliente"}.
             </DialogDescription>
           </DialogHeader>
           <div className="flex justify-end">
@@ -1441,11 +1538,21 @@ function Clients() {
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="min-w-0">
                       <p className="truncate font-medium">{user.email}</p>
-                      <p className="text-sm text-muted-foreground">{user.displayName || "Sin nombre visible"}</p>
-                      {user.lastSignInAt && <p className="mt-1 text-xs text-muted-foreground">Último acceso: {new Date(user.lastSignInAt).toLocaleString()}</p>}
+                      <p className="text-sm text-muted-foreground">
+                        {user.displayName || "Sin nombre visible"}
+                      </p>
+                      {user.lastSignInAt && (
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Último acceso: {new Date(user.lastSignInAt).toLocaleString()}
+                        </p>
+                      )}
                     </div>
                     <div className="flex items-center gap-2">
-                      <Button size="sm" variant="outline" onClick={() => openEditDashboardUser(user)}>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => openEditDashboardUser(user)}
+                      >
                         <Pencil className="mr-1 h-3.5 w-3.5" /> Editar
                       </Button>
                       <Button
@@ -1455,7 +1562,11 @@ function Clients() {
                         disabled={deletingDashboardUserId === user.id}
                         onClick={() => void deleteDashboardUser(user)}
                       >
-                        {deletingDashboardUserId === user.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="mr-1 h-3.5 w-3.5" />}
+                        {deletingDashboardUserId === user.id ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Trash2 className="mr-1 h-3.5 w-3.5" />
+                        )}
                         Eliminar
                       </Button>
                     </div>
@@ -1467,13 +1578,20 @@ function Clients() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={userDialogOpen} onOpenChange={(next) => {
-        if (!next) closeUserDialog();
-        else setUserDialogOpen(true);
-      }}>
+      <Dialog
+        open={userDialogOpen}
+        onOpenChange={(next) => {
+          if (!next) closeUserDialog();
+          else setUserDialogOpen(true);
+        }}
+      >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editingDashboardUser ? "Editar usuario del dashboard" : "Crear usuario del dashboard"}</DialogTitle>
+            <DialogTitle>
+              {editingDashboardUser
+                ? "Editar usuario del dashboard"
+                : "Crear usuario del dashboard"}
+            </DialogTitle>
             <DialogDescription>
               {editingDashboardUser
                 ? "Actualiza el correo, nombre visible o contraseña. Deja la contraseña vacía para conservarla."
@@ -1500,7 +1618,9 @@ function Clients() {
                     ))}
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-muted-foreground">El acceso se guarda en la base de datos para este slug.</p>
+                <p className="text-xs text-muted-foreground">
+                  El acceso se guarda en la base de datos para este slug.
+                </p>
               </div>
               <div className="space-y-2">
                 <Label>Display name</Label>
@@ -1521,7 +1641,9 @@ function Clients() {
               />
             </div>
             <div className="space-y-2">
-              <Label>{editingDashboardUser ? "Nueva contraseña (opcional)" : "Contraseña temporal"}</Label>
+              <Label>
+                {editingDashboardUser ? "Nueva contraseña (opcional)" : "Contraseña temporal"}
+              </Label>
               <Input
                 type="password"
                 value={userDraft.password}
@@ -1540,18 +1662,17 @@ function Clients() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={open} onOpenChange={(next) => {
-        if (!next) closeClientDialog();
-        else setOpen(true);
-      }}>
+      <Dialog
+        open={open}
+        onOpenChange={(next) => {
+          if (!next) closeClientDialog();
+          else setOpen(true);
+        }}
+      >
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>
-              {editing ? `Edit ${editing.company_name}` : "Add new client"}
-            </DialogTitle>
-            <DialogDescription>
-              Onboard a B2B account and start billing.
-            </DialogDescription>
+            <DialogTitle>{editing ? `Edit ${editing.company_name}` : "Add new client"}</DialogTitle>
+            <DialogDescription>Onboard a B2B account and start billing.</DialogDescription>
           </DialogHeader>
           <form onSubmit={save} className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
@@ -1560,9 +1681,7 @@ function Clients() {
                 <Input
                   id="c-name"
                   value={draft.company_name}
-                  onChange={(e) =>
-                    setDraft((d) => ({ ...d, company_name: e.target.value }))
-                  }
+                  onChange={(e) => setDraft((d) => ({ ...d, company_name: e.target.value }))}
                   required
                   placeholder="Acme Corp"
                 />
@@ -1572,9 +1691,7 @@ function Clients() {
                 <Input
                   id="c-contact"
                   value={draft.contact_name}
-                  onChange={(e) =>
-                    setDraft((d) => ({ ...d, contact_name: e.target.value }))
-                  }
+                  onChange={(e) => setDraft((d) => ({ ...d, contact_name: e.target.value }))}
                 />
               </div>
               <div className="space-y-2">
@@ -1583,9 +1700,7 @@ function Clients() {
                   id="c-email"
                   type="email"
                   value={draft.email}
-                  onChange={(e) =>
-                    setDraft((d) => ({ ...d, email: e.target.value }))
-                  }
+                  onChange={(e) => setDraft((d) => ({ ...d, email: e.target.value }))}
                 />
               </div>
             </div>
@@ -1635,9 +1750,7 @@ function Clients() {
                   min={0}
                   step="0.01"
                   value={draft.mrr}
-                  onChange={(e) =>
-                    setDraft((d) => ({ ...d, mrr: Number(e.target.value) }))
-                  }
+                  onChange={(e) => setDraft((d) => ({ ...d, mrr: Number(e.target.value) }))}
                 />
               </div>
               <div className="space-y-2">
@@ -1684,16 +1797,21 @@ function Clients() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!deleteTarget} onOpenChange={(next) => {
-        if (!next && !deletingResource) {
-          setDeleteTarget(null);
-          setDeleteConfirmation("");
-        }
-      }}>
+      <Dialog
+        open={!!deleteTarget}
+        onOpenChange={(next) => {
+          if (!next && !deletingResource) {
+            setDeleteTarget(null);
+            setDeleteConfirmation("");
+          }
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {deleteTarget?.kind === "bot" ? "Eliminar bot permanentemente" : "Eliminar cliente permanentemente"}
+              {deleteTarget?.kind === "bot"
+                ? "Eliminar bot permanentemente"
+                : "Eliminar cliente permanentemente"}
             </DialogTitle>
             <DialogDescription>
               {deleteTarget?.kind === "bot"
@@ -1701,26 +1819,49 @@ function Clients() {
                 : "Se borrará este cliente, todos sus bots, dashboards, aplicaciones web, accesos y datos asociados. Esta acción no se puede deshacer."}
             </DialogDescription>
           </DialogHeader>
-          {deleteTarget && (() => {
-            const phrase = deleteTarget.kind === "bot" ? deleteTarget.bot.slug : `ELIMINAR ${deleteTarget.client.company_name}`;
-            return (
-              <div className="space-y-2">
-                <Label htmlFor="delete-confirmation">Para confirmar, escribe exactamente: <span className="font-mono text-destructive">{phrase}</span></Label>
-                <Input
-                  id="delete-confirmation"
-                  value={deleteConfirmation}
-                  onChange={(event) => setDeleteConfirmation(event.target.value)}
-                  autoComplete="off"
-                  disabled={deletingResource}
-                />
-              </div>
-            );
-          })()}
+          {deleteTarget &&
+            (() => {
+              const phrase =
+                deleteTarget.kind === "bot"
+                  ? deleteTarget.bot.slug
+                  : `ELIMINAR ${deleteTarget.client.company_name}`;
+              return (
+                <div className="space-y-2">
+                  <Label htmlFor="delete-confirmation">
+                    Para confirmar, escribe exactamente:{" "}
+                    <span className="font-mono text-destructive">{phrase}</span>
+                  </Label>
+                  <Input
+                    id="delete-confirmation"
+                    value={deleteConfirmation}
+                    onChange={(event) => setDeleteConfirmation(event.target.value)}
+                    autoComplete="off"
+                    disabled={deletingResource}
+                  />
+                </div>
+              );
+            })()}
           <DialogFooter>
-            <Button variant="outline" disabled={deletingResource} onClick={() => { setDeleteTarget(null); setDeleteConfirmation(""); }}>Cancelar</Button>
+            <Button
+              variant="outline"
+              disabled={deletingResource}
+              onClick={() => {
+                setDeleteTarget(null);
+                setDeleteConfirmation("");
+              }}
+            >
+              Cancelar
+            </Button>
             <Button
               variant="destructive"
-              disabled={deletingResource || !deleteTarget || deleteConfirmation !== (deleteTarget.kind === "bot" ? deleteTarget.bot.slug : `ELIMINAR ${deleteTarget.client.company_name}`)}
+              disabled={
+                deletingResource ||
+                !deleteTarget ||
+                deleteConfirmation !==
+                  (deleteTarget.kind === "bot"
+                    ? deleteTarget.bot.slug
+                    : `ELIMINAR ${deleteTarget.client.company_name}`)
+              }
               onClick={() => void remove()}
             >
               {deletingResource && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -1743,11 +1884,7 @@ function ResourceStat({ label, value }: { label: string; value: number }) {
 }
 
 function ResourceCard({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="rounded-lg border border-border/60 bg-card/40 p-4">
-      {children}
-    </div>
-  );
+  return <div className="rounded-lg border border-border/60 bg-card/40 p-4">{children}</div>;
 }
 
 function EmptyResource({ label }: { label: string }) {
@@ -1778,7 +1915,7 @@ function InfoCard({
 }) {
   return (
     <ResourceCard>
-        <div className="flex items-start gap-3">
+      <div className="flex items-start gap-3">
         <Icon className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
         <div className="min-w-0">
           <h4 className="font-medium">{title}</h4>
@@ -1813,7 +1950,9 @@ function buildFallbackBots(client: Client): ClientBot[] {
   if (!client.bot_status_url) return [];
 
   const slug = extractSlugFromBotUrl(client.bot_status_url ?? "") || knownTenantSlug(client);
-  const endpoint = client.bot_status_url || (slug ? `https://wiltech-bot.fly.dev/api/${slug}/config/bot-activo` : null);
+  const endpoint =
+    client.bot_status_url ||
+    (slug ? `https://wiltech-bot.fly.dev/api/${slug}/config/bot-activo` : null);
 
   return [
     {
