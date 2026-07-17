@@ -68,7 +68,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "Stage AI Labs — Owner Console" },
-      { name: "description", content: "Internal SaaS console for Stage AI Labs LLC — manage MRR, clients, investments, and AI product operations." },
+      {
+        name: "description",
+        content:
+          "Internal SaaS console for Stage AI Labs LLC — manage MRR, clients, investments, and AI product operations.",
+      },
       { property: "og:title", content: "Stage AI Labs — Owner Console" },
       { property: "og:description", content: "Internal SaaS console for Stage AI Labs LLC." },
       { property: "og:type", content: "website" },
@@ -79,7 +83,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "" },
-      { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" },
+      {
+        rel: "stylesheet",
+        href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap",
+      },
     ],
   }),
   shellComponent: RootShell,
@@ -106,6 +113,7 @@ const titleMap: Record<string, string> = {
   "/": "Dashboard",
   "/products": "My Products",
   "/bot-builder": "Bot Builder",
+  "/health": "Salud de bots",
   "/clients": "Client Manager",
   "/webapps": "Web Apps",
   "/ledger": "Financial Ledger",

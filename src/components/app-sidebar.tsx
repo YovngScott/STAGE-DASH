@@ -10,6 +10,7 @@ import {
   Settings,
   LogOut,
   Palette,
+  Activity,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -29,6 +30,7 @@ const items = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
   { title: "My Products", url: "/products", icon: Bot },
   { title: "Bot Builder", url: "/bot-builder", icon: BrainCircuit },
+  { title: "Salud de bots", url: "/health", icon: Activity },
   { title: "Leads", url: "/leads", icon: UserPlus },
   { title: "Client Manager", url: "/clients", icon: Users },
   { title: "Web Apps", url: "/webapps", icon: Globe },
@@ -44,8 +46,7 @@ export function AppSidebar({
   email: string;
 }) {
   const pathname = useRouterState({ select: (r) => r.location.pathname });
-  const isActive = (path: string) =>
-    path === "/" ? pathname === "/" : pathname.startsWith(path);
+  const isActive = (path: string) => (path === "/" ? pathname === "/" : pathname.startsWith(path));
 
   const initials =
     email
@@ -78,11 +79,7 @@ export function AppSidebar({
             <SidebarMenu>
               {items.map((item) => (
                 <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={isActive(item.url)}
-                    tooltip={item.title}
-                  >
+                  <SidebarMenuButton asChild isActive={isActive(item.url)} tooltip={item.title}>
                     <Link to={item.url}>
                       <item.icon className="h-4 w-4" />
                       <span>{item.title}</span>
@@ -97,11 +94,7 @@ export function AppSidebar({
       <SidebarFooter className="border-t border-sidebar-border">
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton
-              asChild
-              isActive={isActive("/website")}
-              tooltip="Customize Website"
-            >
+            <SidebarMenuButton asChild isActive={isActive("/website")} tooltip="Customize Website">
               <Link to="/website">
                 <Palette className="h-4 w-4" />
                 <span>Customize Website</span>
@@ -128,7 +121,13 @@ export function AppSidebar({
           </Button>
         </div>
         <div className="hidden group-data-[collapsible=icon]:flex justify-center py-2">
-          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => void onSignOut()} title="Sign out">
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-7 w-7"
+            onClick={() => void onSignOut()}
+            title="Sign out"
+          >
             <LogOut className="h-3.5 w-3.5" />
           </Button>
         </div>

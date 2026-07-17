@@ -15,6 +15,7 @@ import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ProductsRouteImport } from './routes/products'
 import { Route as LedgerRouteImport } from './routes/ledger'
 import { Route as LeadsRouteImport } from './routes/leads'
+import { Route as HealthRouteImport } from './routes/health'
 import { Route as ClientsRouteImport } from './routes/clients'
 import { Route as BotBuilderRouteImport } from './routes/bot-builder'
 import { Route as AuthRouteImport } from './routes/auth'
@@ -24,6 +25,7 @@ import { Route as ApiClientAdminUserRouteImport } from './routes/api.client-admi
 import { Route as ApiBotWhatsappRouteImport } from './routes/api.bot-whatsapp'
 import { Route as ApiBotToggleRouteImport } from './routes/api.bot-toggle'
 import { Route as ApiBotLifecycleRouteImport } from './routes/api.bot-lifecycle'
+import { Route as ApiBotHealthRouteImport } from './routes/api.bot-health'
 import { Route as ApiBotEditRouteImport } from './routes/api.bot-edit'
 import { Route as ApiBotBuilderRouteImport } from './routes/api.bot-builder'
 
@@ -55,6 +57,11 @@ const LedgerRoute = LedgerRouteImport.update({
 const LeadsRoute = LeadsRouteImport.update({
   id: '/leads',
   path: '/leads',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HealthRoute = HealthRouteImport.update({
+  id: '/health',
+  path: '/health',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ClientsRoute = ClientsRouteImport.update({
@@ -102,6 +109,11 @@ const ApiBotLifecycleRoute = ApiBotLifecycleRouteImport.update({
   path: '/api/bot-lifecycle',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiBotHealthRoute = ApiBotHealthRouteImport.update({
+  id: '/api/bot-health',
+  path: '/api/bot-health',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiBotEditRoute = ApiBotEditRouteImport.update({
   id: '/api/bot-edit',
   path: '/api/bot-edit',
@@ -118,6 +130,7 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/bot-builder': typeof BotBuilderRoute
   '/clients': typeof ClientsRoute
+  '/health': typeof HealthRoute
   '/leads': typeof LeadsRoute
   '/ledger': typeof LedgerRoute
   '/products': typeof ProductsRoute
@@ -126,6 +139,7 @@ export interface FileRoutesByFullPath {
   '/website': typeof WebsiteRoute
   '/api/bot-builder': typeof ApiBotBuilderRoute
   '/api/bot-edit': typeof ApiBotEditRoute
+  '/api/bot-health': typeof ApiBotHealthRoute
   '/api/bot-lifecycle': typeof ApiBotLifecycleRoute
   '/api/bot-toggle': typeof ApiBotToggleRoute
   '/api/bot-whatsapp': typeof ApiBotWhatsappRoute
@@ -137,6 +151,7 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/bot-builder': typeof BotBuilderRoute
   '/clients': typeof ClientsRoute
+  '/health': typeof HealthRoute
   '/leads': typeof LeadsRoute
   '/ledger': typeof LedgerRoute
   '/products': typeof ProductsRoute
@@ -145,6 +160,7 @@ export interface FileRoutesByTo {
   '/website': typeof WebsiteRoute
   '/api/bot-builder': typeof ApiBotBuilderRoute
   '/api/bot-edit': typeof ApiBotEditRoute
+  '/api/bot-health': typeof ApiBotHealthRoute
   '/api/bot-lifecycle': typeof ApiBotLifecycleRoute
   '/api/bot-toggle': typeof ApiBotToggleRoute
   '/api/bot-whatsapp': typeof ApiBotWhatsappRoute
@@ -157,6 +173,7 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/bot-builder': typeof BotBuilderRoute
   '/clients': typeof ClientsRoute
+  '/health': typeof HealthRoute
   '/leads': typeof LeadsRoute
   '/ledger': typeof LedgerRoute
   '/products': typeof ProductsRoute
@@ -165,6 +182,7 @@ export interface FileRoutesById {
   '/website': typeof WebsiteRoute
   '/api/bot-builder': typeof ApiBotBuilderRoute
   '/api/bot-edit': typeof ApiBotEditRoute
+  '/api/bot-health': typeof ApiBotHealthRoute
   '/api/bot-lifecycle': typeof ApiBotLifecycleRoute
   '/api/bot-toggle': typeof ApiBotToggleRoute
   '/api/bot-whatsapp': typeof ApiBotWhatsappRoute
@@ -178,6 +196,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/bot-builder'
     | '/clients'
+    | '/health'
     | '/leads'
     | '/ledger'
     | '/products'
@@ -186,6 +205,7 @@ export interface FileRouteTypes {
     | '/website'
     | '/api/bot-builder'
     | '/api/bot-edit'
+    | '/api/bot-health'
     | '/api/bot-lifecycle'
     | '/api/bot-toggle'
     | '/api/bot-whatsapp'
@@ -197,6 +217,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/bot-builder'
     | '/clients'
+    | '/health'
     | '/leads'
     | '/ledger'
     | '/products'
@@ -205,6 +226,7 @@ export interface FileRouteTypes {
     | '/website'
     | '/api/bot-builder'
     | '/api/bot-edit'
+    | '/api/bot-health'
     | '/api/bot-lifecycle'
     | '/api/bot-toggle'
     | '/api/bot-whatsapp'
@@ -216,6 +238,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/bot-builder'
     | '/clients'
+    | '/health'
     | '/leads'
     | '/ledger'
     | '/products'
@@ -224,6 +247,7 @@ export interface FileRouteTypes {
     | '/website'
     | '/api/bot-builder'
     | '/api/bot-edit'
+    | '/api/bot-health'
     | '/api/bot-lifecycle'
     | '/api/bot-toggle'
     | '/api/bot-whatsapp'
@@ -236,6 +260,7 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   BotBuilderRoute: typeof BotBuilderRoute
   ClientsRoute: typeof ClientsRoute
+  HealthRoute: typeof HealthRoute
   LeadsRoute: typeof LeadsRoute
   LedgerRoute: typeof LedgerRoute
   ProductsRoute: typeof ProductsRoute
@@ -244,6 +269,7 @@ export interface RootRouteChildren {
   WebsiteRoute: typeof WebsiteRoute
   ApiBotBuilderRoute: typeof ApiBotBuilderRoute
   ApiBotEditRoute: typeof ApiBotEditRoute
+  ApiBotHealthRoute: typeof ApiBotHealthRoute
   ApiBotLifecycleRoute: typeof ApiBotLifecycleRoute
   ApiBotToggleRoute: typeof ApiBotToggleRoute
   ApiBotWhatsappRoute: typeof ApiBotWhatsappRoute
@@ -293,6 +319,13 @@ declare module '@tanstack/react-router' {
       path: '/leads'
       fullPath: '/leads'
       preLoaderRoute: typeof LeadsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/health': {
+      id: '/health'
+      path: '/health'
+      fullPath: '/health'
+      preLoaderRoute: typeof HealthRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/clients': {
@@ -358,6 +391,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiBotLifecycleRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/bot-health': {
+      id: '/api/bot-health'
+      path: '/api/bot-health'
+      fullPath: '/api/bot-health'
+      preLoaderRoute: typeof ApiBotHealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/bot-edit': {
       id: '/api/bot-edit'
       path: '/api/bot-edit'
@@ -380,6 +420,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   BotBuilderRoute: BotBuilderRoute,
   ClientsRoute: ClientsRoute,
+  HealthRoute: HealthRoute,
   LeadsRoute: LeadsRoute,
   LedgerRoute: LedgerRoute,
   ProductsRoute: ProductsRoute,
@@ -388,6 +429,7 @@ const rootRouteChildren: RootRouteChildren = {
   WebsiteRoute: WebsiteRoute,
   ApiBotBuilderRoute: ApiBotBuilderRoute,
   ApiBotEditRoute: ApiBotEditRoute,
+  ApiBotHealthRoute: ApiBotHealthRoute,
   ApiBotLifecycleRoute: ApiBotLifecycleRoute,
   ApiBotToggleRoute: ApiBotToggleRoute,
   ApiBotWhatsappRoute: ApiBotWhatsappRoute,
