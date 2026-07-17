@@ -11,8 +11,11 @@ import {
   LogOut,
   Palette,
   Activity,
+  LayoutGrid,
+  ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   Sidebar,
   SidebarContent,
@@ -24,18 +27,28 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
 } from "@/components/ui/sidebar";
 
-const items = [
-  { title: "Dashboard", url: "/", icon: LayoutDashboard },
-  { title: "My Products", url: "/products", icon: Bot },
+// Orden lógico del menú: primero el panorama (Dashboard), luego todo lo
+// relacionado a bots y la aplicación web agrupado bajo "Servicios" (colapsable),
+// y por último la operación comercial (Leads, clientes, finanzas).
+const mainItems = [{ title: "Dashboard", url: "/", icon: LayoutDashboard }];
+
+// Todo lo relacionado a bots y a la aplicación web vive aquí adentro.
+const servicios = [
   { title: "Bot Builder", url: "/bot-builder", icon: BrainCircuit },
   { title: "Salud de bots", url: "/health", icon: Activity },
+  { title: "My Products", url: "/products", icon: Bot },
+  { title: "Web Apps", url: "/webapps", icon: Globe },
+];
+
+const businessItems = [
   { title: "Leads", url: "/leads", icon: UserPlus },
   { title: "Client Manager", url: "/clients", icon: Users },
-  { title: "Web Apps", url: "/webapps", icon: Globe },
   { title: "Financial Ledger", url: "/ledger", icon: Wallet },
-  { title: "Settings", url: "/settings", icon: Settings },
 ];
 
 export function AppSidebar({
@@ -47,6 +60,7 @@ export function AppSidebar({
 }) {
   const pathname = useRouterState({ select: (r) => r.location.pathname });
   const isActive = (path: string) => (path === "/" ? pathname === "/" : pathname.startsWith(path));
+  const serviciosActive = servicios.some((s) => isActive(s.url));
 
   const initials =
     email
@@ -77,7 +91,45 @@ export function AppSidebar({
           <SidebarGroupLabel>Operations</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {items.map((item) => (
+              {mainItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton asChild isActive={isActive(item.url)} tooltip={item.title}>
+                    <Link to={item.url}>
+                      <item.icon className="h-4 w-4" />
+                      <span>{item.title}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+
+              {/* Servicios: un solo botón que despliega todo lo de bots y la web app. */}
+              <Collapsible defaultOpen={serviciosActive} className="group/servicios" asChild>
+                <SidebarMenuItem>
+                  <CollapsibleTrigger asChild>
+                    <SidebarMenuButton isActive={serviciosActive} tooltip="Servicios">
+                      <LayoutGrid className="h-4 w-4" />
+                      <span>Servicios</span>
+                      <ChevronRight className="ml-auto h-4 w-4 transition-transform duration-200 group-data-[state=open]/servicios:rotate-90" />
+                    </SidebarMenuButton>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <SidebarMenuSub>
+                      {servicios.map((item) => (
+                        <SidebarMenuSubItem key={item.title}>
+                          <SidebarMenuSubButton asChild isActive={isActive(item.url)}>
+                            <Link to={item.url}>
+                              <item.icon className="h-4 w-4" />
+                              <span>{item.title}</span>
+                            </Link>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                      ))}
+                    </SidebarMenuSub>
+                  </CollapsibleContent>
+                </SidebarMenuItem>
+              </Collapsible>
+
+              {businessItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild isActive={isActive(item.url)} tooltip={item.title}>
                     <Link to={item.url}>
@@ -93,6 +145,14 @@ export function AppSidebar({
       </SidebarContent>
       <SidebarFooter className="border-t border-sidebar-border">
         <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild isActive={isActive("/settings")} tooltip="Settings">
+              <Link to="/settings">
+                <Settings className="h-4 w-4" />
+                <span>Settings</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton asChild isActive={isActive("/website")} tooltip="Customize Website">
               <Link to="/website">
