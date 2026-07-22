@@ -135,6 +135,10 @@ const defaultDraft = {
   asistenteUmbral: 0.7,
   asistenteIntervalo: 10,
   asistenteHoraReporte: "18:00",
+  // Apagado por defecto: escribir a nombre del titular es una decisión
+  // consciente del cliente, no algo que ocurra sin que nadie lo pida.
+  asistenteActuaComoTitular: false,
+  asistenteNombreTitular: "",
 };
 
 const botBehaviors: Record<BotBehavior, { label: string; description: string; icon: typeof Bot }> = {
@@ -288,6 +292,8 @@ function BotBuilder() {
   const slug = draft.slug || slugify(selectedClient?.company_name ?? "");
   const muestra = (campo: CampoInfo) => camposPorComportamiento[draft.behavior].includes(campo);
   const contexto = contextoPorComportamiento[draft.behavior];
+  // Solo aplica a los bots asistente: es su interruptor de identidad.
+  const actuaComoTitular = draft.botType === "assistant" && draft.asistenteActuaComoTitular;
   const selectClient = (clientId: string) => {
     const client = clients.find((item) => item.id === clientId);
     setDraft((current) => ({
@@ -377,6 +383,9 @@ function BotBuilder() {
                     umbralConfianza: draft.asistenteUmbral,
                     intervaloMinutos: draft.asistenteIntervalo,
                     horaReporte: draft.asistenteHoraReporte,
+                    actuaComoTitular: draft.asistenteActuaComoTitular,
+                    nombreTitular:
+                      draft.asistenteNombreTitular.trim() || selectedClient.company_name,
                   }
                 : undefined,
           },
@@ -572,6 +581,42 @@ function BotBuilder() {
                   />
                 </Field>
               </div>
+
+              <div className="mt-4 rounded-lg border border-border/60 bg-background/40 p-3">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <Label>Escribir con el nombre del titular</Label>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Activado: redacta en primera persona como el titular, sin mencionar que hay un
+                      asistente. Desactivado: se presenta como asistente que escribe en su nombre.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={draft.asistenteActuaComoTitular}
+                    onCheckedChange={(asistenteActuaComoTitular) =>
+                      setDraft((current) => ({ ...current, asistenteActuaComoTitular }))
+                    }
+                  />
+                </div>
+
+                {draft.asistenteActuaComoTitular && (
+                  <div className="mt-3 space-y-2">
+                    <Field label="Nombre con el que firma">
+                      <Input
+                        value={draft.asistenteNombreTitular}
+                        onChange={(event) =>
+                          setDraft((current) => ({ ...current, asistenteNombreTitular: event.target.value }))
+                        }
+                        placeholder={selectedClient?.company_name ?? "Nombre del titular o de la empresa"}
+                      />
+                    </Field>
+                    <p className="text-xs text-muted-foreground">
+                      Nada se envía solo: el asistente únicamente deja borradores en la bandeja y es el
+                      titular quien los revisa y los manda.
+                    </p>
+                  </div>
+                )}
+              </div>
             </Card>
           )}
 
@@ -590,15 +635,19 @@ function BotBuilder() {
                   placeholder="cliente-demo"
                 />
               </Field>
-              <Field label="Bot name">
-                <Input
-                  value={draft.nombreBot}
-                  onChange={(event) =>
-                    setDraft((current) => ({ ...current, nombreBot: event.target.value }))
-                  }
-                  placeholder="Acme Bot"
-                />
-              </Field>
+              {/* Si el asistente escribe a nombre del titular no hay "nombre de
+                  bot" que definir: usa el del cliente. */}
+              {!actuaComoTitular && (
+                <Field label="Bot name">
+                  <Input
+                    value={draft.nombreBot}
+                    onChange={(event) =>
+                      setDraft((current) => ({ ...current, nombreBot: event.target.value }))
+                    }
+                    placeholder="Acme Bot"
+                  />
+                </Field>
+              )}
               {muestra("rubro") && (
                 <Field label="Business type">
                   <Input

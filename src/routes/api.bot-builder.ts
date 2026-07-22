@@ -42,6 +42,8 @@ interface BotBuilderRequest {
       umbralConfianza?: number;
       intervaloMinutos?: number;
       horaReporte?: string;
+      actuaComoTitular?: boolean;
+      nombreTitular?: string;
     };
   };
   groqModel?: string;
@@ -129,13 +131,26 @@ export const Route = createFileRoute("/api/bot-builder")({
             umbralConfianza: Number.isFinite(umbral) && umbral > 0 && umbral <= 1 ? umbral : 0.7,
             intervaloMinutos: Number.isFinite(intervalo) && intervalo >= 1 ? Math.min(intervalo, 1440) : 10,
             horaReporte: /^\d{2}:\d{2}$/.test(hora) ? hora : "18:00",
+            // Por defecto el asistente se identifica: escribir a nombre del
+            // titular es una decisión explícita del cliente, no un default.
+            actuaComoTitular: body.tenant.asistente?.actuaComoTitular === true,
+            nombreTitular: (body.tenant.asistente?.nombreTitular ?? "").trim() || client.company_name,
           };
         }
+
+        // Cuando el asistente actúa a nombre del titular no se presenta con un
+        // nombre de bot: usa el del cliente, y por eso el formulario ni siquiera
+        // pide "Bot name" en ese caso.
+        const nombreBotPorDefecto = asistente?.actuaComoTitular
+          ? asistente.nombreTitular
+          : `${client.company_name} Bot`;
 
         const tenantConfig = {
           slug,
           kind: botType,
-          nombreBot: body.tenant.nombreBot?.trim() || `${client.company_name} Bot`,
+          nombreBot: asistente?.actuaComoTitular
+            ? nombreBotPorDefecto
+            : body.tenant.nombreBot?.trim() || nombreBotPorDefecto,
           nombre: body.tenant.nombre?.trim() || client.company_name,
           descripcion: body.tenant.descripcion?.trim() || DESCRIPCION_POR_COMPORTAMIENTO[behavior],
           direccion: body.tenant.direccion?.trim() || "Atencion por WhatsApp",

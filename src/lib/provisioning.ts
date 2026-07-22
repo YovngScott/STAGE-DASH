@@ -24,6 +24,15 @@ export interface AsistenteConfigDraft {
   intervaloMinutos: number;
   /** Hora local del reporte de fin de día (HH:mm). */
   horaReporte: string;
+  /**
+   * true → los borradores se redactan en primera persona a nombre del titular,
+   * sin mencionar que hay un asistente. Es seguro porque el asistente solo
+   * puede CREAR borradores: nada sale del buzón sin que el titular lo envíe.
+   * false → el asistente se identifica como tal al escribir.
+   */
+  actuaComoTitular: boolean;
+  /** Nombre con el que firma cuando actuaComoTitular está activo. */
+  nombreTitular: string;
 }
 
 export interface TenantConfigDraft {
