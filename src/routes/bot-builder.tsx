@@ -139,6 +139,9 @@ const defaultDraft = {
   // consciente del cliente, no algo que ocurra sin que nadie lo pida.
   asistenteActuaComoTitular: false,
   asistenteNombreTitular: "",
+  // Encendido por defecto: es lo que hace que el asistente vacíe la bandeja
+  // en vez de llenarla de borradores por revisar.
+  asistenteEnviarAutomatico: true,
 };
 
 const botBehaviors: Record<BotBehavior, { label: string; description: string; icon: typeof Bot }> = {
@@ -386,6 +389,7 @@ function BotBuilder() {
                     actuaComoTitular: draft.asistenteActuaComoTitular,
                     nombreTitular:
                       draft.asistenteNombreTitular.trim() || selectedClient.company_name,
+                    enviarAutomatico: draft.asistenteEnviarAutomatico,
                   }
                 : undefined,
           },
@@ -514,10 +518,10 @@ function BotBuilder() {
               </div>
               <p className="mt-1 text-xs text-muted-foreground">
                 El asistente revisa este correo, descarta lo automatizado (no-reply, boletines, correo
-                masivo) y deja un borrador listo para todo lo demás. Solo se abstiene con lo que debe
-                decidir el titular en persona —temas legales, dinero comprometido, seguridad o
-                conflictos delicados—: eso lo deja intacto y avisa por WhatsApp. El ejecutivo autoriza
-                su cuenta con un clic desde su dashboard.
+                masivo) y responde el resto por su cuenta. Lo que debe decidir el titular en persona
+                —temas legales, dinero comprometido, seguridad o conflictos delicados— nunca se envía:
+                le deja el borrador escrito y le avisa por WhatsApp para que solo revise y mande. El
+                ejecutivo autoriza su cuenta con un clic desde su dashboard.
               </p>
               <div className="mt-4 grid gap-4 md:grid-cols-2">
                 <Field label="Correo a asistir">
@@ -551,9 +555,9 @@ function BotBuilder() {
                     }
                   />
                   <p className="text-xs text-muted-foreground">
-                    El asistente redacta borradores por defecto y solo escala lo que debe decidir el
-                    titular. Esto es la red de seguridad: si no entendió el correo por encima de este
-                    nivel, prefiere preguntar antes que inventar. Súbelo si notas borradores flojos.
+                    Red de seguridad del envío automático: si no entendió el correo por encima de este
+                    nivel, no lo envía — lo deja como borrador para que lo revise el titular. Súbelo si
+                    notas que se envían respuestas flojas; bájalo si escala de más.
                   </p>
                 </Field>
                 <Field label="Revisar la bandeja cada">
@@ -589,6 +593,26 @@ function BotBuilder() {
               <div className="mt-4 rounded-lg border border-border/60 bg-background/40 p-3">
                 <div className="flex items-center justify-between gap-4">
                   <div>
+                    <Label>Enviar solo los correos rutinarios</Label>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Activado: responde y envía por su cuenta lo rutinario (consultas simples, acuses,
+                      agradecimientos, seguimiento), y esos correos salen de la bandeja sin que el
+                      titular los toque. Lo delicado y lo que no entienda nunca se envía: queda como
+                      borrador con aviso. Desactivado: no envía nada, todo queda en borradores.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={draft.asistenteEnviarAutomatico}
+                    onCheckedChange={(asistenteEnviarAutomatico) =>
+                      setDraft((current) => ({ ...current, asistenteEnviarAutomatico }))
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="mt-4 rounded-lg border border-border/60 bg-background/40 p-3">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
                     <Label>Escribir con el nombre del titular</Label>
                     <p className="mt-1 text-xs text-muted-foreground">
                       Activado: redacta en primera persona como el titular, sin mencionar que hay un
@@ -615,8 +639,8 @@ function BotBuilder() {
                       />
                     </Field>
                     <p className="text-xs text-muted-foreground">
-                      Nada se envía solo: el asistente únicamente deja borradores en la bandeja y es el
-                      titular quien los revisa y los manda.
+                      Con el envío automático activo, estos correos salen a nombre del titular sin que
+                      él los lea antes. Lo delicado sigue quedando como borrador para su revisión.
                     </p>
                   </div>
                 )}

@@ -33,6 +33,12 @@ export interface AsistenteConfigDraft {
   actuaComoTitular: boolean;
   /** Nombre con el que firma cuando actuaComoTitular está activo. */
   nombreTitular: string;
+  /**
+   * true  → lo rutinario se responde Y SE ENVÍA solo; lo crítico y lo ambiguo
+   *         quedan como borrador con aviso al titular.
+   * false → nunca envía: todo queda en borradores.
+   */
+  enviarAutomatico: boolean;
 }
 
 export interface TenantConfigDraft {

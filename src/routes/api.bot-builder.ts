@@ -44,6 +44,7 @@ interface BotBuilderRequest {
       horaReporte?: string;
       actuaComoTitular?: boolean;
       nombreTitular?: string;
+      enviarAutomatico?: boolean;
     };
   };
   groqModel?: string;
@@ -137,6 +138,9 @@ export const Route = createFileRoute("/api/bot-builder")({
             // titular es una decisión explícita del cliente, no un default.
             actuaComoTitular: body.tenant.asistente?.actuaComoTitular === true,
             nombreTitular: (body.tenant.asistente?.nombreTitular ?? "").trim() || client.company_name,
+            // El valor del asistente está en vaciar la bandeja, así que enviar
+            // es el default; se puede apagar por cliente desde el formulario.
+            enviarAutomatico: body.tenant.asistente?.enviarAutomatico !== false,
           };
         }
 
