@@ -132,7 +132,7 @@ const defaultDraft = {
   // la bandeja de SU ejecutivo y se pide aquí, al crear el bot.
   asistenteCorreo: "",
   asistenteWhatsapp: "",
-  asistenteUmbral: 0.7,
+  asistenteUmbral: 0.35,
   asistenteIntervalo: 10,
   asistenteHoraReporte: "18:00",
   // Apagado por defecto: escribir a nombre del titular es una decisión
@@ -513,9 +513,11 @@ function BotBuilder() {
                 <h3 className="text-sm font-semibold">Bandeja que va a atender</h3>
               </div>
               <p className="mt-1 text-xs text-muted-foreground">
-                El asistente revisa este correo, descarta lo automatizado, clasifica el resto y deja
-                borradores listos. Lo que no entienda con seguridad se escala por WhatsApp en vez de
-                responderse solo. El ejecutivo autoriza su cuenta con un clic desde su dashboard.
+                El asistente revisa este correo, descarta lo automatizado (no-reply, boletines, correo
+                masivo) y deja un borrador listo para todo lo demás. Solo se abstiene con lo que debe
+                decidir el titular en persona —temas legales, dinero comprometido, seguridad o
+                conflictos delicados—: eso lo deja intacto y avisa por WhatsApp. El ejecutivo autoriza
+                su cuenta con un clic desde su dashboard.
               </p>
               <div className="mt-4 grid gap-4 md:grid-cols-2">
                 <Field label="Correo a asistir">
@@ -537,11 +539,11 @@ function BotBuilder() {
                     placeholder="18091234567"
                   />
                 </Field>
-                <Field label={`Umbral de confianza — ${Math.round(draft.asistenteUmbral * 100)}%`}>
+                <Field label={`Exigencia para redactar — ${Math.round(draft.asistenteUmbral * 100)}%`}>
                   <Input
                     type="range"
-                    min={0.5}
-                    max={0.95}
+                    min={0.2}
+                    max={0.8}
                     step={0.05}
                     value={draft.asistenteUmbral}
                     onChange={(event) =>
@@ -549,7 +551,9 @@ function BotBuilder() {
                     }
                   />
                   <p className="text-xs text-muted-foreground">
-                    Más alto = el asistente consulta más y redacta menos por su cuenta.
+                    El asistente redacta borradores por defecto y solo escala lo que debe decidir el
+                    titular. Esto es la red de seguridad: si no entendió el correo por encima de este
+                    nivel, prefiere preguntar antes que inventar. Súbelo si notas borradores flojos.
                   </p>
                 </Field>
                 <Field label="Revisar la bandeja cada">

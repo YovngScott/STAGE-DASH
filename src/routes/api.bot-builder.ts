@@ -128,7 +128,9 @@ export const Route = createFileRoute("/api/bot-builder")({
           asistente = {
             correo,
             whatsappAlertas: (body.tenant.asistente?.whatsappAlertas ?? "").replace(/\D/g, ""),
-            umbralConfianza: Number.isFinite(umbral) && umbral > 0 && umbral <= 1 ? umbral : 0.7,
+            // Bajo a propósito: el asistente redacta por defecto y este valor
+            // solo frena los correos que de verdad no entendió.
+            umbralConfianza: Number.isFinite(umbral) && umbral > 0 && umbral <= 1 ? umbral : 0.35,
             intervaloMinutos: Number.isFinite(intervalo) && intervalo >= 1 ? Math.min(intervalo, 1440) : 10,
             horaReporte: /^\d{2}:\d{2}$/.test(hora) ? hora : "18:00",
             // Por defecto el asistente se identifica: escribir a nombre del
