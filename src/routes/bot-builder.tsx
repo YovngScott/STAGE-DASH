@@ -6,6 +6,7 @@ import {
   Check,
   Loader2,
   MessageSquare,
+  Mail,
   Mic,
   Rocket,
   Sparkles,
@@ -100,7 +101,7 @@ const botTypes: Record<
   },
   assistant: {
     label: "Assistant bot",
-    description: "General assistant for intake, FAQs, routing, and booking.",
+    description: "Asistente ejecutivo: tría el correo, redacta borradores y escala lo dudoso por WhatsApp.",
     icon: BrainCircuit,
     productCategory: "virtual_assistant",
   },
@@ -139,6 +140,14 @@ const defaultDraft = {
   groqModel: "meta-llama/llama-4-scout-17b-16e-instruct",
   groqApiKey: "",
   updateClient: true,
+  // --- Solo para bots tipo "assistant" -------------------------------------
+  // El correo NO tiene valor por defecto a propósito: cada asistente atiende
+  // la bandeja de SU ejecutivo y se pide aquí, al crear el bot.
+  asistenteCorreo: "",
+  asistenteWhatsapp: "",
+  asistenteUmbral: 0.7,
+  asistenteIntervalo: 10,
+  asistenteHoraReporte: "18:00",
 };
 
 const botBehaviors: Record<BotBehavior, { label: string; description: string; icon: typeof Bot }> = {
@@ -294,6 +303,16 @@ function BotBuilder() {
     if (!selectedClient) return toast.error("Choose an existing client first.");
     if (!selectedProduct) return toast.error("Choose the product this bot belongs to.");
     if (!slug) return toast.error("The bot needs a valid slug.");
+    // Un asistente sin correo no tiene bandeja que triar: se pide aquí y no
+    // se completa nunca a mano en el repositorio.
+    if (draft.botType === "assistant") {
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(draft.asistenteCorreo.trim())) {
+        return toast.error("Indica el correo que este asistente va a atender.");
+      }
+      if (draft.asistenteWhatsapp.replace(/\D/g, "").length < 8) {
+        return toast.error("Indica el WhatsApp (con código de país) donde el ejecutivo recibirá las alertas.");
+      }
+    }
     setSaving(true);
     setResult(null);
     try {
@@ -325,6 +344,16 @@ function BotBuilder() {
             companyInfo: draft.companyInfo,
             extraInstructions: draft.extraPrompt,
             googleCalendarId: "primary",
+            asistente:
+              draft.botType === "assistant"
+                ? {
+                    correo: draft.asistenteCorreo.trim().toLowerCase(),
+                    whatsappAlertas: draft.asistenteWhatsapp.replace(/\D/g, ""),
+                    umbralConfianza: draft.asistenteUmbral,
+                    intervaloMinutos: draft.asistenteIntervalo,
+                    horaReporte: draft.asistenteHoraReporte,
+                  }
+                : undefined,
           },
           groqModel: draft.groqModel,
           groqApiKey: draft.groqApiKey || undefined,
@@ -451,6 +480,84 @@ function BotBuilder() {
               })}
             </div>
           </Card>
+
+          {draft.botType === "assistant" && (
+            <Card className="border-primary/40 bg-primary/5 p-5">
+              <div className="flex items-center gap-2">
+                <Mail className="h-4 w-4 text-primary" />
+                <h3 className="text-sm font-semibold">Bandeja que va a atender</h3>
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">
+                El asistente revisa este correo, descarta lo automatizado, clasifica el resto y deja
+                borradores listos. Lo que no entienda con seguridad se escala por WhatsApp en vez de
+                responderse solo. El ejecutivo autoriza su cuenta con un clic desde su dashboard.
+              </p>
+              <div className="mt-4 grid gap-4 md:grid-cols-2">
+                <Field label="Correo a asistir">
+                  <Input
+                    type="email"
+                    value={draft.asistenteCorreo}
+                    onChange={(event) =>
+                      setDraft((current) => ({ ...current, asistenteCorreo: event.target.value }))
+                    }
+                    placeholder="director@empresa.com"
+                  />
+                </Field>
+                <Field label="WhatsApp para alertas">
+                  <Input
+                    value={draft.asistenteWhatsapp}
+                    onChange={(event) =>
+                      setDraft((current) => ({ ...current, asistenteWhatsapp: event.target.value }))
+                    }
+                    placeholder="18091234567"
+                  />
+                </Field>
+                <Field label={`Umbral de confianza — ${Math.round(draft.asistenteUmbral * 100)}%`}>
+                  <Input
+                    type="range"
+                    min={0.5}
+                    max={0.95}
+                    step={0.05}
+                    value={draft.asistenteUmbral}
+                    onChange={(event) =>
+                      setDraft((current) => ({ ...current, asistenteUmbral: Number(event.target.value) }))
+                    }
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Más alto = el asistente consulta más y redacta menos por su cuenta.
+                  </p>
+                </Field>
+                <Field label="Revisar la bandeja cada">
+                  <Select
+                    value={String(draft.asistenteIntervalo)}
+                    onValueChange={(value) =>
+                      setDraft((current) => ({ ...current, asistenteIntervalo: Number(value) }))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="5">5 minutos</SelectItem>
+                      <SelectItem value="10">10 minutos — recomendado</SelectItem>
+                      <SelectItem value="15">15 minutos</SelectItem>
+                      <SelectItem value="30">30 minutos</SelectItem>
+                      <SelectItem value="60">1 hora</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </Field>
+                <Field label="Hora del reporte de fin de día">
+                  <Input
+                    type="time"
+                    value={draft.asistenteHoraReporte}
+                    onChange={(event) =>
+                      setDraft((current) => ({ ...current, asistenteHoraReporte: event.target.value }))
+                    }
+                  />
+                </Field>
+              </div>
+            </Card>
+          )}
 
           <Card className="border-border/60 p-5">
             <div className="flex items-center gap-2">

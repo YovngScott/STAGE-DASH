@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import type {} from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { startProvision } from "@/lib/provisioning";
+import { startProvision, type TenantConfigDraft } from "@/lib/provisioning";
 import { composeTenantPrompt, normalizeBotBehavior } from "@/lib/bot-prompts";
 
 const DEFAULT_REPO = "YovngScott/Stage-Bot-Template";
@@ -30,6 +30,13 @@ interface BotBuilderRequest {
     companyInfo?: string;
     extraInstructions?: string;
     googleCalendarId?: string;
+    asistente?: {
+      correo?: string;
+      whatsappAlertas?: string;
+      umbralConfianza?: number;
+      intervaloMinutos?: number;
+      horaReporte?: string;
+    };
   };
   groqModel?: string;
   groqApiKey?: string;
@@ -94,9 +101,34 @@ export const Route = createFileRoute("/api/bot-builder")({
         }
 
         const behavior = normalizeBotBehavior(body.tenant.behavior);
+        const botType: BotType = body.botType ?? "messaging";
+
+        // El asistente se valida en el servidor además del formulario: sin
+        // correo no hay bandeja que triar y el bot quedaría inerte.
+        let asistente: TenantConfigDraft["asistente"];
+        if (botType === "assistant") {
+          const correo = (body.tenant.asistente?.correo ?? "").trim().toLowerCase();
+          if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(correo)) {
+            return Response.json(
+              { error: "Un bot asistente necesita el correo que va a atender." },
+              { status: 400 },
+            );
+          }
+          const umbral = Number(body.tenant.asistente?.umbralConfianza);
+          const intervalo = Number(body.tenant.asistente?.intervaloMinutos);
+          const hora = String(body.tenant.asistente?.horaReporte ?? "");
+          asistente = {
+            correo,
+            whatsappAlertas: (body.tenant.asistente?.whatsappAlertas ?? "").replace(/\D/g, ""),
+            umbralConfianza: Number.isFinite(umbral) && umbral > 0 && umbral <= 1 ? umbral : 0.7,
+            intervaloMinutos: Number.isFinite(intervalo) && intervalo >= 1 ? Math.min(intervalo, 1440) : 10,
+            horaReporte: /^\d{2}:\d{2}$/.test(hora) ? hora : "18:00",
+          };
+        }
 
         const tenantConfig = {
           slug,
+          kind: botType,
           nombreBot: body.tenant.nombreBot?.trim() || `${client.company_name} Bot`,
           nombre: body.tenant.nombre?.trim() || client.company_name,
           descripcion: body.tenant.descripcion?.trim() || (behavior === "technical_support" ? "Bot de soporte técnico especializado." : "Bot de ventas, agendamiento y fidelización."),
@@ -119,6 +151,7 @@ export const Route = createFileRoute("/api/bot-builder")({
             extraInstructions: body.tenant.extraInstructions,
           }),
           googleCalendarId: body.tenant.googleCalendarId?.trim() || "primary",
+          ...(asistente ? { asistente } : {}),
         };
 
         const githubToken = process.env.STAGE_GITHUB_TOKEN;
@@ -175,7 +208,7 @@ export const Route = createFileRoute("/api/bot-builder")({
           clientId,
           clientName: client.company_name,
           slug,
-          kind: body.botType ?? "messaging",
+          kind: botType,
           productName: body.productName ?? null,
           tenantConfig,
           githubCommitUrl: createdFile.commitUrl,

@@ -8,8 +8,27 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 export type BotKind = "assistant" | "messaging" | "voice";
 export type ProvisionState = "queued" | "running" | "complete" | "failed";
 
+/**
+ * Configuración del asistente virtual. La captura el Bot Builder al crear el
+ * bot y viaja al `tenant.json` versionado en GitHub — nunca se escribe a mano.
+ */
+export interface AsistenteConfigDraft {
+  /** Bandeja que el asistente va a triar. */
+  correo: string;
+  /** WhatsApp del ejecutivo para las alertas de baja confianza. */
+  whatsappAlertas: string;
+  /** Confidence gate: por debajo de esto, decide una persona. */
+  umbralConfianza: number;
+  /** Cadencia del polling de Gmail, en minutos. */
+  intervaloMinutos: number;
+  /** Hora local del reporte de fin de día (HH:mm). */
+  horaReporte: string;
+}
+
 export interface TenantConfigDraft {
   slug: string;
+  /** Tipo de bot; el backend arranca el módulo de asistente solo si es "assistant". */
+  kind: BotKind;
   nombreBot: string;
   nombre: string;
   descripcion: string;
@@ -26,6 +45,8 @@ export interface TenantConfigDraft {
   extraInstructions?: string;
   promptExtra: string;
   googleCalendarId: string;
+  /** Presente solo cuando kind === "assistant". */
+  asistente?: AsistenteConfigDraft;
 }
 
 export interface ProvisionInput {

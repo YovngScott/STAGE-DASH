@@ -47,6 +47,10 @@ export const Route = createFileRoute("/api/bot-edit")({
         const file = await existing.json();
         const config = JSON.parse(Buffer.from(String(file.content ?? ""), "base64").toString("utf8"));
         config.nombreBot = name;
+        // Los tenants creados antes de que existiera el tipo de bot no traen
+        // `kind` en su JSON; lo recuperamos de la base para que un bot
+        // asistente no se degrade a bot de mensajería al editarlo.
+        config.kind = config.kind ?? bot.kind ?? "messaging";
         // Keep the server-owned behavior and security protocol intact when an
         // owner changes the visible extra instructions later.
         config.behavior = normalizeBotBehavior(config.behavior);
