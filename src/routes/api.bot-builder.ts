@@ -3,13 +3,19 @@ import type {} from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { startProvision, type TenantConfigDraft } from "@/lib/provisioning";
-import { composeTenantPrompt, normalizeBotBehavior } from "@/lib/bot-prompts";
+import { composeTenantPrompt, normalizeBotBehavior, type BotBehavior } from "@/lib/bot-prompts";
 
 const DEFAULT_REPO = "YovngScott/Stage-Bot-Template";
 const DEFAULT_BRANCH = "main";
 const LOCAL_CLIENT_DASHBOARD_URL = "http://127.0.0.1:5174/";
 
 type BotType = "assistant" | "messaging" | "voice";
+
+const DESCRIPCION_POR_COMPORTAMIENTO: Record<BotBehavior, string> = {
+  sales: "Bot de ventas, agendamiento y fidelización.",
+  technical_support: "Bot de soporte técnico especializado.",
+  personal_assistant: "Asistente ejecutivo personal: tría el correo y libera tiempo del directivo.",
+};
 
 interface BotBuilderRequest {
   clientId?: string;
@@ -131,7 +137,7 @@ export const Route = createFileRoute("/api/bot-builder")({
           kind: botType,
           nombreBot: body.tenant.nombreBot?.trim() || `${client.company_name} Bot`,
           nombre: body.tenant.nombre?.trim() || client.company_name,
-          descripcion: body.tenant.descripcion?.trim() || (behavior === "technical_support" ? "Bot de soporte técnico especializado." : "Bot de ventas, agendamiento y fidelización."),
+          descripcion: body.tenant.descripcion?.trim() || DESCRIPCION_POR_COMPORTAMIENTO[behavior],
           direccion: body.tenant.direccion?.trim() || "Atencion por WhatsApp",
           horario: body.tenant.horario?.trim() || "Lunes a viernes de 9:00 AM a 6:00 PM",
           contacto: body.tenant.contacto?.trim() || client.phone || "",

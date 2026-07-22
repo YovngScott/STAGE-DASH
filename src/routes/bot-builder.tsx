@@ -10,6 +10,7 @@ import {
   Mic,
   Rocket,
   Sparkles,
+  UserRound,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -51,13 +52,6 @@ interface Product {
   monthly_cost: number;
 }
 
-interface CatalogItem {
-  nombre: string;
-  categoria: string;
-  descripcion: string;
-  precio: number;
-}
-
 interface BuildResult {
   slug: string;
   tenantPath: string;
@@ -68,7 +62,7 @@ interface BuildResult {
   job?: ProvisionJob;
 }
 
-type BotBehavior = "sales" | "technical_support";
+type BotBehavior = "sales" | "technical_support" | "personal_assistant";
 
 interface ProvisionJob {
   id: string;
@@ -113,13 +107,6 @@ const botTypes: Record<
   },
 };
 
-const emptyCatalogItem: CatalogItem = {
-  nombre: "",
-  categoria: "General",
-  descripcion: "",
-  precio: 0,
-};
-
 const defaultDraft = {
   clientId: "",
   productId: "",
@@ -161,6 +148,46 @@ const botBehaviors: Record<BotBehavior, { label: string; description: string; ic
     description: "Diagnostica, guía paso a paso y escala casos complejos sin vender.",
     icon: BrainCircuit,
   },
+  personal_assistant: {
+    label: "Personal assistant",
+    description: "Le quita carga administrativa al ejecutivo: tría su correo, deja borradores listos y solo lo interrumpe con lo que amerita su criterio.",
+    icon: UserRound,
+  },
+};
+
+/**
+ * Qué campos de "Información del bot" tienen sentido en cada comportamiento.
+ * Un asistente personal no vende ni atiende en un local, así que pedirle
+ * moneda, rubro o dirección solo ensucia el formulario.
+ */
+type CampoInfo = "rubro" | "moneda" | "horario" | "direccion" | "contacto" | "cotizaPorChat";
+
+const camposPorComportamiento: Record<BotBehavior, CampoInfo[]> = {
+  sales: ["rubro", "moneda", "horario", "direccion", "contacto", "cotizaPorChat"],
+  // Soporte no cotiza ni cobra: moneda y "cotiza por chat" no aplican.
+  technical_support: ["rubro", "horario", "direccion", "contacto"],
+  // El asistente trabaja para UNA persona; su zona horaria es lo único que
+  // necesita del contexto físico (para agendar y para el reporte del día).
+  personal_assistant: [],
+};
+
+/** El bloque de contexto libre cambia de sentido según a quién sirve el bot. */
+const contextoPorComportamiento: Record<BotBehavior, { label: string; placeholder: string }> = {
+  sales: {
+    label: "Información de la empresa",
+    placeholder:
+      "Describe a qué se dedica la empresa, sus servicios, políticas, garantías, procesos y cualquier información útil para atender correctamente.",
+  },
+  technical_support: {
+    label: "Información de la empresa",
+    placeholder:
+      "Describe los productos que soporta, fallas frecuentes, políticas de garantía y devolución, y los pasos de diagnóstico habituales.",
+  },
+  personal_assistant: {
+    label: "Contexto del ejecutivo",
+    placeholder:
+      "¿A quién asiste y a qué se dedica? Qué asuntos son prioritarios para él, con qué remitentes o temas debe tener especial cuidado, y qué puede resolver sin consultarle.",
+  },
 };
 
 const groqModels = [
@@ -176,7 +203,6 @@ function BotBuilder() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [draft, setDraft] = useState(defaultDraft);
-  const [catalog, setCatalog] = useState<CatalogItem[]>([{ ...emptyCatalogItem }]);
   const [result, setResult] = useState<BuildResult | null>(null);
 
   useEffect(() => {
@@ -260,6 +286,8 @@ function BotBuilder() {
   }, [compatibleProducts]);
 
   const slug = draft.slug || slugify(selectedClient?.company_name ?? "");
+  const muestra = (campo: CampoInfo) => camposPorComportamiento[draft.behavior].includes(campo);
+  const contexto = contextoPorComportamiento[draft.behavior];
   const selectClient = (clientId: string) => {
     const client = clients.find((item) => item.id === clientId);
     setDraft((current) => ({
@@ -280,28 +308,20 @@ function BotBuilder() {
       ...current,
       botType,
       productId: nextProduct?.id ?? "",
+      // El comportamiento acompaña al tipo: un Assistant bot nace como
+      // asistente personal, y volver a los otros tipos recupera ventas (un bot
+      // de WhatsApp de cara al cliente no tiene sentido como asistente personal).
+      behavior:
+        botType === "assistant"
+          ? "personal_assistant"
+          : current.behavior === "personal_assistant"
+            ? "sales"
+            : current.behavior,
     }));
-  };
-
-  const updateCatalog = (index: number, patch: Partial<CatalogItem>) => {
-    setCatalog((items) =>
-      items.map((item, itemIndex) =>
-        itemIndex === index ? { ...item, ...patch } : item,
-      ),
-    );
-  };
-
-  const addCatalogItem = () => {
-    setCatalog((items) => [...items, { ...emptyCatalogItem }]);
-  };
-
-  const removeCatalogItem = (index: number) => {
-    setCatalog((items) => items.filter((_, itemIndex) => itemIndex !== index));
   };
 
   const commitBot = async () => {
     if (!selectedClient) return toast.error("Choose an existing client first.");
-    if (!selectedProduct) return toast.error("Choose the product this bot belongs to.");
     if (!slug) return toast.error("The bot needs a valid slug.");
     // Un asistente sin correo no tiene bandeja que triar: se pide aquí y no
     // se completa nunca a mano en el repositorio.
@@ -327,7 +347,10 @@ function BotBuilder() {
         },
         body: JSON.stringify({
           clientId: selectedClient.id,
-          productName: selectedProduct.name,
+          // Opcional a propósito: si existe un producto activo de esa categoría
+          // se vincula para el ledger, pero su ausencia no debe impedir crear
+          // el bot — es contabilidad interna, no configuración del bot.
+          productName: selectedProduct?.name ?? null,
           botType: draft.botType,
           tenant: {
             slug,
@@ -339,7 +362,9 @@ function BotBuilder() {
             contacto: draft.contacto || selectedClient.phone || "",
             moneda: draft.moneda,
             zonaHoraria: draft.zonaHoraria,
-            servicios: draft.behavior === "sales" ? catalog.map((item) => item.nombre).filter(Boolean) : [],
+            // El catálogo ya no se captura aquí: el cliente lo carga desde su
+            // propio dashboard (pestaña Archivos), que es donde puede mantenerlo.
+            servicios: [],
             behavior: draft.behavior,
             companyInfo: draft.companyInfo,
             extraInstructions: draft.extraPrompt,
@@ -398,8 +423,8 @@ function BotBuilder() {
               <Bot className="h-4 w-4 text-primary" />
               <h3 className="text-sm font-semibold">1. Cliente y tipo de bot</h3>
             </div>
-            <div className="mt-4 grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
+            <div className="mt-4">
+              <div className="space-y-2 md:max-w-md">
                 <Label>Cliente existente</Label>
                 <Select value={draft.clientId} onValueChange={selectClient}>
                   <SelectTrigger>
@@ -413,15 +438,6 @@ function BotBuilder() {
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Producto asignado automáticamente</Label>
-                <div className="flex min-h-10 items-center rounded-md border border-input bg-muted/30 px-3 text-sm">
-                  {selectedProduct
-                    ? selectedProduct.name
-                    : `No hay un producto activo para ${botTypes[draft.botType].label}.`}
-                </div>
-                <p className="text-xs text-muted-foreground">Se asigna automáticamente al elegir el tipo de bot.</p>
               </div>
             </div>
             <div className="mt-4 grid gap-3 md:grid-cols-3">
@@ -457,7 +473,7 @@ function BotBuilder() {
               <h3 className="text-sm font-semibold">2. Comportamiento del bot</h3>
             </div>
             <p className="mt-1 text-xs text-muted-foreground">Se aplica internamente al prompt del bot y puede complementarse con información de la empresa.</p>
-            <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <div className="mt-4 grid gap-3 md:grid-cols-3">
               {(Object.keys(botBehaviors) as BotBehavior[]).map((behavior) => {
                 const Icon = botBehaviors[behavior].icon;
                 const active = draft.behavior === behavior;
@@ -583,32 +599,40 @@ function BotBuilder() {
                   placeholder="Acme Bot"
                 />
               </Field>
-              <Field label="Business type">
-                <Input
-                  value={draft.rubro}
-                  onChange={(event) =>
-                    setDraft((current) => ({ ...current, rubro: event.target.value }))
-                  }
-                  placeholder="Auto body shop, dental clinic, real estate..."
-                />
-              </Field>
-              <Field label="Currency">
-                <Input
-                  value={draft.moneda}
-                  onChange={(event) =>
-                    setDraft((current) => ({ ...current, moneda: event.target.value }))
-                  }
-                  placeholder="USD"
-                />
-              </Field>
-              <Field label="Hours">
-                <Input
-                  value={draft.horario}
-                  onChange={(event) =>
-                    setDraft((current) => ({ ...current, horario: event.target.value }))
-                  }
-                />
-              </Field>
+              {muestra("rubro") && (
+                <Field label="Business type">
+                  <Input
+                    value={draft.rubro}
+                    onChange={(event) =>
+                      setDraft((current) => ({ ...current, rubro: event.target.value }))
+                    }
+                    placeholder="Auto body shop, dental clinic, real estate..."
+                  />
+                </Field>
+              )}
+              {muestra("moneda") && (
+                <Field label="Currency">
+                  <Input
+                    value={draft.moneda}
+                    onChange={(event) =>
+                      setDraft((current) => ({ ...current, moneda: event.target.value }))
+                    }
+                    placeholder="USD"
+                  />
+                </Field>
+              )}
+              {muestra("horario") && (
+                <Field label="Hours">
+                  <Input
+                    value={draft.horario}
+                    onChange={(event) =>
+                      setDraft((current) => ({ ...current, horario: event.target.value }))
+                    }
+                  />
+                </Field>
+              )}
+              {/* La zona horaria aplica a todos: agenda, recordatorios y la hora
+                  del reporte diario dependen de ella. */}
               <Field label="Timezone">
                 <Input
                   value={draft.zonaHoraria}
@@ -617,48 +641,54 @@ function BotBuilder() {
                   }
                 />
               </Field>
-              <Field label="Address">
-                <Input
-                  value={draft.direccion}
-                  onChange={(event) =>
-                    setDraft((current) => ({ ...current, direccion: event.target.value }))
-                  }
-                />
-              </Field>
-              <Field label="Contact">
-                <Input
-                  value={draft.contacto}
-                  onChange={(event) =>
-                    setDraft((current) => ({ ...current, contacto: event.target.value }))
-                  }
-                />
-              </Field>
+              {muestra("direccion") && (
+                <Field label="Address">
+                  <Input
+                    value={draft.direccion}
+                    onChange={(event) =>
+                      setDraft((current) => ({ ...current, direccion: event.target.value }))
+                    }
+                  />
+                </Field>
+              )}
+              {muestra("contacto") && (
+                <Field label="Contact">
+                  <Input
+                    value={draft.contacto}
+                    onChange={(event) =>
+                      setDraft((current) => ({ ...current, contacto: event.target.value }))
+                    }
+                  />
+                </Field>
+              )}
             </div>
-            <div className="mt-4">
-              <div className="flex items-center justify-between rounded-lg border border-border/60 p-3">
-                <div>
-                  <Label>Can quote by chat</Label>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Turn off for businesses that quote only after inspection.
-                  </p>
+            {muestra("cotizaPorChat") && (
+              <div className="mt-4">
+                <div className="flex items-center justify-between rounded-lg border border-border/60 p-3">
+                  <div>
+                    <Label>Can quote by chat</Label>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Turn off for businesses that quote only after inspection.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={draft.cotizaPorChat}
+                    onCheckedChange={(cotizaPorChat) =>
+                      setDraft((current) => ({ ...current, cotizaPorChat }))
+                    }
+                  />
                 </div>
-                <Switch
-                  checked={draft.cotizaPorChat}
-                  onCheckedChange={(cotizaPorChat) =>
-                    setDraft((current) => ({ ...current, cotizaPorChat }))
-                  }
-                />
               </div>
-            </div>
+            )}
             <div className="mt-4 space-y-2">
-              <Label>Información de la empresa</Label>
+              <Label>{contexto.label}</Label>
               <Textarea
                 rows={5}
                 value={draft.companyInfo}
                 onChange={(event) =>
                   setDraft((current) => ({ ...current, companyInfo: event.target.value }))
                 }
-                placeholder="Describe a qué se dedica la empresa, sus servicios, políticas, garantías, procesos y cualquier información útil para atender correctamente."
+                placeholder={contexto.placeholder}
               />
             </div>
             <div className="mt-4 space-y-2">
@@ -701,59 +731,10 @@ function BotBuilder() {
             </div>
           </Card>
 
-          {draft.behavior === "sales" && <Card className="border-border/60 p-5">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <Bot className="h-4 w-4 text-primary" />
-                <h3 className="text-sm font-semibold">4. Catálogo inicial</h3>
-              </div>
-              <Button type="button" variant="outline" size="sm" onClick={addCatalogItem}>
-                Add service
-              </Button>
-            </div>
-            <div className="mt-4 space-y-3">
-              {catalog.map((item, index) => (
-                <div key={index} className="grid gap-3 rounded-lg border border-border/60 p-3 md:grid-cols-[1fr_130px_1fr_90px_40px]">
-                  <Input
-                    value={item.nombre}
-                    onChange={(event) => updateCatalog(index, { nombre: event.target.value })}
-                    placeholder="Service name"
-                  />
-                  <Input
-                    value={item.categoria}
-                    onChange={(event) => updateCatalog(index, { categoria: event.target.value })}
-                    placeholder="Category"
-                  />
-                  <Input
-                    value={item.descripcion}
-                    onChange={(event) => updateCatalog(index, { descripcion: event.target.value })}
-                    placeholder="Description"
-                  />
-                  <Input
-                    type="number"
-                    min={0}
-                    value={item.precio}
-                    onChange={(event) => updateCatalog(index, { precio: Number(event.target.value) })}
-                    placeholder="Price"
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    disabled={catalog.length === 1}
-                    onClick={() => removeCatalogItem(index)}
-                  >
-                    x
-                  </Button>
-                </div>
-              ))}
-            </div>
-          </Card>}
-
           <Card className="border-border/60 p-5">
             <div className="flex items-center gap-2">
               <Sparkles className="h-4 w-4 text-primary" />
-              <h3 className="text-sm font-semibold">{draft.behavior === "sales" ? "5." : "4."} Opciones de automatización</h3>
+              <h3 className="text-sm font-semibold">4. Opciones de automatización</h3>
             </div>
             <div className="mt-4 grid gap-3">
               <ToggleRow

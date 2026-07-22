@@ -4,6 +4,7 @@ import { access, readFile, rm, writeFile } from "node:fs/promises";
 import { constants } from "node:fs";
 import path from "node:path";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import type { BotBehavior } from "@/lib/bot-prompts";
 
 export type BotKind = "assistant" | "messaging" | "voice";
 export type ProvisionState = "queued" | "running" | "complete" | "failed";
@@ -40,7 +41,7 @@ export interface TenantConfigDraft {
   moneda: string;
   zonaHoraria: string;
   adminEmails: string[];
-  behavior?: "sales" | "technical_support";
+  behavior?: BotBehavior;
   companyInfo?: string;
   extraInstructions?: string;
   promptExtra: string;
