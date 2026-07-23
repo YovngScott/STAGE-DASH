@@ -45,6 +45,7 @@ interface BotBuilderRequest {
       actuaComoTitular?: boolean;
       nombreTitular?: string;
       enviarAutomatico?: boolean;
+      proveedor?: string;
     };
   };
   groqModel?: string;
@@ -126,8 +127,13 @@ export const Route = createFileRoute("/api/bot-builder")({
           const umbral = Number(body.tenant.asistente?.umbralConfianza);
           const intervalo = Number(body.tenant.asistente?.intervaloMinutos);
           const hora = String(body.tenant.asistente?.horaReporte ?? "");
+          const proveedorPedido = body.tenant.asistente?.proveedor;
           asistente = {
             correo,
+            // Gmail por defecto: es el flujo más rodado y no rompe los bots ya
+            // creados, cuyo JSON no trae este campo.
+            proveedor:
+              proveedorPedido === "microsoft" || proveedorPedido === "imap" ? proveedorPedido : "gmail",
             whatsappAlertas: (body.tenant.asistente?.whatsappAlertas ?? "").replace(/\D/g, ""),
             // Bajo a propósito: el asistente redacta por defecto y este valor
             // solo frena los correos que de verdad no entendió.

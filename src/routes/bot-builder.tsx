@@ -142,6 +142,32 @@ const defaultDraft = {
   // Encendido por defecto: es lo que hace que el asistente vacíe la bandeja
   // en vez de llenarla de borradores por revisar.
   asistenteEnviarAutomatico: true,
+  asistenteProveedor: "gmail" as ProveedorCorreo,
+};
+
+type ProveedorCorreo = "gmail" | "microsoft" | "imap";
+
+/**
+ * Proveedores de correo que puede atender el asistente. La elección solo
+ * cambia cómo se conecta la cuenta: el triaje, los borradores y el envío
+ * funcionan idénticos con los tres.
+ */
+const proveedoresCorreo: Record<ProveedorCorreo, { label: string; description: string; comoConecta: string }> = {
+  gmail: {
+    label: "Gmail / Google Workspace",
+    description: "Cuentas @gmail.com y dominios en Google Workspace.",
+    comoConecta: "El ejecutivo autoriza con un clic desde su dashboard.",
+  },
+  microsoft: {
+    label: "Microsoft / Outlook",
+    description: "Outlook.com, Hotmail, Live y Microsoft 365 corporativo.",
+    comoConecta: "El ejecutivo autoriza con un clic desde su dashboard.",
+  },
+  imap: {
+    label: "Correo corporativo (IMAP)",
+    description: "Cualquier dominio propio con IMAP y SMTP.",
+    comoConecta: "El ejecutivo carga los datos de su servidor desde su dashboard; la contraseña se guarda cifrada.",
+  },
 };
 
 const botBehaviors: Record<BotBehavior, { label: string; description: string; icon: typeof Bot }> = {
@@ -390,6 +416,7 @@ function BotBuilder() {
                     nombreTitular:
                       draft.asistenteNombreTitular.trim() || selectedClient.company_name,
                     enviarAutomatico: draft.asistenteEnviarAutomatico,
+                    proveedor: draft.asistenteProveedor,
                   }
                 : undefined,
           },
@@ -523,6 +550,31 @@ function BotBuilder() {
                 le deja el borrador escrito y le avisa por WhatsApp para que solo revise y mande. El
                 ejecutivo autoriza su cuenta con un clic desde su dashboard.
               </p>
+              <div className="mt-4 grid gap-3 md:grid-cols-3">
+                {(Object.keys(proveedoresCorreo) as ProveedorCorreo[]).map((p) => {
+                  const activo = draft.asistenteProveedor === p;
+                  return (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => setDraft((current) => ({ ...current, asistenteProveedor: p }))}
+                      className={
+                        "rounded-lg border p-3 text-left transition-colors " +
+                        (activo
+                          ? "border-primary bg-primary/10 text-foreground"
+                          : "border-border/60 bg-card/40 text-muted-foreground hover:border-primary/40 hover:text-foreground")
+                      }
+                    >
+                      <span className="text-sm font-medium">{proveedoresCorreo[p].label}</span>
+                      <p className="mt-1 text-xs leading-5">{proveedoresCorreo[p].description}</p>
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="mt-2 text-xs text-muted-foreground">
+                {proveedoresCorreo[draft.asistenteProveedor].comoConecta}
+              </p>
+
               <div className="mt-4 grid gap-4 md:grid-cols-2">
                 <Field label="Correo a asistir">
                   <Input

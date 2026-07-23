@@ -13,9 +13,17 @@ export type ProvisionState = "queued" | "running" | "complete" | "failed";
  * Configuración del asistente virtual. La captura el Bot Builder al crear el
  * bot y viaja al `tenant.json` versionado en GitHub — nunca se escribe a mano.
  */
+/** Proveedores de correo que el asistente sabe manejar. */
+export type ProveedorCorreo = "gmail" | "microsoft" | "imap";
+
 export interface AsistenteConfigDraft {
   /** Bandeja que el asistente va a triar. */
   correo: string;
+  /**
+   * Con qué servicio está esa bandeja. Solo decide qué adaptador usa el
+   * backend: el triaje, los borradores y el envío funcionan igual con los tres.
+   */
+  proveedor: ProveedorCorreo;
   /** WhatsApp del ejecutivo para las alertas de baja confianza. */
   whatsappAlertas: string;
   /** Confidence gate: por debajo de esto, decide una persona. */
