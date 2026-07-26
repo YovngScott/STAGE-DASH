@@ -76,6 +76,7 @@ interface ProvisionJob {
   botStatusUrl: string;
   dashboardUrl: string;
   botId: string | null;
+  microsoftRedirectUri: string | null;
 }
 
 const botTypes: Record<
@@ -139,9 +140,11 @@ const defaultDraft = {
   // consciente del cliente, no algo que ocurra sin que nadie lo pida.
   asistenteActuaComoTitular: false,
   asistenteNombreTitular: "",
-  // Encendido por defecto: es lo que hace que el asistente vacíe la bandeja
-  // en vez de llenarla de borradores por revisar.
-  asistenteEnviarAutomatico: true,
+  // APAGADO por defecto, a propósito. Un asistente recién creado nunca ha
+  // sido calibrado: sus primeras respuestas salen a nombre del cliente y un
+  // correo enviado no se puede retirar. Que el cliente lea unos cuantos
+  // borradores y lo encienda cuando le convenza.
+  asistenteEnviarAutomatico: false,
   asistenteProveedor: "gmail" as ProveedorCorreo,
 };
 
@@ -658,6 +661,11 @@ function BotBuilder() {
                       titular los toque. Lo delicado y lo que no entienda nunca se envía: queda como
                       borrador con aviso. Desactivado: no envía nada, todo queda en borradores.
                     </p>
+                    <p className="mt-2 text-xs text-amber-500/90">
+                      Recomendado dejarlo apagado al empezar: que el cliente revise unos días de
+                      borradores y lo encienda cuando la calidad le convenza. Un correo enviado a su
+                      nombre no se puede retirar.
+                    </p>
                   </div>
                   <Switch
                     checked={draft.asistenteEnviarAutomatico}
@@ -907,6 +915,20 @@ function BotBuilder() {
                   <p className="rounded-md border border-warning/40 bg-warning/5 p-3 text-xs text-muted-foreground">
                     Falta crear el usuario del cliente en Client Manager → Access → Administrar usuarios, y luego conectar WhatsApp desde el QR.
                   </p>
+                )}
+                {result.job?.microsoftRedirectUri && (
+                  <div className="rounded-md border border-warning/40 bg-warning/5 p-3 text-xs">
+                    <p className="font-medium text-foreground">
+                      Antes de que el cliente conecte Outlook: registra este URI en Entra ID
+                    </p>
+                    <p className="mt-1 text-muted-foreground">
+                      Azure → App registrations → Stage AI Labs Asistente → Authentication → Add URI.
+                      Lleva el nombre de la app de este cliente, así que es distinto para cada uno.
+                    </p>
+                    <code className="mt-2 block break-all rounded bg-background/60 p-2 text-[11px] text-foreground">
+                      {result.job.microsoftRedirectUri}
+                    </code>
+                  </div>
                 )}
                 {result.dashboardUrl && (
                   <a

@@ -98,6 +98,12 @@ export interface ProvisionJob {
   botStatusUrl: string;
   dashboardUrl: string;
   botId: string | null;
+  /**
+   * URI que hay que registrar en Entra ID para que este cliente pueda conectar
+   * Outlook. Lleva el nombre de su app, así que es distinto para cada uno y no
+   * se puede registrar una sola vez — el Bot Builder lo muestra al terminar.
+   */
+  microsoftRedirectUri: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -134,6 +140,10 @@ export function startProvision(input: ProvisionInput): ProvisionJob {
     botStatusUrl: `https://${appName}.fly.dev/api/${input.slug}/config/bot-activo`,
     dashboardUrl,
     botId: null,
+    microsoftRedirectUri:
+      input.tenantConfig.asistente?.proveedor === "microsoft"
+        ? `https://${appName}.fly.dev/api/asistente/microsoft-callback`
+        : null,
     createdAt: now,
     updatedAt: now,
   };
@@ -189,7 +199,10 @@ function fail(job: ProvisionJob, error: string) {
 }
 
 async function runProvision(job: ProvisionJob, input: ProvisionInput) {
-  const infra = readInfrastructure(input.groqApiKey);
+  // El proveedor de correo decide qué credenciales son obligatorias: así, si
+  // falta algo para un asistente de Microsoft, el error sale al crear el bot y
+  // no cuando el cliente ya está intentando conectar su buzón.
+  const infra = readInfrastructure(input.groqApiKey, input.tenantConfig.asistente?.proveedor);
   update(job, { state: "running", progress: 8, phase: "Registrando recursos del cliente…" });
 
   const { data: bot, error: botError } = await supabaseAdmin
@@ -266,21 +279,36 @@ async function runProvision(job: ProvisionJob, input: ProvisionInput) {
     );
   }
 
-  await runCommand(
-    "fly",
-    [
-      "secrets",
-      "set",
-      `SUPABASE_URL=${infra.messagingSupabaseUrl}`,
-      `SUPABASE_SERVICE_ROLE_KEY=${infra.messagingSupabaseServiceRoleKey}`,
-      `GROQ_API_KEY=${infra.groqApiKey}`,
-      `PLATFORM_ADMIN_SECRET=${infra.platformSecret}`,
-      "--app",
-      job.appName,
-    ],
-    backendDir,
-    flyEnv,
-  );
+  // Todo lo que el backend del cliente necesita para funcionar solo. Un secret
+  // que falte aquí NO rompe el despliegue: rompe una función concreta días
+  // después, cuando el cliente la usa. Por eso se inyectan todos los que
+  // apliquen a su configuración, no solo los del bot de mensajería.
+  const secretos = [
+    `SUPABASE_URL=${infra.messagingSupabaseUrl}`,
+    `SUPABASE_SERVICE_ROLE_KEY=${infra.messagingSupabaseServiceRoleKey}`,
+    `GROQ_API_KEY=${infra.groqApiKey}`,
+    `PLATFORM_ADMIN_SECRET=${infra.platformSecret}`,
+  ];
+
+  if (infra.credencialesSecret) secretos.push(`CREDENCIALES_SECRET=${infra.credencialesSecret}`);
+  if (infra.googleClientId) {
+    secretos.push(
+      `GOOGLE_OAUTH_CLIENT_ID=${infra.googleClientId}`,
+      `GOOGLE_OAUTH_CLIENT_SECRET=${infra.googleClientSecret}`,
+      `GOOGLE_OAUTH_REDIRECT_URI=https://${job.appName}.fly.dev/api/calendar/oauth-callback`,
+    );
+  }
+  if (infra.microsoftClientId) {
+    secretos.push(
+      `MICROSOFT_OAUTH_CLIENT_ID=${infra.microsoftClientId}`,
+      `MICROSOFT_OAUTH_CLIENT_SECRET=${infra.microsoftClientSecret}`,
+      // El URI lleva el nombre de la app, así que es distinto por cliente y
+      // hay que registrarlo en Entra ID (el Bot Builder lo muestra al final).
+      `MICROSOFT_OAUTH_REDIRECT_URI=https://${job.appName}.fly.dev/api/asistente/microsoft-callback`,
+    );
+  }
+
+  await runCommand("fly", ["secrets", "set", ...secretos, "--app", job.appName], backendDir, flyEnv);
 
   update(job, { progress: 48, phase: "Construyendo y desplegando el bot…" });
   const tenantPath = path.join(backendDir, "config", "tenants", `${input.slug}.json`);
@@ -338,15 +366,33 @@ function buildDashboardUrl(baseUrl: string, slug: string, appName: string) {
   }
 }
 
-function readInfrastructure(groqOverride?: string) {
-  const needed = [
+/**
+ * Credenciales de plataforma que se inyectan en la app de cada cliente.
+ *
+ * `proveedorCorreo` decide qué se EXIGE: un bot de mensajería no necesita nada
+ * de correo, pero un asistente con Microsoft sin sus credenciales se despliega
+ * "bien" y falla recién cuando el cliente intenta conectar su buzón. Fallar
+ * aquí, al crear, es mucho más barato que fallar allá.
+ */
+function readInfrastructure(groqOverride?: string, proveedorCorreo?: ProveedorCorreo) {
+  const needed: string[] = [
     "STAGE_FLY_API_TOKEN",
     "STAGE_FLY_ORG_SLUG",
     "STAGE_DEFAULT_GROQ_API_KEY",
     "STAGE_MESSAGING_SUPABASE_URL",
     "STAGE_MESSAGING_SUPABASE_SERVICE_ROLE_KEY",
     "STAGE_PLATFORM_ADMIN_SECRET",
-  ] as const;
+  ];
+
+  // Microsoft e IMAP guardan credenciales del cliente cifradas: sin la llave,
+  // conectar el buzón falla en el último paso, después de todo el trámite.
+  if (proveedorCorreo === "microsoft" || proveedorCorreo === "imap") {
+    needed.push("STAGE_CREDENCIALES_SECRET");
+  }
+  if (proveedorCorreo === "microsoft") {
+    needed.push("STAGE_MICROSOFT_OAUTH_CLIENT_ID", "STAGE_MICROSOFT_OAUTH_CLIENT_SECRET");
+  }
+
   const missing = needed.filter((name) => !process.env[name]);
   if (missing.length) throw new Error(`Faltan variables locales: ${missing.join(", ")}. Reinicia el Owner Console.`);
 
@@ -357,6 +403,11 @@ function readInfrastructure(groqOverride?: string) {
     messagingSupabaseUrl: process.env.STAGE_MESSAGING_SUPABASE_URL!,
     messagingSupabaseServiceRoleKey: process.env.STAGE_MESSAGING_SUPABASE_SERVICE_ROLE_KEY!,
     platformSecret: process.env.STAGE_PLATFORM_ADMIN_SECRET!,
+    credencialesSecret: process.env.STAGE_CREDENCIALES_SECRET ?? "",
+    microsoftClientId: process.env.STAGE_MICROSOFT_OAUTH_CLIENT_ID ?? "",
+    microsoftClientSecret: process.env.STAGE_MICROSOFT_OAUTH_CLIENT_SECRET ?? "",
+    googleClientId: process.env.STAGE_GOOGLE_OAUTH_CLIENT_ID ?? "",
+    googleClientSecret: process.env.STAGE_GOOGLE_OAUTH_CLIENT_SECRET ?? "",
   };
 }
 
