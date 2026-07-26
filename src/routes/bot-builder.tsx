@@ -124,7 +124,7 @@ const defaultDraft = {
   behavior: "sales" as BotBehavior,
   companyInfo: "",
   extraPrompt: "",
-  groqModel: "meta-llama/llama-4-scout-17b-16e-instruct",
+  groqModel: "llama-3.3-70b-versatile",
   groqApiKey: "",
   updateClient: true,
   // --- Solo para bots tipo "assistant" -------------------------------------
@@ -223,11 +223,17 @@ const contextoPorComportamiento: Record<BotBehavior, { label: string; placeholde
   },
 };
 
+/**
+ * Modelos verificados contra la API de Groq. Ojo al editar esta lista: un id
+ * que no exista NO falla al crear el bot — falla en silencio después, cuando
+ * el bot intenta responder y Groq devuelve 404. Confirma cualquier id nuevo
+ * contra https://api.groq.com/openai/v1/models antes de agregarlo.
+ */
 const groqModels = [
-  { id: "meta-llama/llama-4-scout-17b-16e-instruct", label: "Llama 4 Scout — recommended" },
-  { id: "llama-3.3-70b-versatile", label: "Llama 3.3 70B — strong reasoning" },
-  { id: "qwen/qwen3-32b", label: "Qwen 3 32B — balanced" },
-  { id: "llama-3.1-8b-instant", label: "Llama 3.1 8B — fastest" },
+  { id: "llama-3.3-70b-versatile", label: "Llama 3.3 70B — recomendado" },
+  { id: "openai/gpt-oss-120b", label: "GPT-OSS 120B — mayor razonamiento" },
+  { id: "qwen/qwen3.6-27b", label: "Qwen 3.6 27B — equilibrado" },
+  { id: "llama-3.1-8b-instant", label: "Llama 3.1 8B — el más rápido" },
 ];
 
 function BotBuilder() {

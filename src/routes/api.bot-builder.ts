@@ -246,7 +246,7 @@ export const Route = createFileRoute("/api/bot-builder")({
           tenantConfig,
           githubCommitUrl: createdFile.commitUrl,
           dashboardUrl,
-          groqModel: body.groqModel?.trim() || "meta-llama/llama-4-scout-17b-16e-instruct",
+          groqModel: body.groqModel?.trim() || "llama-3.3-70b-versatile",
           groqApiKey: body.groqApiKey?.trim(),
         });
 

@@ -467,9 +467,9 @@ async function readFlyModel(appName: string, cwd: string, env: NodeJS.ProcessEnv
   try {
     const machines = safeJsonArray(await runCommand("fly", ["machines", "list", "--app", appName, "--json"], cwd, env));
     const model = machines[0]?.config?.env?.GROQ_MODEL;
-    return typeof model === "string" && model.trim() ? model.trim() : "meta-llama/llama-4-scout-17b-16e-instruct";
+    return typeof model === "string" && model.trim() ? model.trim() : "llama-3.3-70b-versatile";
   } catch {
-    return "meta-llama/llama-4-scout-17b-16e-instruct";
+    return "llama-3.3-70b-versatile";
   }
 }
 
