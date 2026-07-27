@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Plus,
   Pencil,
@@ -19,6 +19,8 @@ import {
   Link2,
   QrCode,
   UsersRound,
+  Send,
+  FileEdit,
 } from "lucide-react";
 import {
   Table,
@@ -339,6 +341,9 @@ function Clients() {
     }
 
     setBots(effectiveBots);
+    // El estado del envío automático vive en el backend de cada bot asistente,
+    // no en esta base: se consulta aparte para poder pintar el interruptor.
+    for (const bot of effectiveBots) void cargarEnvioAutomatico(bot);
     setDashboards(dashboardsWithFallbacks);
     setClientWebApps(webAppsRes.error ? [] : ((webAppsRes.data ?? []) as WebApp[]));
     setEmailAccounts(emailsRes.error ? [] : ((emailsRes.data ?? []) as ClientEmailAccount[]));
@@ -532,6 +537,59 @@ function Clients() {
   };
 
   const [togglingBot, setTogglingBot] = useState<string | null>(null);
+  // Envío automático por bot asistente. Se consulta al backend de cada uno
+  // (no vive en client_bots), así que se cachea por id: undefined = todavía
+  // no se sabe, y el botón se muestra en espera en vez de mentir.
+  const [envioAutomatico, setEnvioAutomatico] = useState<Record<string, boolean>>({});
+  const [cambiandoEnvio, setCambiandoEnvio] = useState<string | null>(null);
+
+  /** Pide al backend del bot si su envío automático está activo. */
+  const cargarEnvioAutomatico = useCallback(async (bot: ClientBot) => {
+    if (bot.kind !== "assistant" || !bot.bot_status_url) return;
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+      if (!token) return;
+      const res = await fetch(
+        `/api/bot-envio-automatico?botId=${encodeURIComponent(bot.id)}&botSlug=${encodeURIComponent(bot.slug)}`,
+        { headers: { authorization: `Bearer ${token}` } },
+      );
+      if (!res.ok) return;
+      const body = await res.json();
+      setEnvioAutomatico((actual) => ({ ...actual, [bot.id]: Boolean(body.activo) }));
+    } catch {
+      // Si no se puede consultar, el botón queda en "—" y el clic lo reintenta.
+    }
+  }, []);
+
+  const alternarEnvioAutomatico = async (bot: ClientBot) => {
+    const siguiente = !envioAutomatico[bot.id];
+    setCambiandoEnvio(bot.id);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+      if (!token) throw new Error("Tu sesión expiró. Vuelve a entrar.");
+
+      const res = await fetch("/api/bot-envio-automatico", {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+        body: JSON.stringify({ botId: bot.id, botSlug: bot.slug, activo: siguiente }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body?.error ?? `Error ${res.status}`);
+
+      setEnvioAutomatico((actual) => ({ ...actual, [bot.id]: siguiente }));
+      toast.success(
+        siguiente
+          ? "Envío automático activado: responderá y enviará lo rutinario por su cuenta."
+          : "Envío automático apagado: todo quedará como borrador para que el cliente revise.",
+      );
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "No se pudo cambiar el envío automático.");
+    } finally {
+      setCambiandoEnvio(null);
+    }
+  };
   const toggleBot = async (c: Client) => {
     const next = !c.bot_activo;
     setTogglingBot(c.id);
@@ -1208,6 +1266,34 @@ function Clients() {
                             >
                               <Link2 className="h-4 w-4" />
                             </Button>
+                            {/* Solo un asistente envía correo por su cuenta: para
+                                los demás tipos este interruptor no significa nada. */}
+                            {bot.kind === "assistant" && (
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                disabled={!bot.bot_status_url || cambiandoEnvio === bot.id}
+                                onClick={() => void alternarEnvioAutomatico(bot)}
+                                title={
+                                  envioAutomatico[bot.id]
+                                    ? "Envío automático ACTIVO: responde y envía lo rutinario solo. Clic para apagarlo."
+                                    : "Envío automático apagado: todo queda como borrador. Clic para activarlo."
+                                }
+                                className={
+                                  envioAutomatico[bot.id]
+                                    ? "text-success hover:text-success"
+                                    : "text-muted-foreground hover:text-primary"
+                                }
+                              >
+                                {cambiandoEnvio === bot.id ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : envioAutomatico[bot.id] ? (
+                                  <Send className="h-4 w-4" />
+                                ) : (
+                                  <FileEdit className="h-4 w-4" />
+                                )}
+                              </Button>
+                            )}
                             <Button
                               size="icon"
                               variant="ghost"
