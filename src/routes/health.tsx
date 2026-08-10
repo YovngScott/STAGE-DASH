@@ -6,6 +6,7 @@ import {
   Bell,
   CheckCircle2,
   Loader2,
+  Power,
   RefreshCw,
   ServerCrash,
   Wifi,
@@ -52,7 +53,16 @@ interface BotHealth {
   slowResponses: number;
   tokens24h: number;
   abnormalCost: boolean;
-  failures: Array<{ id: string; source: string; operation: string; message: string; status: string; attempts: number; maxAttempts: number; updatedAt: string }>;
+  failures: Array<{
+    id: string;
+    source: string;
+    operation: string;
+    message: string;
+    status: string;
+    attempts: number;
+    maxAttempts: number;
+    updatedAt: string;
+  }>;
   severity: Severity;
   statusLabel: string;
   checkedAt: string;
@@ -99,6 +109,7 @@ function HealthPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [toggling, setToggling] = useState<string | null>(null);
   const knownAlertIds = useRef<Set<string>>(new Set());
 
   const load = useCallback(async (silent = false) => {
@@ -149,20 +160,58 @@ function HealthPage() {
   const bots = data?.bots ?? [];
   const summary = data?.summary;
   const activeAlerts = useMemo(() => (data?.alerts ?? []).filter((a) => !a.resolved_at), [data]);
-  const failures = useMemo(() => bots.flatMap((bot) => (bot.failures ?? []).filter((f) => f.status !== "resolved").map((failure) => ({ bot, failure }))), [bots]);
+  const failures = useMemo(
+    () =>
+      bots.flatMap((bot) =>
+        (bot.failures ?? [])
+          .filter((f) => f.status !== "resolved")
+          .map((failure) => ({ bot, failure })),
+      ),
+    [bots],
+  );
 
   const retryFailure = async (slug: string, id: string) => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const res = await fetch(`/api/bot-health?retrySlug=${encodeURIComponent(slug)}&failureId=${encodeURIComponent(id)}`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${session?.access_token ?? ""}` },
-      });
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const res = await fetch(
+        `/api/bot-health?retrySlug=${encodeURIComponent(slug)}&failureId=${encodeURIComponent(id)}`,
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${session?.access_token ?? ""}` },
+        },
+      );
       const body = await res.json().catch(() => null);
       if (!res.ok) throw new Error(body?.error || "El reintento falló.");
       await load(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : "El reintento falló.");
+    }
+  };
+
+  const toggleBot = async (bot: BotHealth, activo: boolean) => {
+    setToggling(bot.botId);
+    setError(null);
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const res = await fetch("/api/bot-toggle", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${session?.access_token ?? ""}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ botId: bot.botId, botSlug: bot.slug, activo }),
+      });
+      const body = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(body?.error || "No se pudo cambiar el estado del bot.");
+      await load(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo cambiar el estado del bot.");
+    } finally {
+      setToggling(null);
     }
   };
 
@@ -273,6 +322,7 @@ function HealthPage() {
                 <TableHead>Estado</TableHead>
                 <TableHead>WhatsApp</TableHead>
                 <TableHead className="text-right">Revisado</TableHead>
+                <TableHead className="text-right">Control</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -296,6 +346,21 @@ function HealthPage() {
                   <TableCell className="text-right text-xs text-muted-foreground">
                     {timeAgo(b.checkedAt)}
                   </TableCell>
+                  <TableCell className="text-right">
+                    <Button
+                      size="sm"
+                      variant={b.status === "active" ? "destructive" : "outline"}
+                      disabled={toggling === b.botId || !b.host}
+                      onClick={() => void toggleBot(b, b.status !== "active")}
+                    >
+                      {toggling === b.botId ? (
+                        <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Power className="mr-2 h-3.5 w-3.5" />
+                      )}
+                      {b.status === "active" ? "Pausa de emergencia" : "Reactivar"}
+                    </Button>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -308,21 +373,35 @@ function HealthPage() {
           <h3 className="text-sm font-semibold flex items-center gap-2">
             <RefreshCw className="h-4 w-4 text-primary" /> Cola de fallos ({failures.length})
           </h3>
-          <p className="mt-1 text-xs text-muted-foreground">Reintentos limitados, sin duplicar mensajes; al agotarse pasan a intervención.</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Reintentos limitados, sin duplicar mensajes; al agotarse pasan a intervención.
+          </p>
         </div>
         {!failures.length ? (
-          <p className="px-5 py-8 text-center text-sm text-muted-foreground">No hay operaciones pendientes.</p>
+          <p className="px-5 py-8 text-center text-sm text-muted-foreground">
+            No hay operaciones pendientes.
+          </p>
         ) : (
           <div className="divide-y divide-border/60">
             {failures.map(({ bot, failure }) => (
               <div key={failure.id} className="flex flex-wrap items-center gap-3 px-5 py-3">
                 <AlertTriangle className="h-4 w-4 text-warning" />
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium">{bot.clientName} · {failure.operation}</p>
+                  <p className="text-sm font-medium">
+                    {bot.clientName} · {failure.operation}
+                  </p>
                   <p className="truncate text-xs text-muted-foreground">{failure.message}</p>
-                  <p className="text-[10px] text-muted-foreground">{failure.source} · intento {failure.attempts}/{failure.maxAttempts} · {failure.status}</p>
+                  <p className="text-[10px] text-muted-foreground">
+                    {failure.source} · intento {failure.attempts}/{failure.maxAttempts} ·{" "}
+                    {failure.status}
+                  </p>
                 </div>
-                <Button size="sm" variant="outline" disabled={failure.status === "intervention"} onClick={() => void retryFailure(bot.slug, failure.id)}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={failure.status === "intervention"}
+                  onClick={() => void retryFailure(bot.slug, failure.id)}
+                >
                   {failure.status === "intervention" ? "Intervención requerida" : "Reintentar"}
                 </Button>
               </div>

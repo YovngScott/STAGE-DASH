@@ -10,6 +10,13 @@ import type { BotBehavior } from "@/lib/bot-prompts";
 export type BotKind = "assistant" | "messaging" | "voice";
 export type ProvisionState = "queued" | "running" | "complete" | "failed";
 
+export interface ProvisionPreflightCheck {
+  id: "credentials" | "template" | "github" | "fly";
+  label: string;
+  ok: boolean;
+  details: string;
+}
+
 /**
  * Configuración del asistente virtual. La captura el Bot Builder al crear el
  * bot y viaja al `tenant.json` versionado en GitHub — nunca se escribe a mano.
@@ -70,6 +77,11 @@ export interface TenantConfigDraft {
   extraInstructions?: string;
   promptConsolidated?: boolean;
   promptExtra: string;
+  policy?: {
+    canQuoteByChat: boolean;
+    requireAppointmentConfirmation: true;
+    requireHumanForCommitments: true;
+  };
   googleCalendarId: string;
   /** Presente solo cuando kind === "assistant". */
   asistente?: AsistenteConfigDraft;
@@ -124,7 +136,8 @@ const globalStore = globalThis as typeof globalThis & {
 };
 const jobs = globalStore.__stageProvisioningJobs ?? new Map<string, ProvisionJob>();
 globalStore.__stageProvisioningJobs = jobs;
-const trabajosActivosPorSlug = globalStore.__stageActiveProvisioningBySlug ?? new Map<string, ProvisionJob>();
+const trabajosActivosPorSlug =
+  globalStore.__stageActiveProvisioningBySlug ?? new Map<string, ProvisionJob>();
 globalStore.__stageActiveProvisioningBySlug = trabajosActivosPorSlug;
 
 const FLY_REGION = "ewr";
@@ -159,11 +172,17 @@ export function startProvision(input: ProvisionInput): ProvisionJob {
   jobs.set(id, job);
   trabajosActivosPorSlug.set(input.slug, job);
 
-  void runProvision(job, input).catch((error) => {
-    fail(job, error instanceof Error ? error.message : "El provisioning falló por un error inesperado.");
-  }).finally(() => {
-    if (trabajosActivosPorSlug.get(input.slug)?.id === job.id) trabajosActivosPorSlug.delete(input.slug);
-  });
+  void runProvision(job, input)
+    .catch((error) => {
+      fail(
+        job,
+        error instanceof Error ? error.message : "El provisioning falló por un error inesperado.",
+      );
+    })
+    .finally(() => {
+      if (trabajosActivosPorSlug.get(input.slug)?.id === job.id)
+        trabajosActivosPorSlug.delete(input.slug);
+    });
 
   return job;
 }
@@ -183,7 +202,9 @@ export async function redeployBotConfig(input: RedeployBotInput): Promise<void> 
   const tenantPath = path.join(backendDir, "config", "tenants", `${input.slug}.json`);
   const previousTenant = await readOptionalFile(tenantPath);
   const dedicatedApp = input.appName.startsWith("stage-");
-  const flyConfigPath = dedicatedApp ? path.join(backendDir, `.stage-redeploy-${randomUUID()}.toml`) : path.join(backendDir, "fly.toml");
+  const flyConfigPath = dedicatedApp
+    ? path.join(backendDir, `.stage-redeploy-${randomUUID()}.toml`)
+    : path.join(backendDir, "fly.toml");
 
   try {
     await writeFile(tenantPath, `${JSON.stringify(input.tenantConfig, null, 2)}\n`, "utf8");
@@ -191,7 +212,12 @@ export async function redeployBotConfig(input: RedeployBotInput): Promise<void> 
       const currentModel = await readFlyModel(input.appName, backendDir, flyEnv);
       await writeFile(flyConfigPath, flyToml(input.appName, input.slug, currentModel), "utf8");
     }
-    await runCommand("fly", ["deploy", "--config", flyConfigPath, "--remote-only", "--yes"], backendDir, flyEnv);
+    await runCommand(
+      "fly",
+      ["deploy", "--config", flyConfigPath, "--remote-only", "--yes"],
+      backendDir,
+      flyEnv,
+    );
   } finally {
     await restoreOptionalFile(tenantPath, previousTenant);
     if (dedicatedApp) await rm(flyConfigPath, { force: true });
@@ -204,7 +230,12 @@ function update(job: ProvisionJob, values: Partial<Omit<ProvisionJob, "id" | "cr
 }
 
 function fail(job: ProvisionJob, error: string) {
-  update(job, { state: "failed", phase: "Provisioning detenido", error, progress: Math.min(job.progress, 99) });
+  update(job, {
+    state: "failed",
+    phase: "Provisioning detenido",
+    error,
+    progress: Math.min(job.progress, 99),
+  });
   if (job.botId) {
     void supabaseAdmin.from("client_bots").update({ status: "error" }).eq("id", job.botId);
   }
@@ -245,7 +276,8 @@ async function runProvision(job: ProvisionJob, input: ProvisionInput) {
     .eq("client_id", input.clientId)
     .eq("slug", input.slug)
     .maybeSingle();
-  if (dashboardLookupError) throw new Error(`No se pudo revisar el dashboard del cliente: ${dashboardLookupError.message}`);
+  if (dashboardLookupError)
+    throw new Error(`No se pudo revisar el dashboard del cliente: ${dashboardLookupError.message}`);
 
   const dashboardData = {
     client_id: input.clientId,
@@ -257,9 +289,15 @@ async function runProvision(job: ProvisionJob, input: ProvisionInput) {
     status: "draft",
   };
   const dashboardResult = existingDashboard
-    ? await supabaseAdmin.from("client_dashboards").update(dashboardData).eq("id", existingDashboard.id)
+    ? await supabaseAdmin
+        .from("client_dashboards")
+        .update(dashboardData)
+        .eq("id", existingDashboard.id)
     : await supabaseAdmin.from("client_dashboards").insert(dashboardData);
-  if (dashboardResult.error) throw new Error(`No se pudo registrar el dashboard del cliente: ${dashboardResult.error.message}`);
+  if (dashboardResult.error)
+    throw new Error(
+      `No se pudo registrar el dashboard del cliente: ${dashboardResult.error.message}`,
+    );
 
   await supabaseAdmin
     .from("clients")
@@ -274,18 +312,44 @@ async function runProvision(job: ProvisionJob, input: ProvisionInput) {
   const backendDir = await resolveBackendDirectory();
   const flyEnv = { ...process.env, FLY_ACCESS_TOKEN: infra.flyToken };
 
-  const appExists = await commandSucceeds("fly", ["status", "--app", job.appName], backendDir, flyEnv);
+  const appExists = await commandSucceeds(
+    "fly",
+    ["status", "--app", job.appName],
+    backendDir,
+    flyEnv,
+  );
   if (!appExists) {
-    await runCommand("fly", ["apps", "create", job.appName, "--org", infra.flyOrg], backendDir, flyEnv);
+    await runCommand(
+      "fly",
+      ["apps", "create", job.appName, "--org", infra.flyOrg],
+      backendDir,
+      flyEnv,
+    );
   }
 
   update(job, { progress: 32, phase: "Preparando volumen y secretos seguros…" });
-  const volumes = await runCommand("fly", ["volumes", "list", "--app", job.appName, "--json"], backendDir, flyEnv);
+  const volumes = await runCommand(
+    "fly",
+    ["volumes", "list", "--app", job.appName, "--json"],
+    backendDir,
+    flyEnv,
+  );
   const hasVolume = safeJsonArray(volumes).some((volume: any) => volume?.name === "bot_data");
   if (!hasVolume) {
     await runCommand(
       "fly",
-      ["volumes", "create", "bot_data", "--app", job.appName, "--region", FLY_REGION, "--size", "1", "--yes"],
+      [
+        "volumes",
+        "create",
+        "bot_data",
+        "--app",
+        job.appName,
+        "--region",
+        FLY_REGION,
+        "--size",
+        "1",
+        "--yes",
+      ],
       backendDir,
       flyEnv,
     );
@@ -322,13 +386,10 @@ async function runProvision(job: ProvisionJob, input: ProvisionInput) {
 
   // Los valores viajan por stdin: nunca aparecen en la línea de comandos ni
   // en el listado de procesos del servidor.
-  await runCommand(
-    "fly",
-    ["secrets", "import", "--app", job.appName],
-    backendDir,
-    flyEnv,
-    { stdin: `${secretos.join("\n")}\n`, timeoutMs: 5 * 60_000 },
-  );
+  await runCommand("fly", ["secrets", "import", "--app", job.appName], backendDir, flyEnv, {
+    stdin: `${secretos.join("\n")}\n`,
+    timeoutMs: 5 * 60_000,
+  });
 
   update(job, { progress: 48, phase: "Construyendo y desplegando el bot…" });
   const tenantPath = path.join(backendDir, "config", "tenants", `${input.slug}.json`);
@@ -338,7 +399,12 @@ async function runProvision(job: ProvisionJob, input: ProvisionInput) {
   try {
     await writeFile(tenantPath, `${JSON.stringify(input.tenantConfig, null, 2)}\n`, "utf8");
     await writeFile(flyConfigPath, flyToml(job.appName, input.slug, input.groqModel), "utf8");
-    await runCommand("fly", ["deploy", "--config", flyConfigPath, "--remote-only", "--yes"], backendDir, flyEnv);
+    await runCommand(
+      "fly",
+      ["deploy", "--config", flyConfigPath, "--remote-only", "--yes"],
+      backendDir,
+      flyEnv,
+    );
   } finally {
     await restoreOptionalFile(tenantPath, existingTenant);
     await rm(flyConfigPath, { force: true });
@@ -353,23 +419,32 @@ async function runProvision(job: ProvisionJob, input: ProvisionInput) {
     headers: { "content-type": "application/json", "x-platform-secret": infra.platformSecret },
     body: JSON.stringify({ activo: true }),
   });
-  if (!activation.ok) throw new Error(`La app se desplegó, pero no se pudo activar el bot (${activation.status}).`);
+  if (!activation.ok)
+    throw new Error(`La app se desplegó, pero no se pudo activar el bot (${activation.status}).`);
 
   if (job.botId) {
-    const { error } = await supabaseAdmin.from("client_bots").update({ status: "active" }).eq("id", job.botId);
-    if (error) throw new Error(`El bot se desplegó, pero no se pudo marcar activo: ${error.message}`);
+    const { error } = await supabaseAdmin
+      .from("client_bots")
+      .update({ status: "active" })
+      .eq("id", job.botId);
+    if (error)
+      throw new Error(`El bot se desplegó, pero no se pudo marcar activo: ${error.message}`);
   }
   const { error: dashboardError } = await supabaseAdmin
     .from("client_dashboards")
     .update({ status: "live" })
     .eq("client_id", input.clientId)
     .eq("slug", input.slug);
-  if (dashboardError) throw new Error(`El bot se desplegó, pero no se pudo activar su dashboard: ${dashboardError.message}`);
+  if (dashboardError)
+    throw new Error(
+      `El bot se desplegó, pero no se pudo activar su dashboard: ${dashboardError.message}`,
+    );
 
   update(job, {
     state: "complete",
     progress: 100,
-    phase: "Bot desplegado. Crea un usuario del dashboard y después abre el QR para conectar WhatsApp.",
+    phase:
+      "Bot desplegado. Crea un usuario del dashboard y después abre el QR para conectar WhatsApp.",
     error: null,
   });
 }
@@ -392,16 +467,98 @@ export async function preflightProvision(
   groqOverride?: string,
   proveedorCorreo?: ProveedorCorreo,
 ): Promise<void> {
-  const infra = readInfrastructure(groqOverride, proveedorCorreo);
-  const backendDir = await resolveBackendDirectory();
-  await access(path.join(backendDir, "Dockerfile"), constants.R_OK);
-  await runCommand(
-    "fly",
-    ["apps", "list", "--json"],
-    backendDir,
-    { ...process.env, FLY_ACCESS_TOKEN: infra.flyToken },
-    { timeoutMs: 30_000 },
-  );
+  const checks = await inspectProvisionPreflight(groqOverride, proveedorCorreo);
+  const failures = checks.filter((check) => !check.ok);
+  if (failures.length) throw new Error(failures.map((check) => check.details).join(" "));
+}
+
+/**
+ * Read-only publication check used by Quality Center. It never creates an app,
+ * a machine or a tenant; it only verifies that the next publication can finish.
+ */
+export async function inspectProvisionPreflight(
+  groqOverride?: string,
+  proveedorCorreo?: ProveedorCorreo,
+): Promise<ProvisionPreflightCheck[]> {
+  const checks: ProvisionPreflightCheck[] = [];
+  let infra: ReturnType<typeof readInfrastructure> | null = null;
+  try {
+    infra = readInfrastructure(groqOverride, proveedorCorreo);
+    checks.push({
+      id: "credentials",
+      label: "Credenciales de plataforma",
+      ok: true,
+      details: "Claves requeridas disponibles.",
+    });
+  } catch (error) {
+    checks.push({
+      id: "credentials",
+      label: "Credenciales de plataforma",
+      ok: false,
+      details: error instanceof Error ? error.message : String(error),
+    });
+  }
+
+  let backendDir = "";
+  try {
+    backendDir = await resolveBackendDirectory();
+    await access(path.join(backendDir, "Dockerfile"), constants.R_OK);
+    checks.push({
+      id: "template",
+      label: "Plantilla del bot",
+      ok: true,
+      details: "Backend y Dockerfile disponibles.",
+    });
+  } catch (error) {
+    checks.push({
+      id: "template",
+      label: "Plantilla del bot",
+      ok: false,
+      details: error instanceof Error ? error.message : String(error),
+    });
+  }
+
+  checks.push({
+    id: "github",
+    label: "Versionado en GitHub",
+    ok: Boolean(process.env.STAGE_GITHUB_TOKEN?.trim()),
+    details: process.env.STAGE_GITHUB_TOKEN?.trim()
+      ? "Repositorio listo para guardar la configuracion aprobada."
+      : "Falta STAGE_GITHUB_TOKEN.",
+  });
+
+  if (infra && backendDir) {
+    try {
+      await runCommand(
+        "fly",
+        ["apps", "list", "--json"],
+        backendDir,
+        { ...process.env, FLY_ACCESS_TOKEN: infra.flyToken },
+        { timeoutMs: 30_000 },
+      );
+      checks.push({
+        id: "fly",
+        label: "Fly.io",
+        ok: true,
+        details: "Cuenta accesible; no se creo ninguna maquina.",
+      });
+    } catch (error) {
+      checks.push({
+        id: "fly",
+        label: "Fly.io",
+        ok: false,
+        details: error instanceof Error ? error.message : String(error),
+      });
+    }
+  } else {
+    checks.push({
+      id: "fly",
+      label: "Fly.io",
+      ok: false,
+      details: "Bloqueado hasta corregir credenciales o plantilla.",
+    });
+  }
+  return checks;
 }
 
 /**
@@ -439,7 +596,8 @@ function readInfrastructure(groqOverride?: string, proveedorCorreo?: ProveedorCo
   }
 
   const missing = needed.filter((name) => !process.env[name]);
-  if (missing.length) throw new Error(`Faltan variables locales: ${missing.join(", ")}. Reinicia el Owner Console.`);
+  if (missing.length)
+    throw new Error(`Faltan variables locales: ${missing.join(", ")}. Reinicia el Owner Console.`);
 
   return {
     flyToken: process.env.STAGE_FLY_API_TOKEN!,
@@ -458,7 +616,9 @@ function readInfrastructure(groqOverride?: string, proveedorCorreo?: ProveedorCo
 
 async function resolveBackendDirectory() {
   const configured = process.env.STAGE_BOT_TEMPLATE_PATH;
-  const templateRoot = configured ? path.resolve(configured) : path.resolve(process.cwd(), "..", "Stage-Bot-Template");
+  const templateRoot = configured
+    ? path.resolve(configured)
+    : path.resolve(process.cwd(), "..", "Stage-Bot-Template");
   const backendDir = path.join(templateRoot, "backend");
   try {
     await access(path.join(backendDir, "Dockerfile"), constants.R_OK);
@@ -514,7 +674,12 @@ async function downloadBackendTemplate() {
   limpiarCache.unref();
   try {
     await writeFile(archivePath, Buffer.from(await response.arrayBuffer()));
-    await runCommand("tar", ["-xzf", archivePath, "--strip-components=1", "-C", cacheRoot], cacheRoot, process.env);
+    await runCommand(
+      "tar",
+      ["-xzf", archivePath, "--strip-components=1", "-C", cacheRoot],
+      cacheRoot,
+      process.env,
+    );
     await access(path.join(cachedBackend, "Dockerfile"), constants.R_OK);
   } finally {
     await rm(archivePath, { force: true });
@@ -570,7 +735,12 @@ primary_region = '${FLY_REGION}'
 `;
 }
 
-async function commandSucceeds(binary: string, args: string[], cwd: string, env: NodeJS.ProcessEnv) {
+async function commandSucceeds(
+  binary: string,
+  args: string[],
+  cwd: string,
+  env: NodeJS.ProcessEnv,
+) {
   try {
     await runCommand(binary, args, cwd, env);
     return true;
@@ -590,21 +760,29 @@ function runCommand(
     const child = spawn(binary, args, { cwd, env, windowsHide: true });
     let output = "";
     let settled = false;
-    const timeout = setTimeout(() => {
-      if (settled) return;
-      settled = true;
-      child.kill("SIGTERM");
-      reject(new Error(`${binary} excedió el tiempo máximo de ejecución.`));
-    }, options.timeoutMs ?? 15 * 60_000);
+    const timeout = setTimeout(
+      () => {
+        if (settled) return;
+        settled = true;
+        child.kill("SIGTERM");
+        reject(new Error(`${binary} excedió el tiempo máximo de ejecución.`));
+      },
+      options.timeoutMs ?? 15 * 60_000,
+    );
     timeout.unref();
-    child.stdout.on("data", (data) => { output += String(data); });
-    child.stderr.on("data", (data) => { output += String(data); });
+    child.stdout.on("data", (data) => {
+      output += String(data);
+    });
+    child.stderr.on("data", (data) => {
+      output += String(data);
+    });
     child.stdin.end(options.stdin);
     child.on("error", (error: NodeJS.ErrnoException) => {
       if (settled) return;
       settled = true;
       clearTimeout(timeout);
-      if (error.code === "ENOENT") reject(new Error(`No se encontró el comando ${binary} en el servidor.`));
+      if (error.code === "ENOENT")
+        reject(new Error(`No se encontró el comando ${binary} en el servidor.`));
       else reject(error);
     });
     child.on("close", (code) => {
@@ -612,7 +790,12 @@ function runCommand(
       settled = true;
       clearTimeout(timeout);
       if (code === 0) resolve(output);
-      else reject(new Error(compactCommandError(output, `Fly terminó con código ${code ?? "desconocido"}.`)));
+      else
+        reject(
+          new Error(
+            compactCommandError(output, `Fly terminó con código ${code ?? "desconocido"}.`),
+          ),
+        );
     });
   });
 }
@@ -636,7 +819,9 @@ function safeJsonArray(value: string): any[] {
 
 async function readFlyModel(appName: string, cwd: string, env: NodeJS.ProcessEnv) {
   try {
-    const machines = safeJsonArray(await runCommand("fly", ["machines", "list", "--app", appName, "--json"], cwd, env));
+    const machines = safeJsonArray(
+      await runCommand("fly", ["machines", "list", "--app", appName, "--json"], cwd, env),
+    );
     const model = machines[0]?.config?.env?.GROQ_MODEL;
     return typeof model === "string" && model.trim() ? model.trim() : "llama-3.3-70b-versatile";
   } catch {
