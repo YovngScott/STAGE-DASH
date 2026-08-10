@@ -68,6 +68,7 @@ export interface TenantConfigDraft {
   behavior?: BotBehavior;
   companyInfo?: string;
   extraInstructions?: string;
+  promptConsolidated?: boolean;
   promptExtra: string;
   googleCalendarId: string;
   /** Presente solo cuando kind === "assistant". */

@@ -48,6 +48,7 @@ export const Route = createFileRoute("/api/bot-edit")({
         if (current instanceof Response) return current;
         const config = current.config;
         const behavior = normalizeBotBehavior(config.behavior);
+        const editablePrompts = promptsForEditor(config, behavior);
 
         return Response.json({
           bot: {
@@ -57,8 +58,8 @@ export const Route = createFileRoute("/api/bot-edit")({
           },
           config: {
             behavior,
-            companyInfo: String(config.companyInfo ?? ""),
-            extraInstructions: String(config.extraInstructions ?? ""),
+            companyInfo: editablePrompts.supplemental,
+            extraInstructions: editablePrompts.main,
             effectivePrompt: String(config.promptExtra ?? composeTenantPrompt({ behavior })),
             asistente: config.asistente ?? null,
           },
@@ -82,16 +83,22 @@ export const Route = createFileRoute("/api/bot-edit")({
         const name = String(body.name ?? "").trim();
         if (!name) return Response.json({ error: "El nombre del bot es obligatorio." }, { status: 400 });
         const behavior = normalizeBotBehavior(body.behavior ?? config.behavior);
-        const companyInfo = String(body.companyInfo ?? "").trim();
-        const extraInstructions = String(body.extraInstructions ?? "").trim();
+        const supplementalPrompt = String(body.companyInfo ?? "").trim();
+        const mainPrompt = String(body.extraInstructions ?? "").trim();
         const kind = (config.kind ?? botResult.kind ?? "messaging") as BotKind;
 
         config.nombreBot = name;
         config.kind = kind;
         config.behavior = behavior;
-        config.companyInfo = companyInfo;
-        config.extraInstructions = extraInstructions;
-        config.promptExtra = composeTenantPrompt({ behavior, companyInfo, extraInstructions });
+        config.companyInfo = supplementalPrompt;
+        config.extraInstructions = mainPrompt;
+        config.promptConsolidated = true;
+        config.promptExtra = composeTenantPrompt({
+          behavior,
+          extraInstructions: [mainPrompt, supplementalPrompt && `### PROMPT EXTRA AUTORIZADO\n${supplementalPrompt}`]
+            .filter(Boolean)
+            .join("\n\n"),
+        });
 
         if (kind === "assistant") {
           if (!config.asistente) {
@@ -249,4 +256,23 @@ function appNameFromStatusUrl(value: string | null | undefined) {
   } catch {
     return null;
   }
+}
+
+function promptsForEditor(config: TenantConfigDraft, behavior: BotBehavior) {
+  if (config.promptConsolidated) {
+    return {
+      main: String(config.extraInstructions ?? ""),
+      supplemental: String(config.companyInfo ?? ""),
+    };
+  }
+  const context = String(config.companyInfo ?? "").trim();
+  const instructions = String(config.extraInstructions ?? "").trim();
+  const main = [
+    context && `### CONTEXTO INICIAL\n${context}`,
+    instructions && `### INSTRUCCIONES INICIALES\n${instructions}`,
+  ].filter(Boolean).join("\n\n");
+  return {
+    main: main || String(config.promptExtra ?? composeTenantPrompt({ behavior })),
+    supplemental: "",
+  };
 }
