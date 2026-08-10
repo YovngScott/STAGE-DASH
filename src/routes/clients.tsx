@@ -1670,19 +1670,33 @@ function Clients() {
           if (!next) setBotEditBot(null);
         }}
       >
-        <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
-          <DialogHeader>
+        <DialogContent className="flex max-h-[88vh] max-w-3xl flex-col gap-0 overflow-hidden p-0">
+          <DialogHeader className="px-6 pt-6">
             <DialogTitle>Configuración y prompts del bot</DialogTitle>
             <DialogDescription>
               Los cambios se guardan en GitHub y se aplican automáticamente en la app de Fly.
             </DialogDescription>
           </DialogHeader>
           {loadingBotEdit ? (
-            <div className="flex min-h-48 items-center justify-center text-sm text-muted-foreground">
+            <div className="flex min-h-48 items-center justify-center px-6 text-sm text-muted-foreground">
               <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Cargando configuración real…
             </div>
           ) : (
-          <form onSubmit={saveBotEdit} className="space-y-6">
+          <form onSubmit={saveBotEdit} className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <Tabs defaultValue="general" className="flex min-h-0 flex-1 flex-col">
+              <TabsList className="mx-6 mt-5 grid w-auto grid-cols-3">
+                <TabsTrigger value="general">General</TabsTrigger>
+                <TabsTrigger value="operation">Operación</TabsTrigger>
+                <TabsTrigger value="prompts">Prompts</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="general" className="mt-4 min-h-0 flex-1 space-y-5 overflow-y-auto px-6 pb-6">
+                <div className="rounded-lg border border-border/60 bg-muted/20 p-4">
+                  <h3 className="font-medium">Identidad y contexto</h3>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Define quién es el bot, qué función cumple y qué información debe conocer.
+                  </p>
+                </div>
             <div className="space-y-2">
               <Label>Nombre del bot</Label>
               <Input
@@ -1691,7 +1705,7 @@ function Clients() {
                 required
               />
             </div>
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-5">
               <div className="space-y-2">
                 <Label>Función principal</Label>
                 <Select
@@ -1712,16 +1726,19 @@ function Clients() {
                   value={botEditDraft.companyInfo}
                   onChange={(e) => setBotEditDraft((d) => ({ ...d, companyInfo: e.target.value }))}
                   placeholder="Información que el bot debe conocer…"
-                  rows={4}
+                  rows={9}
                 />
               </div>
             </div>
+              </TabsContent>
+
+              <TabsContent value="operation" className="mt-4 min-h-0 flex-1 overflow-y-auto px-6 pb-6">
 
             {botEditBot?.kind === "assistant" && (
-              <section className="space-y-4 rounded-lg border border-border/60 p-4">
+              <section className="space-y-5">
                 <div>
                   <h3 className="font-medium">Operación del asistente de correo</h3>
-                  <p className="text-xs text-muted-foreground">Estos valores son los que verá el cliente en su tarjeta de Gmail.</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Configura cuándo trabaja, qué puede enviar y con qué identidad responde.</p>
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
@@ -1783,26 +1800,44 @@ function Clients() {
                 )}
               </section>
             )}
+            {botEditBot?.kind !== "assistant" && (
+              <div className="rounded-lg border border-dashed border-border/60 p-8 text-center text-sm text-muted-foreground">
+                Este tipo de bot no tiene parámetros operativos adicionales.
+              </div>
+            )}
+              </TabsContent>
 
+              <TabsContent value="prompts" className="mt-4 min-h-0 flex-1 space-y-5 overflow-y-auto px-6 pb-6">
+                <div className="rounded-lg border border-border/60 bg-muted/20 p-4">
+                  <h3 className="font-medium">Instrucciones del bot</h3>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Añade reglas concretas aquí. El prompt completo se puede consultar debajo sin ocupar toda la pantalla.
+                  </p>
+                </div>
             <div className="space-y-2">
               <Label>Instrucciones personalizadas</Label>
               <Textarea
                 value={botEditDraft.extraInstructions}
                 onChange={(e) => setBotEditDraft((d) => ({ ...d, extraInstructions: e.target.value }))}
                 placeholder="Reglas, tono, excepciones o conocimiento adicional para este cliente…"
-                rows={6}
+                rows={10}
               />
             </div>
-            <div className="space-y-2">
-              <div>
-                <Label>Prompt completo del tenant</Label>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Incluye función, contexto, seguridad e instrucciones. Cada canal añade además un prompt técnico protegido (por ejemplo, clasificación de correo) para garantizar salidas válidas; ajústalo mediante los campos anteriores.
-                </p>
-              </div>
-              <Textarea value={effectiveBotPrompt} readOnly rows={14} className="font-mono text-xs" />
-            </div>
-            <DialogFooter>
+                <details className="rounded-lg border border-border/60 bg-card/40">
+                  <summary className="cursor-pointer select-none px-4 py-3 text-sm font-medium">
+                    Ver prompt completo del tenant
+                  </summary>
+                  <div className="space-y-3 border-t border-border/60 p-4">
+                    <p className="text-xs text-muted-foreground">
+                      Incluye función, contexto, seguridad e instrucciones. Cada canal añade además un prompt técnico protegido para garantizar salidas válidas.
+                    </p>
+                    <Textarea value={effectiveBotPrompt} readOnly rows={14} className="font-mono text-xs" />
+                  </div>
+                </details>
+              </TabsContent>
+            </Tabs>
+
+            <DialogFooter className="border-t border-border/60 bg-background px-6 py-4">
               <Button type="submit" disabled={savingBotEdit}>
                 {savingBotEdit ? <Loader2 className="h-4 w-4 animate-spin" /> : "Guardar cambios"}
               </Button>
