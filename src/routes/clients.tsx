@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Plus,
   Pencil,
@@ -206,6 +206,7 @@ function Clients() {
   const [decommissioningClientId, setDecommissioningClientId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  const activeClientIdRef = useRef<string | null>(null);
   const [bots, setBots] = useState<ClientBot[]>([]);
   const [dashboards, setDashboards] = useState<ClientDashboard[]>([]);
   const [clientWebApps, setClientWebApps] = useState<WebApp[]>([]);
@@ -241,7 +242,13 @@ function Clients() {
   };
 
   const closeClientWorkspace = () => {
+    activeClientIdRef.current = null;
     setSelectedClient(null);
+    setBots([]);
+    setDashboards([]);
+    setClientWebApps([]);
+    setEmailAccounts([]);
+    setDashboardUsers([]);
     setUserManagerOpen(false);
     setUserDialogOpen(false);
     setEditingDashboardUser(null);
@@ -312,19 +319,17 @@ function Clients() {
     const storedDashboards = dashboardsRes.error
       ? []
       : ((dashboardsRes.data ?? []) as ClientDashboard[]);
-    const localDashboards = storedDashboards.map((dashboard) => {
+    const resolvedDashboards = storedDashboards.map((dashboard) => {
       const bot = effectiveBots.find((candidate) => candidate.slug === dashboard.slug);
       return {
         ...dashboard,
-        url: makeLocalDashboardUrl(dashboard.slug, bot?.bot_status_url ?? client.bot_status_url),
-        provider: "local",
-        status: "local",
+        url: resolveDashboardUrl(dashboard.url, dashboard.slug, bot?.bot_status_url ?? client.bot_status_url),
       };
     });
     // Older clients were created before client_dashboards existed. Give every
     // registered bot a local dashboard link during the trial, even when there
     // is no persisted dashboard record yet.
-    const dashboardsWithFallbacks = [...localDashboards];
+    const dashboardsWithFallbacks = [...resolvedDashboards];
     for (const bot of effectiveBots) {
       if (dashboardsWithFallbacks.some((dashboard) => dashboard.slug === bot.slug)) continue;
       dashboardsWithFallbacks.push({
@@ -333,12 +338,17 @@ function Clients() {
         bot_id: bot.id === "primary" ? null : bot.id,
         name: `${bot.name} Dashboard`,
         slug: bot.slug,
-        url: makeLocalDashboardUrl(bot.slug, bot.bot_status_url),
-        provider: "local",
-        status: "local",
+        url: resolveDashboardUrl(bot.dashboard_url, bot.slug, bot.bot_status_url),
+        provider: "fly",
+        status: bot.status === "active" ? "live" : "draft",
         created_at: bot.created_at,
       });
     }
+
+    // A previous client's requests can finish after the user has already
+    // opened another profile. Never let that stale response replace the bots
+    // used to choose the tenant for dashboard access.
+    if (activeClientIdRef.current !== client.id) return;
 
     setBots(effectiveBots);
     // El estado del envío automático vive en el backend de cada bot asistente,
@@ -351,7 +361,15 @@ function Clients() {
   };
 
   const openClientProfile = (client: Client) => {
+    activeClientIdRef.current = client.id;
     setSelectedClient(client);
+    // Clear the previous profile synchronously. In particular, retaining its
+    // first bot here could assign a newly created user to the wrong tenant.
+    setBots([]);
+    setDashboards([]);
+    setClientWebApps([]);
+    setEmailAccounts([]);
+    setDashboardUsers([]);
     setUserDraft({
       tenantSlug: extractSlugFromBotUrl(client.bot_status_url ?? "") || "",
       email: client.email ?? "",
@@ -644,7 +662,7 @@ function Clients() {
       toast.success(
         next
           ? `${bot.name} encendido. Abre el QR para reconectar WhatsApp.`
-          : `${bot.name} apagado, WhatsApp desconectado y accesos revocados.`,
+          : `${bot.name} apagado y WhatsApp desconectado. Los usuarios del dashboard se conservaron.`,
       );
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to toggle the bot.");
@@ -784,12 +802,18 @@ function Clients() {
     toast.success("Bot integration saved");
   };
 
-  const getSelectedTenantSlug = () =>
-    bots[0]?.slug || extractSlugFromBotUrl(selectedClient?.bot_status_url ?? "") || "";
+  const getSelectedTenantSlug = () => {
+    const selectedBot = selectedClient
+      ? bots.find((bot) => bot.client_id === selectedClient.id && Boolean(bot.slug))
+      : undefined;
+    return selectedBot?.slug || extractSlugFromBotUrl(selectedClient?.bot_status_url ?? "") || "";
+  };
 
-  const availableTenantBots = bots.filter((bot) => Boolean(bot.slug));
+  const availableTenantBots = selectedClient
+    ? bots.filter((bot) => bot.client_id === selectedClient.id && Boolean(bot.slug))
+    : [];
 
-  const loadDashboardUsers = async (client: Client, tenantSlug = getSelectedTenantSlug()) => {
+  const loadDashboardUsers = useCallback(async (client: Client, tenantSlug: string) => {
     if (!tenantSlug) {
       setDashboardUsers([]);
       return;
@@ -812,7 +836,20 @@ function Clients() {
     } finally {
       setDashboardUsersLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    if (!selectedClient || resourcesLoading) return;
+    const tenantSlug =
+      bots.find((bot) => bot.client_id === selectedClient.id && Boolean(bot.slug))?.slug ||
+      extractSlugFromBotUrl(selectedClient.bot_status_url ?? "") ||
+      "";
+    if (!tenantSlug) {
+      setDashboardUsers([]);
+      return;
+    }
+    void loadDashboardUsers(selectedClient, tenantSlug);
+  }, [selectedClient, resourcesLoading, bots, loadDashboardUsers]);
 
   const openUserManager = () => {
     if (!selectedClient) return;
@@ -916,7 +953,7 @@ function Clients() {
         body.deletedAccount ? "Usuario y acceso eliminados" : "Acceso eliminado de este cliente",
       );
       void loadClientResources(selectedClient);
-      void loadDashboardUsers(selectedClient);
+      void loadDashboardUsers(selectedClient, getSelectedTenantSlug());
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "No se pudo eliminar el usuario.");
     } finally {
@@ -1403,7 +1440,7 @@ function Clients() {
                       Administrar usuarios
                     </Button>
                   </div>
-                  {dashboardUsersLoading ? (
+                  {resourcesLoading || dashboardUsersLoading ? (
                     <LoadingLine label="Cargando usuarios del dashboard..." />
                   ) : dashboardUsers.length === 0 ? (
                     <EmptyResource label="Aún no hay usuarios con acceso. Abre Administrar usuarios para crear el primero." />
@@ -1414,7 +1451,7 @@ function Clients() {
                         <ResourceCard key={user.id}>
                           <div className="flex items-center justify-between gap-3">
                             <div>
-                              <div className="flex items-center gap-2">
+                              <div className="flex flex-wrap items-center gap-2">
                                 <Mail className="h-4 w-4 text-primary" />
                                 <h4 className="font-medium">{user.email}</h4>
                                 <Badge variant="outline">activo</Badge>
@@ -1424,6 +1461,20 @@ function Clients() {
                                   onClick={() => openEditDashboardUser(user)}
                                 >
                                   Editar
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="text-destructive hover:text-destructive"
+                                  disabled={deletingDashboardUserId === user.id}
+                                  onClick={() => void deleteDashboardUser(user)}
+                                >
+                                  {deletingDashboardUserId === user.id ? (
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                  ) : (
+                                    <Trash2 className="mr-1 h-3.5 w-3.5" />
+                                  )}
+                                  Eliminar
                                 </Button>
                               </div>
                               <p className="mt-1 text-xs text-muted-foreground">
@@ -2017,7 +2068,11 @@ function extractSlugFromBotUrl(url: string) {
   return match?.[1] ?? "";
 }
 
-function makeLocalDashboardUrl(slug: string, botStatusUrl: string | null | undefined) {
+function resolveDashboardUrl(
+  storedUrl: string | null | undefined,
+  slug: string,
+  botStatusUrl: string | null | undefined,
+) {
   let apiUrl = "https://wiltech-bot.fly.dev";
   try {
     if (botStatusUrl) apiUrl = new URL(botStatusUrl).origin;
@@ -2025,8 +2080,22 @@ function makeLocalDashboardUrl(slug: string, botStatusUrl: string | null | undef
     // The fallback keeps older bot records usable while their connection data
     // is completed from Client Manager.
   }
+
+  try {
+    if (storedUrl) {
+      const persisted = new URL(storedUrl);
+      if (persisted.protocol === "https:" && persisted.hostname !== "127.0.0.1" && persisted.hostname !== "localhost") {
+        persisted.searchParams.set("tenant", slug);
+        persisted.searchParams.set("api", apiUrl);
+        return persisted.toString();
+      }
+    }
+  } catch {
+    // Invalid or historical local URLs fall through to the bot's public Fly origin.
+  }
+
   const params = new URLSearchParams({ tenant: slug, api: apiUrl });
-  return `http://127.0.0.1:5174/?${params.toString()}`;
+  return `${apiUrl}/?${params.toString()}`;
 }
 
 function buildFallbackBots(client: Client): ClientBot[] {

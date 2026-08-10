@@ -102,7 +102,6 @@ async function decommissionOneBot(clientId: string, botId: string) {
   const client = await getClient(clientId);
   const bot = await getBotForClient(client, botId);
   await disconnectRemoteBot(bot);
-  const revokedUsers = await revokeTenantAccess(bot.slug);
   await markBotPaused(bot);
   const remaining = await getClientBots(client);
   const stillActive = remaining.some((candidate) => candidate.id !== bot.id && candidate.statusUrl);
@@ -111,7 +110,10 @@ async function decommissionOneBot(clientId: string, botId: string) {
     .update({ bot_activo: stillActive })
     .eq("id", client.id);
   if (error) throw new Error(`No se pudo actualizar el cliente: ${error.message}`);
-  return { action: "decommissioned", bots: [bot.slug], revokedUsers };
+  // Pausing a bot is operational, not an access-management action. Keep the
+  // dashboard accounts and tenant memberships intact so turning messaging off
+  // never makes customer users disappear.
+  return { action: "decommissioned", bots: [bot.slug], revokedUsers: [] };
 }
 
 async function deleteOneBot(clientId: string, rawBotId: string, confirmation: string) {

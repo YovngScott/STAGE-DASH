@@ -1,0 +1,17 @@
+.git
+.github
+.env
+.env.*
+!.env.local.example
+node_modules
+.output
+.nitro
+.tanstack
+.wrangler
+desktop-installer
+desktop-release
+desktop-next
+desktop-next-incomplete
+desktop-run-log
+release
+*.log
