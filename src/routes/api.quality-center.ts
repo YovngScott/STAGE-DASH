@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import type {} from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { redeployBotConfig, type BotKind } from "@/lib/provisioning";
+import { inspectProvisionPreflight, redeployBotConfig, type BotKind } from "@/lib/provisioning";
 import {
   createSnapshot,
   listQualityRecords,
@@ -10,6 +10,8 @@ import {
   loadQualityRecord,
   loadSnapshot,
   mandatoryTestsPassed,
+  preflightPassed,
+  qualityGatePassed,
   newQualityRecord,
   readPublishedTenant,
   saveQualityRecord,
@@ -19,7 +21,15 @@ import {
 import { runMandatoryQualityTests, runManualQualityTest } from "@/lib/quality-engine.server";
 
 type ActionBody = {
-  action?: "manual_test" | "automatic_tests" | "prepare_publish" | "backup" | "restore_drill" | "rollback" | "restore_backup";
+  action?:
+    | "manual_test"
+    | "automatic_tests"
+    | "manual_approval"
+    | "prepare_publish"
+    | "backup"
+    | "restore_drill"
+    | "rollback"
+    | "restore_backup";
   slug?: string;
   question?: string;
   snapshotId?: string;
@@ -42,7 +52,8 @@ export const Route = createFileRoute("/api/quality-center")({
                 .eq("slug", slug)
                 .maybeSingle();
               const tenant = bot ? await readPublishedTenant(slug) : null;
-              if (!bot || !tenant) return Response.json({ error: "Bot no encontrado." }, { status: 404 });
+              if (!bot || !tenant)
+                return Response.json({ error: "Bot no encontrado." }, { status: 404 });
               const { data: client } = await supabaseAdmin
                 .from("clients")
                 .select("company_name")
@@ -53,7 +64,8 @@ export const Route = createFileRoute("/api/quality-center")({
                 clientId: bot.client_id,
                 clientName: client?.company_name ?? tenant.nombre,
                 productName: bot.product_name ?? null,
-                botType: (bot.kind ?? tenant.kind ?? "messaging") as "assistant" | "messaging" | "voice",
+                botType: (bot.kind ?? tenant.kind ?? "messaging") as
+                  "assistant" | "messaging" | "voice",
                 groqModel: "llama-3.3-70b-versatile",
                 updateClient: false,
                 tenantConfig: tenant,
@@ -66,7 +78,12 @@ export const Route = createFileRoute("/api/quality-center")({
               listSnapshots(slug, "version"),
               listSnapshots(slug, "backup"),
             ]);
-            return Response.json({ record, versions, backups, canPublish: mandatoryTestsPassed(record) });
+            return Response.json({
+              record,
+              versions,
+              backups,
+              canPublish: qualityGatePassed(record),
+            });
           }
 
           const records = await listQualityRecords();
@@ -95,7 +112,10 @@ export const Route = createFileRoute("/api/quality-center")({
           if (body.action === "manual_test") {
             const question = body.question?.trim() ?? "";
             if (question.length < 2 || question.length > 2000) {
-              return Response.json({ error: "Escribe una pregunta de hasta 2,000 caracteres." }, { status: 400 });
+              return Response.json(
+                { error: "Escribe una pregunta de hasta 2,000 caracteres." },
+                { status: 400 },
+              );
             }
             const run = await runManualQualityTest(record, question);
             record.manualRuns = [run, ...record.manualRuns].slice(0, 20);
@@ -105,15 +125,55 @@ export const Route = createFileRoute("/api/quality-center")({
 
           if (body.action === "automatic_tests") {
             record.tests = await runMandatoryQualityTests(record);
-            record.state = mandatoryTestsPassed(record) ? "ready" : "draft";
-            record.lastError = record.state === "ready" ? null : "Una o más pruebas obligatorias fallaron.";
+            record.preflightChecks = await inspectProvisionPreflight(
+              undefined,
+              record.tenantConfig.asistente?.proveedor,
+            );
+            record.preflightAt = new Date().toISOString();
+            record.manualApprovedAt = null;
+            const automatedPassed = mandatoryTestsPassed(record) && preflightPassed(record);
+            record.state = "draft";
+            record.lastError = automatedPassed
+              ? null
+              : "Una o más pruebas o comprobaciones de infraestructura fallaron.";
             await saveQualityRecord(record, `Pruebas obligatorias de ${slug}`);
-            return Response.json({ ok: true, record, canPublish: mandatoryTestsPassed(record) });
+            return Response.json({
+              ok: true,
+              record,
+              automatedPassed,
+              canPublish: qualityGatePassed(record),
+            });
+          }
+
+          if (body.action === "manual_approval") {
+            if (!mandatoryTestsPassed(record) || !preflightPassed(record)) {
+              return Response.json(
+                { error: "Completa primero la validación automática." },
+                { status: 409 },
+              );
+            }
+            if (!record.manualRuns.length) {
+              return Response.json(
+                { error: "Ejecuta al menos una conversación manual antes de aprobar." },
+                { status: 409 },
+              );
+            }
+            record.manualApprovedAt = new Date().toISOString();
+            record.state = "ready";
+            record.lastError = null;
+            await saveQualityRecord(record, `Aprobar revisión manual de ${slug}`);
+            return Response.json({ ok: true, record, canPublish: true });
           }
 
           if (body.action === "prepare_publish") {
-            if (!mandatoryTestsPassed(record)) {
-              return Response.json({ error: "Primero deben aprobarse las tres pruebas obligatorias." }, { status: 409 });
+            if (!qualityGatePassed(record)) {
+              return Response.json(
+                {
+                  error:
+                    "El bot necesita pruebas, infraestructura y aprobación manual antes de publicarse.",
+                },
+                { status: 409 },
+              );
             }
             return Response.json({
               ok: true,
@@ -131,14 +191,20 @@ export const Route = createFileRoute("/api/quality-center")({
 
           if (body.action === "backup") {
             const published = await readPublishedTenant(slug);
-            const snapshot = await createSnapshot(slug, "backup", published ?? record.tenantConfig, "Backup manual verificado");
+            const snapshot = await createSnapshot(
+              slug,
+              "backup",
+              published ?? record.tenantConfig,
+              "Backup manual verificado",
+            );
             return Response.json({ ok: true, snapshot });
           }
 
           if (body.action === "restore_drill") {
             const backups = await listSnapshots(slug, "backup");
             const latest = backups[0];
-            if (!latest) return Response.json({ error: "Primero crea al menos un backup." }, { status: 409 });
+            if (!latest)
+              return Response.json({ error: "Primero crea al menos un backup." }, { status: 409 });
             const validation = validateSnapshot(latest);
             record.lastRestoreDrillAt = new Date().toISOString();
             record.lastRestoreDrillOk = validation.ok;
@@ -150,10 +216,19 @@ export const Route = createFileRoute("/api/quality-center")({
           const snapshot = await loadSnapshot(slug, kind, body.snapshotId ?? "");
           if (!snapshot) return Response.json({ error: "Versión no encontrada." }, { status: 404 });
           const validation = validateSnapshot(snapshot);
-          if (!validation.ok) return Response.json({ error: "La copia falló la validación de integridad." }, { status: 409 });
+          if (!validation.ok)
+            return Response.json(
+              { error: "La copia falló la validación de integridad." },
+              { status: 409 },
+            );
           const current = await readPublishedTenant(slug);
-          if (current) await createSnapshot(slug, "version", current, "Punto de retorno previo a restaurar");
-          await writePublishedTenant(slug, snapshot.tenantConfig, `Restaurar ${slug} a ${snapshot.id}`);
+          if (current)
+            await createSnapshot(slug, "version", current, "Punto de retorno previo a restaurar");
+          await writePublishedTenant(
+            slug,
+            snapshot.tenantConfig,
+            `Restaurar ${slug} a ${snapshot.id}`,
+          );
 
           const { data: bot } = await supabaseAdmin
             .from("client_bots")
@@ -189,7 +264,10 @@ async function authorizeOwner(request: Request): Promise<Response | null> {
   if (!token) return Response.json({ error: "No autorizado." }, { status: 401 });
   const { data: user, error } = await supabase.auth.getUser(token);
   if (error || !user.user) return Response.json({ error: "No autorizado." }, { status: 401 });
-  const { data: owner } = await supabase.rpc("has_role", { _user_id: user.user.id, _role: "owner" });
+  const { data: owner } = await supabase.rpc("has_role", {
+    _user_id: user.user.id,
+    _role: "owner",
+  });
   return owner ? null : Response.json({ error: "No autorizado." }, { status: 401 });
 }
 

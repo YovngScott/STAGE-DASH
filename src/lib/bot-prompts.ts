@@ -82,10 +82,17 @@ export function composeTenantPrompt(args: {
   behavior: BotBehavior;
   companyInfo?: string;
   extraInstructions?: string;
+  canQuoteByChat?: boolean;
 }) {
   const behaviorPrompt = BEHAVIOR_PROMPTS[args.behavior] ?? SALES_BEHAVIOR;
   const companyInfo = args.companyInfo?.trim();
   const extraInstructions = args.extraInstructions?.trim();
+  const commercialPolicy =
+    args.behavior === "sales"
+      ? args.canQuoteByChat === false
+        ? "### POLÍTICA COMERCIAL NO EDITABLE\nNo cotices por chat. Explica que el precio requiere evaluación y escala la solicitud."
+        : "### POLÍTICA COMERCIAL NO EDITABLE\nSolo menciona precios presentes literalmente en el catálogo autorizado. Si falta el precio, escala; nunca lo estimes."
+      : "";
   // El asistente personal trabaja PARA el ejecutivo, no de cara a clientes: su
   // contexto es sobre a quién asiste, no la ficha comercial de una empresa.
   const companyInfoHeading =
@@ -94,8 +101,11 @@ export function composeTenantPrompt(args: {
       : "### INFORMACIÓN OFICIAL DE LA EMPRESA";
   return [
     behaviorPrompt,
+    commercialPolicy,
     companyInfo ? `${companyInfoHeading}\n${companyInfo}` : "",
     SECURITY_PROTOCOL,
     extraInstructions ? `### INSTRUCCIONES ADICIONALES AUTORIZADAS\n${extraInstructions}` : "",
-  ].filter(Boolean).join("\n\n");
+  ]
+    .filter(Boolean)
+    .join("\n\n");
 }

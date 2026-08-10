@@ -12,8 +12,8 @@ import { composeTenantPrompt, normalizeBotBehavior, type BotBehavior } from "@/l
 import {
   createSnapshot,
   loadQualityRecord,
-  mandatoryTestsPassed,
   newQualityRecord,
+  qualityGatePassed,
   saveQualityRecord,
 } from "@/lib/quality-center.server";
 
@@ -47,6 +47,7 @@ interface BotBuilderRequest {
     behavior?: string;
     companyInfo?: string;
     extraInstructions?: string;
+    cotizaPorChat?: boolean;
     googleCalendarId?: string;
     asistente?: {
       correo?: string;
@@ -100,7 +101,10 @@ export const Route = createFileRoute("/api/bot-builder")({
         }
         if (!process.env.STAGE_SUPABASE_SERVICE_ROLE_KEY) {
           return Response.json(
-            { error: "Falta STAGE_SUPABASE_SERVICE_ROLE_KEY en tu entorno local. Agrega esta variable a .env.local y reinicia http://127.0.0.1:5173/." },
+            {
+              error:
+                "Falta STAGE_SUPABASE_SERVICE_ROLE_KEY en tu entorno local. Agrega esta variable a .env.local y reinicia http://127.0.0.1:5173/.",
+            },
             { status: 500 },
           );
         }
@@ -126,7 +130,10 @@ export const Route = createFileRoute("/api/bot-builder")({
         const botType: BotType = body.botType ?? "messaging";
         if (botType === "voice") {
           return Response.json(
-            { error: "El bot de llamadas todavía está en desarrollo y no se puede publicar como si estuviera listo." },
+            {
+              error:
+                "El bot de llamadas todavía está en desarrollo y no se puede publicar como si estuviera listo.",
+            },
             { status: 409 },
           );
         }
@@ -151,17 +158,21 @@ export const Route = createFileRoute("/api/bot-builder")({
             // Gmail por defecto: es el flujo más rodado y no rompe los bots ya
             // creados, cuyo JSON no trae este campo.
             proveedor:
-              proveedorPedido === "microsoft" || proveedorPedido === "imap" ? proveedorPedido : "gmail",
+              proveedorPedido === "microsoft" || proveedorPedido === "imap"
+                ? proveedorPedido
+                : "gmail",
             whatsappAlertas: (body.tenant.asistente?.whatsappAlertas ?? "").replace(/\D/g, ""),
             // Bajo a propósito: el asistente redacta por defecto y este valor
             // solo frena los correos que de verdad no entendió.
             umbralConfianza: Number.isFinite(umbral) && umbral > 0 && umbral <= 1 ? umbral : 0.35,
-            intervaloMinutos: Number.isFinite(intervalo) && intervalo >= 1 ? Math.min(intervalo, 1440) : 10,
+            intervaloMinutos:
+              Number.isFinite(intervalo) && intervalo >= 1 ? Math.min(intervalo, 1440) : 10,
             horaReporte: /^\d{2}:\d{2}$/.test(hora) ? hora : "18:00",
             // Por defecto el asistente se identifica: escribir a nombre del
             // titular es una decisión explícita del cliente, no un default.
             actuaComoTitular: body.tenant.asistente?.actuaComoTitular === true,
-            nombreTitular: (body.tenant.asistente?.nombreTitular ?? "").trim() || client.company_name,
+            nombreTitular:
+              (body.tenant.asistente?.nombreTitular ?? "").trim() || client.company_name,
             // Nunca se envía automáticamente por omisión. El cliente debe
             // aprobar borradores y activarlo de forma explícita.
             enviarAutomatico: body.tenant.asistente?.enviarAutomatico === true,
@@ -200,7 +211,13 @@ export const Route = createFileRoute("/api/bot-builder")({
             behavior,
             companyInfo: body.tenant.companyInfo,
             extraInstructions: body.tenant.extraInstructions,
+            canQuoteByChat: body.tenant.cotizaPorChat !== false,
           }),
+          policy: {
+            canQuoteByChat: body.tenant.cotizaPorChat !== false,
+            requireAppointmentConfirmation: true,
+            requireHumanForCommitments: true,
+          },
           googleCalendarId: body.tenant.googleCalendarId?.trim() || "primary",
           ...(asistente ? { asistente } : {}),
         };
@@ -213,16 +230,19 @@ export const Route = createFileRoute("/api/bot-builder")({
 
         const activo = getActiveProvisionBySlug(slug);
         if (activo) {
-          return Response.json({
-            ok: true,
-            slug,
-            tenantPath: `backend/config/tenants/${slug}.json`,
-            commitUrl: null,
-            deployTriggered: false,
-            job: activo,
-            botStatusUrl: activo.botStatusUrl,
-            dashboardUrl: activo.dashboardUrl,
-          }, { status: 202 });
+          return Response.json(
+            {
+              ok: true,
+              slug,
+              tenantPath: `backend/config/tenants/${slug}.json`,
+              commitUrl: null,
+              deployTriggered: false,
+              job: activo,
+              botStatusUrl: activo.botStatusUrl,
+              dashboardUrl: activo.dashboardUrl,
+            },
+            { status: 202 },
+          );
         }
 
         const { data: botExistente, error: botExistenteError } = await supabaseAdmin
@@ -231,16 +251,25 @@ export const Route = createFileRoute("/api/bot-builder")({
           .eq("slug", slug)
           .maybeSingle();
         if (botExistenteError) {
-          return Response.json({ error: `No se pudo validar el slug: ${botExistenteError.message}` }, { status: 500 });
+          return Response.json(
+            { error: `No se pudo validar el slug: ${botExistenteError.message}` },
+            { status: 500 },
+          );
         }
         if (botExistente?.status === "active" && body.mode !== "publish") {
           return Response.json(
-            { error: "Ese slug ya pertenece a un bot activo. Edítalo desde Client Manager en vez de crear otro." },
+            {
+              error:
+                "Ese slug ya pertenece a un bot activo. Edítalo desde Client Manager en vez de crear otro.",
+            },
             { status: 409 },
           );
         }
         if (botExistente && botExistente.client_id !== clientId) {
-          return Response.json({ error: "Ese slug ya está reservado por otro cliente." }, { status: 409 });
+          return Response.json(
+            { error: "Ese slug ya está reservado por otro cliente." },
+            { status: 409 },
+          );
         }
 
         const groqModel = [
@@ -267,7 +296,6 @@ export const Route = createFileRoute("/api/bot-builder")({
             });
             if (previous && previous.state !== "active") {
               record.createdAt = previous.createdAt;
-              record.manualRuns = previous.manualRuns;
             }
             await saveQualityRecord(record, `Guardar borrador de calidad ${slug}`);
             return Response.json(
@@ -276,7 +304,8 @@ export const Route = createFileRoute("/api/bot-builder")({
                 draft: true,
                 slug,
                 qualityUrl: `/quality-center?slug=${encodeURIComponent(slug)}`,
-                message: "Borrador guardado. Debe superar el Centro de Calidad antes de publicarse.",
+                message:
+                  "Borrador guardado. Debe superar el Centro de Calidad antes de publicarse.",
               },
               { status: 201 },
             );
@@ -290,11 +319,17 @@ export const Route = createFileRoute("/api/bot-builder")({
 
         const quality = await loadQualityRecord(slug).catch(() => null);
         if (!quality || quality.clientId !== clientId) {
-          return Response.json({ error: "Este bot no tiene un borrador válido en el Centro de Calidad." }, { status: 409 });
-        }
-        if (!mandatoryTestsPassed(quality)) {
           return Response.json(
-            { error: "El bot debe aprobar las tres pruebas obligatorias antes de publicarse." },
+            { error: "Este bot no tiene un borrador válido en el Centro de Calidad." },
+            { status: 409 },
+          );
+        }
+        if (!qualityGatePassed(quality)) {
+          return Response.json(
+            {
+              error:
+                "El bot debe aprobar pruebas, infraestructura y revisión manual antes de publicarse.",
+            },
             { status: 409 },
           );
         }
@@ -318,7 +353,10 @@ export const Route = createFileRoute("/api/bot-builder")({
         const githubToken = process.env.STAGE_GITHUB_TOKEN;
         if (!githubToken) {
           return Response.json(
-            { error: "Falta STAGE_GITHUB_TOKEN en tu entorno local para poder guardar el tenant en GitHub." },
+            {
+              error:
+                "Falta STAGE_GITHUB_TOKEN en tu entorno local para poder guardar el tenant en GitHub.",
+            },
             { status: 500 },
           );
         }
@@ -349,13 +387,19 @@ export const Route = createFileRoute("/api/bot-builder")({
           return Response.json({ error: createdFile.error }, { status: createdFile.status });
         }
 
-        await createSnapshot(slug, "version", tenantConfig, "Configuración aprobada antes de publicar");
+        await createSnapshot(
+          slug,
+          "version",
+          tenantConfig,
+          "Configuración aprobada antes de publicar",
+        );
 
         if (body.updateClient) {
           const currentServices = Array.isArray(client.services) ? client.services : [];
-          const nextServices = body.productName && !currentServices.includes(body.productName)
-            ? [...currentServices, body.productName]
-            : currentServices;
+          const nextServices =
+            body.productName && !currentServices.includes(body.productName)
+              ? [...currentServices, body.productName]
+              : currentServices;
           await supabaseAdmin
             .from("clients")
             .update({
@@ -381,18 +425,21 @@ export const Route = createFileRoute("/api/bot-builder")({
         quality.lastError = null;
         await saveQualityRecord(quality, `Iniciar publicación aprobada de ${slug}`);
 
-        return Response.json({
-          ok: true,
-          slug,
-          tenantPath,
-          commitUrl: createdFile.commitUrl,
-          // El JSON queda versionado en GitHub. El job local crea y despliega
-          // su app dedicada; así un bot nuevo nunca reinicia una app ajena.
-          deployTriggered: false,
-          job,
-          botStatusUrl: job.botStatusUrl,
-          dashboardUrl: job.dashboardUrl,
-        }, { status: 202 });
+        return Response.json(
+          {
+            ok: true,
+            slug,
+            tenantPath,
+            commitUrl: createdFile.commitUrl,
+            // El JSON queda versionado en GitHub. El job local crea y despliega
+            // su app dedicada; así un bot nuevo nunca reinicia una app ajena.
+            deployTriggered: false,
+            job,
+            botStatusUrl: job.botStatusUrl,
+            dashboardUrl: job.dashboardUrl,
+          },
+          { status: 202 },
+        );
       },
     },
   },
