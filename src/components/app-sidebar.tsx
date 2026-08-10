@@ -17,6 +17,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useLanguage } from "@/hooks/use-language";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   Sidebar,
@@ -63,6 +64,19 @@ export function AppSidebar({
   onSignOut: () => void | Promise<void>;
   email: string;
 }) {
+  const { text } = useLanguage();
+  const localizeTitle = (title: string) =>
+    ({
+      Dashboard: text("Panel", "Dashboard"),
+      "Bot Builder": text("Creador de bots", "Bot Builder"),
+      "Centro de Calidad": text("Centro de Calidad", "Quality Center"),
+      "Salud de bots": text("Salud de bots", "Bot Health"),
+      "My Products": text("Mis productos", "My Products"),
+      "Web Apps": text("Aplicaciones web", "Web Apps"),
+      Clients: text("Clientes", "Clients"),
+      Leads: text("Prospectos", "Leads"),
+      "Financial Ledger": text("Libro financiero", "Financial Ledger"),
+    })[title] ?? title;
   const pathname = useRouterState({ select: (r) => r.location.pathname });
   const isActive = (path: string) => (path === "/" ? pathname === "/" : pathname.startsWith(path));
   const servicesActive = services.some((s) => isActive(s.url));
@@ -94,15 +108,19 @@ export function AppSidebar({
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Operations</SidebarGroupLabel>
+          <SidebarGroupLabel>{text("Operaciones", "Operations")}</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {mainItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild isActive={isActive(item.url)} tooltip={item.title}>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={isActive(item.url)}
+                    tooltip={localizeTitle(item.title)}
+                  >
                     <Link to={item.url}>
                       <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
+                      <span>{localizeTitle(item.title)}</span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -112,9 +130,12 @@ export function AppSidebar({
               <Collapsible defaultOpen={servicesActive} className="group/services" asChild>
                 <SidebarMenuItem>
                   <CollapsibleTrigger asChild>
-                    <SidebarMenuButton isActive={servicesActive} tooltip="Services">
+                    <SidebarMenuButton
+                      isActive={servicesActive}
+                      tooltip={text("Servicios", "Services")}
+                    >
                       <BotMessageSquare className="h-4 w-4" />
-                      <span>Services</span>
+                      <span>{text("Servicios", "Services")}</span>
                       <ChevronRight className="ml-auto h-4 w-4 transition-transform duration-200 group-data-[state=open]/services:rotate-90" />
                     </SidebarMenuButton>
                   </CollapsibleTrigger>
@@ -125,7 +146,7 @@ export function AppSidebar({
                           <SidebarMenuSubButton asChild isActive={isActive(item.url)}>
                             <Link to={item.url}>
                               <item.icon className="h-4 w-4" />
-                              <span>{item.title}</span>
+                              <span>{localizeTitle(item.title)}</span>
                             </Link>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
@@ -139,9 +160,12 @@ export function AppSidebar({
               <Collapsible defaultOpen={clientsActive} className="group/clients" asChild>
                 <SidebarMenuItem>
                   <CollapsibleTrigger asChild>
-                    <SidebarMenuButton isActive={clientsActive} tooltip="Client Manager">
+                    <SidebarMenuButton
+                      isActive={clientsActive}
+                      tooltip={text("Gestión de clientes", "Client Manager")}
+                    >
                       <Users className="h-4 w-4" />
-                      <span>Client Manager</span>
+                      <span>{text("Gestión de clientes", "Client Manager")}</span>
                       <ChevronRight className="ml-auto h-4 w-4 transition-transform duration-200 group-data-[state=open]/clients:rotate-90" />
                     </SidebarMenuButton>
                   </CollapsibleTrigger>
@@ -152,7 +176,7 @@ export function AppSidebar({
                           <SidebarMenuSubButton asChild isActive={isActive(item.url)}>
                             <Link to={item.url}>
                               <item.icon className="h-4 w-4" />
-                              <span>{item.title}</span>
+                              <span>{localizeTitle(item.title)}</span>
                             </Link>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
@@ -164,10 +188,14 @@ export function AppSidebar({
 
               {businessItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild isActive={isActive(item.url)} tooltip={item.title}>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={isActive(item.url)}
+                    tooltip={localizeTitle(item.title)}
+                  >
                     <Link to={item.url}>
                       <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
+                      <span>{localizeTitle(item.title)}</span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -179,18 +207,26 @@ export function AppSidebar({
       <SidebarFooter className="border-t border-sidebar-border">
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild isActive={isActive("/settings")} tooltip="Settings">
+            <SidebarMenuButton
+              asChild
+              isActive={isActive("/settings")}
+              tooltip={text("Configuración", "Settings")}
+            >
               <Link to="/settings">
                 <Settings className="h-4 w-4" />
-                <span>Settings</span>
+                <span>{text("Configuración", "Settings")}</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild isActive={isActive("/website")} tooltip="Customize Website">
+            <SidebarMenuButton
+              asChild
+              isActive={isActive("/website")}
+              tooltip={text("Personalizar sitio web", "Customize Website")}
+            >
               <Link to="/website">
                 <Palette className="h-4 w-4" />
-                <span>Customize Website</span>
+                <span>{text("Personalizar sitio web", "Customize Website")}</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
@@ -200,7 +236,7 @@ export function AppSidebar({
             {initials}
           </div>
           <div className="flex flex-col leading-tight min-w-0 flex-1">
-            <span className="text-xs font-medium">Owner</span>
+            <span className="text-xs font-medium">{text("Dueño", "Owner")}</span>
             <span className="text-[10px] text-muted-foreground truncate">{email}</span>
           </div>
           <Button
@@ -208,7 +244,7 @@ export function AppSidebar({
             variant="ghost"
             className="h-7 w-7"
             onClick={() => void onSignOut()}
-            title="Sign out"
+            title={text("Cerrar sesión", "Sign out")}
           >
             <LogOut className="h-3.5 w-3.5" />
           </Button>
@@ -219,7 +255,7 @@ export function AppSidebar({
             variant="ghost"
             className="h-7 w-7"
             onClick={() => void onSignOut()}
-            title="Sign out"
+            title={text("Cerrar sesión", "Sign out")}
           >
             <LogOut className="h-3.5 w-3.5" />
           </Button>
