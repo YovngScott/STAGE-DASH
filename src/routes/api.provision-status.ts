@@ -3,6 +3,7 @@ import type {} from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { getProvisionJob } from "@/lib/provisioning";
+import { loadQualityRecord, saveQualityRecord } from "@/lib/quality-center.server";
 
 export const Route = createFileRoute("/api/provision-status")({
   server: {
@@ -47,6 +48,15 @@ export const Route = createFileRoute("/api/provision-status")({
             }
           }
           return Response.json({ error: "No se encontró el trabajo de creación." }, { status: 404 });
+        }
+        if (job.state === "complete" || job.state === "failed") {
+          const quality = await loadQualityRecord(job.slug).catch(() => null);
+          if (quality && quality.provisionJobId === job.id) {
+            quality.state = job.state === "complete" ? "active" : "failed";
+            quality.lastError = job.error;
+            if (job.state === "complete") quality.publishedAt = new Date().toISOString();
+            await saveQualityRecord(quality, `Finalizar publicación de ${job.slug}`).catch(() => null);
+          }
         }
         return Response.json({ job });
       },

@@ -13,6 +13,7 @@ import {
   LogOut,
   Palette,
   Activity,
+  ShieldCheck,
   ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -41,6 +42,7 @@ const mainItems = [{ title: "Dashboard", url: "/", icon: LayoutDashboard }];
 // Todo lo relacionado a bots y a la aplicación web vive aquí adentro.
 const services = [
   { title: "Bot Builder", url: "/bot-builder", icon: BrainCircuit },
+  { title: "Centro de Calidad", url: "/quality-center", icon: ShieldCheck },
   { title: "Salud de bots", url: "/health", icon: Activity },
   { title: "My Products", url: "/products", icon: Bot },
   { title: "Web Apps", url: "/webapps", icon: Globe },

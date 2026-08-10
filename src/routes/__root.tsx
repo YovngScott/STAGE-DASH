@@ -113,6 +113,7 @@ const titleMap: Record<string, string> = {
   "/": "Dashboard",
   "/products": "My Products",
   "/bot-builder": "Bot Builder",
+  "/quality-center": "Centro de Calidad",
   "/health": "Salud de bots",
   "/clients": "Client Manager",
   "/webapps": "Web Apps",

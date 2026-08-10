@@ -1,8 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { redeployBotConfig, type BotKind, type TenantConfigDraft } from "@/lib/provisioning";
+import { type BotKind, type TenantConfigDraft } from "@/lib/provisioning";
 import { composeTenantPrompt, normalizeBotBehavior, type BotBehavior } from "@/lib/bot-prompts";
+import { createSnapshot, loadQualityRecord, newQualityRecord, saveQualityRecord } from "@/lib/quality-center.server";
 
 const DEFAULT_REPO = "YovngScott/Stage-Bot-Template";
 
@@ -13,6 +14,8 @@ type BotRow = {
   kind: string | null;
   bot_status_url: string | null;
   bot_secret: string | null;
+  client_id: string;
+  product_name: string | null;
 };
 
 type EditBody = {
@@ -126,6 +129,39 @@ export const Route = createFileRoute("/api/bot-edit")({
           };
         }
 
+        // Los cambios se guardan como borrador y nunca pisan producción antes
+        // de superar el Centro de Calidad. El bloque histórico inferior queda
+        // como fallback inalcanzable hasta retirar la ruta de despliegue vieja.
+        await createSnapshot(botResult.slug, "version", current.config, "Antes de editar el bot activo");
+        const { data: client } = await supabaseAdmin
+          .from("clients")
+          .select("company_name")
+          .eq("id", botResult.client_id)
+          .maybeSingle();
+        const previous = await loadQualityRecord(botResult.slug);
+        const quality = previous ?? newQualityRecord({
+          slug: botResult.slug,
+          clientId: botResult.client_id,
+          clientName: client?.company_name ?? config.nombre,
+          productName: botResult.product_name,
+          botType: kind,
+          groqModel: "llama-3.3-70b-versatile",
+          updateClient: false,
+          tenantConfig: config as TenantConfigDraft,
+        });
+        quality.tenantConfig = config as TenantConfigDraft;
+        quality.state = "draft";
+        quality.tests = [];
+        quality.lastError = null;
+        await saveQualityRecord(quality, `Guardar borrador editado de ${botResult.slug}`);
+        return Response.json({
+          ok: true,
+          effectivePrompt: config.promptExtra,
+          draft: true,
+          qualityUrl: `/quality-center?slug=${encodeURIComponent(botResult.slug)}`,
+        });
+
+        /* Ruta antigua de despliegue inmediato retirada: conservar temporalmente
         const saved = await fetch(github.base, {
           method: "PUT",
           headers: github.headers,
@@ -172,6 +208,7 @@ export const Route = createFileRoute("/api/bot-edit")({
           effectivePrompt: config.promptExtra,
           commitUrl: payload?.commit?.html_url ?? null,
         });
+        */
       },
     },
   },
@@ -190,7 +227,7 @@ async function authorizeOwner(request: Request): Promise<Response | null> {
 async function readBot(botId: string): Promise<BotRow | Response> {
   const { data, error } = await supabaseAdmin
     .from("client_bots")
-    .select("id,name,slug,kind,bot_status_url,bot_secret")
+    .select("id,name,slug,kind,bot_status_url,bot_secret,client_id,product_name")
     .eq("id", botId)
     .maybeSingle();
   if (error) return Response.json({ error: error.message }, { status: 500 });

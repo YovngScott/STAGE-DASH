@@ -9,6 +9,13 @@ import {
   type TenantConfigDraft,
 } from "@/lib/provisioning";
 import { composeTenantPrompt, normalizeBotBehavior, type BotBehavior } from "@/lib/bot-prompts";
+import {
+  createSnapshot,
+  loadQualityRecord,
+  mandatoryTestsPassed,
+  newQualityRecord,
+  saveQualityRecord,
+} from "@/lib/quality-center.server";
 
 const DEFAULT_REPO = "YovngScott/Stage-Bot-Template";
 const DEFAULT_BRANCH = "main";
@@ -22,6 +29,7 @@ const DESCRIPCION_POR_COMPORTAMIENTO: Record<BotBehavior, string> = {
 };
 
 interface BotBuilderRequest {
+  mode?: "draft" | "publish";
   clientId?: string;
   productName?: string;
   botType?: BotType;
@@ -167,7 +175,7 @@ export const Route = createFileRoute("/api/bot-builder")({
           ? asistente.nombreTitular
           : `${client.company_name} Bot`;
 
-        const tenantConfig = {
+        let tenantConfig: TenantConfigDraft = {
           slug,
           kind: botType,
           nombreBot: asistente?.actuaComoTitular
@@ -225,7 +233,7 @@ export const Route = createFileRoute("/api/bot-builder")({
         if (botExistenteError) {
           return Response.json({ error: `No se pudo validar el slug: ${botExistenteError.message}` }, { status: 500 });
         }
-        if (botExistente?.status === "active") {
+        if (botExistente?.status === "active" && body.mode !== "publish") {
           return Response.json(
             { error: "Ese slug ya pertenece a un bot activo. Edítalo desde Client Manager en vez de crear otro." },
             { status: 409 },
@@ -243,6 +251,56 @@ export const Route = createFileRoute("/api/bot-builder")({
         ].includes(body.groqModel?.trim() ?? "")
           ? body.groqModel!.trim()
           : "llama-3.3-70b-versatile";
+
+        if (body.mode !== "publish") {
+          try {
+            const previous = await loadQualityRecord(slug);
+            const record = newQualityRecord({
+              slug,
+              clientId,
+              clientName: client.company_name,
+              productName: body.productName ?? null,
+              botType,
+              groqModel,
+              updateClient: body.updateClient === true,
+              tenantConfig,
+            });
+            if (previous && previous.state !== "active") {
+              record.createdAt = previous.createdAt;
+              record.manualRuns = previous.manualRuns;
+            }
+            await saveQualityRecord(record, `Guardar borrador de calidad ${slug}`);
+            return Response.json(
+              {
+                ok: true,
+                draft: true,
+                slug,
+                qualityUrl: `/quality-center?slug=${encodeURIComponent(slug)}`,
+                message: "Borrador guardado. Debe superar el Centro de Calidad antes de publicarse.",
+              },
+              { status: 201 },
+            );
+          } catch (error) {
+            return Response.json(
+              { error: error instanceof Error ? error.message : "No se pudo guardar el borrador." },
+              { status: 500 },
+            );
+          }
+        }
+
+        const quality = await loadQualityRecord(slug).catch(() => null);
+        if (!quality || quality.clientId !== clientId) {
+          return Response.json({ error: "Este bot no tiene un borrador válido en el Centro de Calidad." }, { status: 409 });
+        }
+        if (!mandatoryTestsPassed(quality)) {
+          return Response.json(
+            { error: "El bot debe aprobar las tres pruebas obligatorias antes de publicarse." },
+            { status: 409 },
+          );
+        }
+        // La configuración aprobada es la única que se publica. El cuerpo de
+        // la solicitud no puede sustituir silenciosamente lo que se probó.
+        tenantConfig = quality.tenantConfig;
 
         try {
           await preflightProvision(body.groqApiKey?.trim(), asistente?.proveedor);
@@ -291,6 +349,8 @@ export const Route = createFileRoute("/api/bot-builder")({
           return Response.json({ error: createdFile.error }, { status: createdFile.status });
         }
 
+        await createSnapshot(slug, "version", tenantConfig, "Configuración aprobada antes de publicar");
+
         if (body.updateClient) {
           const currentServices = Array.isArray(client.services) ? client.services : [];
           const nextServices = body.productName && !currentServices.includes(body.productName)
@@ -315,6 +375,11 @@ export const Route = createFileRoute("/api/bot-builder")({
           groqModel,
           groqApiKey: body.groqApiKey?.trim(),
         });
+
+        quality.state = "publishing";
+        quality.provisionJobId = job.id;
+        quality.lastError = null;
+        await saveQualityRecord(quality, `Iniciar publicación aprobada de ${slug}`);
 
         return Response.json({
           ok: true,

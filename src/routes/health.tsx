@@ -46,6 +46,13 @@ interface BotHealth {
   tenants: number | null;
   whatsapp: "connected" | "disconnected" | "unknown";
   numero: string | null;
+  email: "connected" | "disconnected" | "not_applicable" | "unknown";
+  pendingFailures: number;
+  averageLatencyMs: number;
+  slowResponses: number;
+  tokens24h: number;
+  abnormalCost: boolean;
+  failures: Array<{ id: string; source: string; operation: string; message: string; status: string; attempts: number; maxAttempts: number; updatedAt: string }>;
   severity: Severity;
   statusLabel: string;
   checkedAt: string;
@@ -142,6 +149,22 @@ function HealthPage() {
   const bots = data?.bots ?? [];
   const summary = data?.summary;
   const activeAlerts = useMemo(() => (data?.alerts ?? []).filter((a) => !a.resolved_at), [data]);
+  const failures = useMemo(() => bots.flatMap((bot) => (bot.failures ?? []).filter((f) => f.status !== "resolved").map((failure) => ({ bot, failure }))), [bots]);
+
+  const retryFailure = async (slug: string, id: string) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(`/api/bot-health?retrySlug=${encodeURIComponent(slug)}&failureId=${encodeURIComponent(id)}`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session?.access_token ?? ""}` },
+      });
+      const body = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(body?.error || "El reintento falló.");
+      await load(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "El reintento falló.");
+    }
+  };
 
   if (loading && !data) {
     return (
@@ -277,6 +300,34 @@ function HealthPage() {
               ))}
             </TableBody>
           </Table>
+        )}
+      </Card>
+
+      <Card className="overflow-hidden">
+        <div className="border-b border-border/60 px-5 py-3">
+          <h3 className="text-sm font-semibold flex items-center gap-2">
+            <RefreshCw className="h-4 w-4 text-primary" /> Cola de fallos ({failures.length})
+          </h3>
+          <p className="mt-1 text-xs text-muted-foreground">Reintentos limitados, sin duplicar mensajes; al agotarse pasan a intervención.</p>
+        </div>
+        {!failures.length ? (
+          <p className="px-5 py-8 text-center text-sm text-muted-foreground">No hay operaciones pendientes.</p>
+        ) : (
+          <div className="divide-y divide-border/60">
+            {failures.map(({ bot, failure }) => (
+              <div key={failure.id} className="flex flex-wrap items-center gap-3 px-5 py-3">
+                <AlertTriangle className="h-4 w-4 text-warning" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium">{bot.clientName} · {failure.operation}</p>
+                  <p className="truncate text-xs text-muted-foreground">{failure.message}</p>
+                  <p className="text-[10px] text-muted-foreground">{failure.source} · intento {failure.attempts}/{failure.maxAttempts} · {failure.status}</p>
+                </div>
+                <Button size="sm" variant="outline" disabled={failure.status === "intervention"} onClick={() => void retryFailure(bot.slug, failure.id)}>
+                  {failure.status === "intervention" ? "Intervención requerida" : "Reintentar"}
+                </Button>
+              </div>
+            ))}
+          </div>
         )}
       </Card>
 

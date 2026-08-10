@@ -32,6 +32,13 @@ interface BotHealth {
   tenants: number | null;
   whatsapp: "connected" | "disconnected" | "unknown";
   numero: string | null;
+  email: "connected" | "disconnected" | "not_applicable" | "unknown";
+  pendingFailures: number;
+  averageLatencyMs: number;
+  slowResponses: number;
+  tokens24h: number;
+  abnormalCost: boolean;
+  failures: Array<{ id: string; source: string; operation: string; message: string; status: string; attempts: number; maxAttempts: number; updatedAt: string }>;
   severity: "ok" | "warn" | "down" | "unknown";
   statusLabel: string;
   checkedAt: string;
@@ -69,6 +76,23 @@ export const Route = createFileRoute("/api/bot-health")({
           .select("id,name,slug,kind,status,bot_status_url,client_id");
         if (botsError) return Response.json({ error: botsError.message }, { status: 500 });
         const bots = (botsData ?? []) as BotRow[];
+
+        const url = new URL(request.url);
+        const retrySlug = url.searchParams.get("retrySlug")?.trim();
+        const failureId = url.searchParams.get("failureId")?.trim();
+        if (retrySlug && failureId) {
+          const bot = bots.find((item) => item.slug === retrySlug);
+          const host = deriveHost(bot?.bot_status_url ?? null);
+          if (!bot || !host || !secret) return Response.json({ error: "No se puede contactar ese bot." }, { status: 400 });
+          const retry = await fetch(`${host}/api/${encodeURIComponent(retrySlug)}/operations/failures/${encodeURIComponent(failureId)}/retry`, {
+            method: "POST",
+            headers: { "x-platform-secret": secret },
+            signal: AbortSignal.timeout(45_000),
+          });
+          const payload = await retry.json().catch(() => null);
+          if (!retry.ok) return Response.json({ error: payload?.error || `El reintento respondió ${retry.status}.` }, { status: retry.status });
+          return Response.json({ ok: true });
+        }
 
         const clientIds = [...new Set(bots.map((b) => b.client_id).filter(Boolean) as string[])];
         const nameById = new Map<string, string>();
@@ -141,6 +165,13 @@ async function checkBot(
     tenants: null,
     whatsapp: "unknown",
     numero: null,
+    email: bot.kind === "assistant" ? "unknown" : "not_applicable",
+    pendingFailures: 0,
+    averageLatencyMs: 0,
+    slowResponses: 0,
+    tokens24h: 0,
+    abnormalCost: false,
+    failures: [],
     severity: "unknown",
     statusLabel: "Sin desplegar",
     checkedAt: new Date().toISOString(),
@@ -173,6 +204,24 @@ async function checkBot(
     } catch {
       /* status no disponible */
     }
+    try {
+      const r = await fetch(`${host}/api/${encodeURIComponent(slug)}/operations/status`, {
+        headers: { "x-platform-secret": secret },
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      });
+      if (r.ok) {
+        const d = await r.json().catch(() => null);
+        base.email = bot.kind === "assistant" ? (d?.email?.connected ? "connected" : "disconnected") : "not_applicable";
+        base.pendingFailures = Number(d?.pendingFailures ?? 0);
+        base.averageLatencyMs = Number(d?.averageLatencyMs ?? 0);
+        base.slowResponses = Number(d?.slowResponses ?? 0);
+        base.tokens24h = Number(d?.tokens24h ?? 0);
+        base.abnormalCost = Boolean(d?.abnormalCost);
+        base.failures = Array.isArray(d?.failures) ? d.failures : [];
+      }
+    } catch {
+      /* telemetría no disponible en versiones antiguas */
+    }
   }
 
   // Severidad. Un bot en borrador/pausado no genera "caído".
@@ -182,9 +231,9 @@ async function checkBot(
   } else if (!base.reachable) {
     base.severity = "down";
     base.statusLabel = "Caído";
-  } else if (status === "active" && base.whatsapp === "disconnected") {
+  } else if (status === "active" && (base.whatsapp === "disconnected" || base.email === "disconnected" || base.pendingFailures > 0 || base.abnormalCost)) {
     base.severity = "warn";
-    base.statusLabel = "WhatsApp desconectado";
+    base.statusLabel = base.whatsapp === "disconnected" ? "WhatsApp desconectado" : base.email === "disconnected" ? "Correo/OAuth desconectado" : base.abnormalCost ? "Costo anormal" : "Operaciones pendientes";
   } else if (status === "paused") {
     base.severity = "unknown";
     base.statusLabel = "Pausado";
@@ -199,14 +248,22 @@ async function checkBot(
 /** Abre una alerta cuando aparece un problema nuevo y la cierra al recuperarse. */
 async function reconcileAlert(r: BotHealth) {
   // Solo alertamos de bots activos: un borrador o pausado no es una falla.
-  const problem: "down" | "wa_disconnected" | null =
+  const problem: "down" | "wa_disconnected" | "email_disconnected" | "operation_failures" | "slow_responses" | "abnormal_cost" | null =
     r.status !== "active"
       ? null
       : !r.reachable
         ? "down"
         : r.whatsapp === "disconnected"
           ? "wa_disconnected"
-          : null;
+          : r.email === "disconnected"
+            ? "email_disconnected"
+            : r.pendingFailures > 0
+              ? "operation_failures"
+              : r.abnormalCost
+                ? "abnormal_cost"
+                : r.slowResponses > 0
+                  ? "slow_responses"
+                  : null;
 
   const { data: open } = await supabaseAdmin
     .from("owner_alerts")
@@ -229,6 +286,7 @@ async function reconcileAlert(r: BotHealth) {
       problem === "down"
         ? `El bot de ${r.clientName} (${r.slug}) está CAÍDO — no responde.`
         : `El WhatsApp del bot de ${r.clientName} (${r.slug}) se DESCONECTÓ.`;
+    const correctedMessage = operationalAlertMessage(problem, r, message);
     await supabaseAdmin.from("owner_alerts").insert({
       bot_id: r.botId,
       bot_slug: r.slug,
@@ -236,7 +294,7 @@ async function reconcileAlert(r: BotHealth) {
       client_name: r.clientName,
       type: problem,
       severity: problem === "down" ? "down" : "warn",
-      message,
+      message: correctedMessage,
     });
   } else if (openTypes.size) {
     // Se recuperó: cierra cualquier alerta abierta.
@@ -246,4 +304,12 @@ async function reconcileAlert(r: BotHealth) {
       .eq("bot_id", r.botId)
       .is("resolved_at", null);
   }
+}
+
+function operationalAlertMessage(problem: string, r: BotHealth, fallback: string) {
+  if (problem === "email_disconnected") return `El OAuth o correo de ${r.clientName} (${r.slug}) necesita reconexión.`;
+  if (problem === "operation_failures") return `${r.pendingFailures} operación(es) de ${r.clientName} requieren reintento o intervención.`;
+  if (problem === "slow_responses") return `${r.slowResponses} respuesta(s) lenta(s) detectadas para ${r.clientName}.`;
+  if (problem === "abnormal_cost") return `Consumo anormal detectado para ${r.clientName}: ${r.tokens24h.toLocaleString()} tokens en 24 h.`;
+  return fallback;
 }

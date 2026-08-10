@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as WebsiteRouteImport } from './routes/website'
 import { Route as WebappsRouteImport } from './routes/webapps'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as QualityCenterRouteImport } from './routes/quality-center'
 import { Route as ProductsRouteImport } from './routes/products'
 import { Route as LedgerRouteImport } from './routes/ledger'
 import { Route as LeadsRouteImport } from './routes/leads'
@@ -20,6 +21,7 @@ import { Route as ClientsRouteImport } from './routes/clients'
 import { Route as BotBuilderRouteImport } from './routes/bot-builder'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiQualityCenterRouteImport } from './routes/api.quality-center'
 import { Route as ApiProvisionStatusRouteImport } from './routes/api.provision-status'
 import { Route as ApiClientAdminUserRouteImport } from './routes/api.client-admin-user'
 import { Route as ApiBotWhatsappRouteImport } from './routes/api.bot-whatsapp'
@@ -43,6 +45,11 @@ const WebappsRoute = WebappsRouteImport.update({
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const QualityCenterRoute = QualityCenterRouteImport.update({
+  id: '/quality-center',
+  path: '/quality-center',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProductsRoute = ProductsRouteImport.update({
@@ -83,6 +90,11 @@ const AuthRoute = AuthRouteImport.update({
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiQualityCenterRoute = ApiQualityCenterRouteImport.update({
+  id: '/api/quality-center',
+  path: '/api/quality-center',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiProvisionStatusRoute = ApiProvisionStatusRouteImport.update({
@@ -140,6 +152,7 @@ export interface FileRoutesByFullPath {
   '/leads': typeof LeadsRoute
   '/ledger': typeof LedgerRoute
   '/products': typeof ProductsRoute
+  '/quality-center': typeof QualityCenterRoute
   '/settings': typeof SettingsRoute
   '/webapps': typeof WebappsRoute
   '/website': typeof WebsiteRoute
@@ -152,6 +165,7 @@ export interface FileRoutesByFullPath {
   '/api/bot-whatsapp': typeof ApiBotWhatsappRoute
   '/api/client-admin-user': typeof ApiClientAdminUserRoute
   '/api/provision-status': typeof ApiProvisionStatusRoute
+  '/api/quality-center': typeof ApiQualityCenterRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -162,6 +176,7 @@ export interface FileRoutesByTo {
   '/leads': typeof LeadsRoute
   '/ledger': typeof LedgerRoute
   '/products': typeof ProductsRoute
+  '/quality-center': typeof QualityCenterRoute
   '/settings': typeof SettingsRoute
   '/webapps': typeof WebappsRoute
   '/website': typeof WebsiteRoute
@@ -174,6 +189,7 @@ export interface FileRoutesByTo {
   '/api/bot-whatsapp': typeof ApiBotWhatsappRoute
   '/api/client-admin-user': typeof ApiClientAdminUserRoute
   '/api/provision-status': typeof ApiProvisionStatusRoute
+  '/api/quality-center': typeof ApiQualityCenterRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -185,6 +201,7 @@ export interface FileRoutesById {
   '/leads': typeof LeadsRoute
   '/ledger': typeof LedgerRoute
   '/products': typeof ProductsRoute
+  '/quality-center': typeof QualityCenterRoute
   '/settings': typeof SettingsRoute
   '/webapps': typeof WebappsRoute
   '/website': typeof WebsiteRoute
@@ -197,6 +214,7 @@ export interface FileRoutesById {
   '/api/bot-whatsapp': typeof ApiBotWhatsappRoute
   '/api/client-admin-user': typeof ApiClientAdminUserRoute
   '/api/provision-status': typeof ApiProvisionStatusRoute
+  '/api/quality-center': typeof ApiQualityCenterRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -209,6 +227,7 @@ export interface FileRouteTypes {
     | '/leads'
     | '/ledger'
     | '/products'
+    | '/quality-center'
     | '/settings'
     | '/webapps'
     | '/website'
@@ -221,6 +240,7 @@ export interface FileRouteTypes {
     | '/api/bot-whatsapp'
     | '/api/client-admin-user'
     | '/api/provision-status'
+    | '/api/quality-center'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -231,6 +251,7 @@ export interface FileRouteTypes {
     | '/leads'
     | '/ledger'
     | '/products'
+    | '/quality-center'
     | '/settings'
     | '/webapps'
     | '/website'
@@ -243,6 +264,7 @@ export interface FileRouteTypes {
     | '/api/bot-whatsapp'
     | '/api/client-admin-user'
     | '/api/provision-status'
+    | '/api/quality-center'
   id:
     | '__root__'
     | '/'
@@ -253,6 +275,7 @@ export interface FileRouteTypes {
     | '/leads'
     | '/ledger'
     | '/products'
+    | '/quality-center'
     | '/settings'
     | '/webapps'
     | '/website'
@@ -265,6 +288,7 @@ export interface FileRouteTypes {
     | '/api/bot-whatsapp'
     | '/api/client-admin-user'
     | '/api/provision-status'
+    | '/api/quality-center'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -276,6 +300,7 @@ export interface RootRouteChildren {
   LeadsRoute: typeof LeadsRoute
   LedgerRoute: typeof LedgerRoute
   ProductsRoute: typeof ProductsRoute
+  QualityCenterRoute: typeof QualityCenterRoute
   SettingsRoute: typeof SettingsRoute
   WebappsRoute: typeof WebappsRoute
   WebsiteRoute: typeof WebsiteRoute
@@ -288,6 +313,7 @@ export interface RootRouteChildren {
   ApiBotWhatsappRoute: typeof ApiBotWhatsappRoute
   ApiClientAdminUserRoute: typeof ApiClientAdminUserRoute
   ApiProvisionStatusRoute: typeof ApiProvisionStatusRoute
+  ApiQualityCenterRoute: typeof ApiQualityCenterRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -311,6 +337,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/quality-center': {
+      id: '/quality-center'
+      path: '/quality-center'
+      fullPath: '/quality-center'
+      preLoaderRoute: typeof QualityCenterRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/products': {
@@ -367,6 +400,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/quality-center': {
+      id: '/api/quality-center'
+      path: '/api/quality-center'
+      fullPath: '/api/quality-center'
+      preLoaderRoute: typeof ApiQualityCenterRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/provision-status': {
@@ -444,6 +484,7 @@ const rootRouteChildren: RootRouteChildren = {
   LeadsRoute: LeadsRoute,
   LedgerRoute: LedgerRoute,
   ProductsRoute: ProductsRoute,
+  QualityCenterRoute: QualityCenterRoute,
   SettingsRoute: SettingsRoute,
   WebappsRoute: WebappsRoute,
   WebsiteRoute: WebsiteRoute,
@@ -456,6 +497,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiBotWhatsappRoute: ApiBotWhatsappRoute,
   ApiClientAdminUserRoute: ApiClientAdminUserRoute,
   ApiProvisionStatusRoute: ApiProvisionStatusRoute,
+  ApiQualityCenterRoute: ApiQualityCenterRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

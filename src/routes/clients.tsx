@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Plus,
@@ -205,6 +205,7 @@ const emptyBotEditDraft = {
 };
 
 function Clients() {
+  const navigate = useNavigate();
   const [clients, setClients] = useState<Client[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -791,15 +792,9 @@ function Clients() {
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body?.error ?? "No se pudo actualizar el bot.");
-      setBots((items) =>
-        items.map((item) =>
-          item.id === botEditBot.id
-            ? { ...item, name: botEditDraft.name, prompt_extra: botEditDraft.extraInstructions }
-            : item,
-        ),
-      );
-      toast.success("Bot actualizado y guardado en GitHub.");
+      toast.success("Borrador guardado. Pruébalo antes de publicar.");
       setBotEditDialogOpen(false);
+      if (body?.draft) await navigate({ to: "/quality-center", search: { slug: botEditBot.slug } });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "No se pudo actualizar el bot.");
     } finally {
