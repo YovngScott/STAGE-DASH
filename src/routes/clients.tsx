@@ -63,7 +63,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ClientsLeadsNav } from "@/components/clients-leads-nav";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { composeTenantPrompt, type BotBehavior } from "@/lib/bot-prompts";
+import type { BotBehavior } from "@/lib/bot-prompts";
 
 export const Route = createFileRoute("/clients")({
   component: Clients,
@@ -244,14 +244,6 @@ function Clients() {
   const [whatsAppBot, setWhatsAppBot] = useState<ClientBot | null>(null);
   const [whatsAppStatus, setWhatsAppStatus] = useState<WhatsAppStatus | null>(null);
   const [whatsAppLoading, setWhatsAppLoading] = useState(false);
-  const effectiveBotPrompt = useMemo(
-    () => composeTenantPrompt({
-      behavior: botEditDraft.behavior,
-      companyInfo: botEditDraft.companyInfo,
-      extraInstructions: botEditDraft.extraInstructions,
-    }),
-    [botEditDraft.behavior, botEditDraft.companyInfo, botEditDraft.extraInstructions],
-  );
 
   // Every dialog is controlled locally.  Closing a parent workspace must also
   // close any child dialog it launched; otherwise an invisible nested overlay
@@ -1694,7 +1686,7 @@ function Clients() {
                 <div className="rounded-lg border border-border/60 bg-muted/20 p-4">
                   <h3 className="font-medium">Identidad y contexto</h3>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Define quién es el bot, qué función cumple y qué información debe conocer.
+                    Define quién es el bot y añade una corrección puntual solo cuando sea necesaria.
                   </p>
                 </div>
             <div className="space-y-2">
@@ -1721,13 +1713,16 @@ function Clients() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Contexto de la empresa o titular</Label>
+                <Label>Prompt extra (opcional)</Label>
                 <Textarea
                   value={botEditDraft.companyInfo}
                   onChange={(e) => setBotEditDraft((d) => ({ ...d, companyInfo: e.target.value }))}
-                  placeholder="Información que el bot debe conocer…"
-                  rows={9}
+                  placeholder="Una excepción, corrección temporal o instrucción nueva que quieras añadir…"
+                  rows={6}
                 />
+                <p className="text-xs text-muted-foreground">
+                  El contexto y las instrucciones usados al crear el bot ya están fusionados en su Prompt principal.
+                </p>
               </div>
             </div>
               </TabsContent>
@@ -1811,29 +1806,21 @@ function Clients() {
                 <div className="rounded-lg border border-border/60 bg-muted/20 p-4">
                   <h3 className="font-medium">Instrucciones del bot</h3>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Añade reglas concretas aquí. El prompt completo se puede consultar debajo sin ocupar toda la pantalla.
+                    Este es el único prompt principal editable después de crear el bot. Contiene el contexto y las instrucciones iniciales ya fusionados.
                   </p>
                 </div>
             <div className="space-y-2">
-              <Label>Instrucciones personalizadas</Label>
+              <Label>Prompt principal</Label>
               <Textarea
                 value={botEditDraft.extraInstructions}
                 onChange={(e) => setBotEditDraft((d) => ({ ...d, extraInstructions: e.target.value }))}
-                placeholder="Reglas, tono, excepciones o conocimiento adicional para este cliente…"
-                rows={10}
+                placeholder="Contexto, reglas, tono, límites y conocimiento del negocio…"
+                rows={18}
               />
             </div>
-                <details className="rounded-lg border border-border/60 bg-card/40">
-                  <summary className="cursor-pointer select-none px-4 py-3 text-sm font-medium">
-                    Ver prompt completo del tenant
-                  </summary>
-                  <div className="space-y-3 border-t border-border/60 p-4">
-                    <p className="text-xs text-muted-foreground">
-                      Incluye función, contexto, seguridad e instrucciones. Cada canal añade además un prompt técnico protegido para garantizar salidas válidas.
-                    </p>
-                    <Textarea value={effectiveBotPrompt} readOnly rows={14} className="font-mono text-xs" />
-                  </div>
-                </details>
+                <p className="rounded-lg border border-border/60 bg-muted/20 p-3 text-xs text-muted-foreground">
+                  Las reglas base de seguridad y especialización se aplican automáticamente y no se duplican aquí para evitar que se borren por accidente.
+                </p>
               </TabsContent>
             </Tabs>
 
