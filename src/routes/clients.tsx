@@ -36,6 +36,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -62,6 +63,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ClientsLeadsNav } from "@/components/clients-leads-nav";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { composeTenantPrompt, type BotBehavior } from "@/lib/bot-prompts";
 
 export const Route = createFileRoute("/clients")({
   component: Clients,
@@ -190,7 +192,17 @@ const emptyIntegrationDraft = {
   botSecret: "",
 };
 
-const emptyBotEditDraft = { name: "", promptExtra: "" };
+const emptyBotEditDraft = {
+  name: "",
+  behavior: "sales" as BotBehavior,
+  companyInfo: "",
+  extraInstructions: "",
+  intervaloMinutos: "10",
+  horaReporte: "18:00",
+  enviarAutomatico: false,
+  actuaComoTitular: false,
+  nombreTitular: "",
+};
 
 function Clients() {
   const [clients, setClients] = useState<Client[]>([]);
@@ -226,11 +238,20 @@ function Clients() {
   const [botEditDialogOpen, setBotEditDialogOpen] = useState(false);
   const [botEditBot, setBotEditBot] = useState<ClientBot | null>(null);
   const [botEditDraft, setBotEditDraft] = useState({ ...emptyBotEditDraft });
+  const [loadingBotEdit, setLoadingBotEdit] = useState(false);
   const [savingBotEdit, setSavingBotEdit] = useState(false);
   const [whatsAppDialogOpen, setWhatsAppDialogOpen] = useState(false);
   const [whatsAppBot, setWhatsAppBot] = useState<ClientBot | null>(null);
   const [whatsAppStatus, setWhatsAppStatus] = useState<WhatsAppStatus | null>(null);
   const [whatsAppLoading, setWhatsAppLoading] = useState(false);
+  const effectiveBotPrompt = useMemo(
+    () => composeTenantPrompt({
+      behavior: botEditDraft.behavior,
+      companyInfo: botEditDraft.companyInfo,
+      extraInstructions: botEditDraft.extraInstructions,
+    }),
+    [botEditDraft.behavior, botEditDraft.companyInfo, botEditDraft.extraInstructions],
+  );
 
   // Every dialog is controlled locally.  Closing a parent workspace must also
   // close any child dialog it launched; otherwise an invisible nested overlay
@@ -713,10 +734,39 @@ function Clients() {
     setIntegrationDialogOpen(true);
   };
 
-  const openBotEdit = (bot: ClientBot) => {
+  const openBotEdit = async (bot: ClientBot) => {
     setBotEditBot(bot);
-    setBotEditDraft({ name: bot.name, promptExtra: bot.prompt_extra ?? "" });
+    setBotEditDraft({ ...emptyBotEditDraft, name: bot.name });
     setBotEditDialogOpen(true);
+    setLoadingBotEdit(true);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+      if (!token) throw new Error("Tu sesión expiró. Inicia sesión de nuevo.");
+      const res = await fetch(`/api/bot-edit?botId=${encodeURIComponent(bot.id)}`, {
+        headers: { authorization: `Bearer ${token}` },
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body?.error ?? "No se pudo cargar la configuración del bot.");
+      const assistant = body.config?.asistente;
+      setBotEditDraft({
+        name: String(body.bot?.name ?? bot.name),
+        behavior: (body.config?.behavior ?? "sales") as BotBehavior,
+        companyInfo: String(body.config?.companyInfo ?? ""),
+        extraInstructions: String(body.config?.extraInstructions ?? ""),
+        intervaloMinutos: String(assistant?.intervaloMinutos ?? 10),
+        horaReporte: String(assistant?.horaReporte ?? "18:00"),
+        enviarAutomatico: Boolean(assistant?.enviarAutomatico),
+        actuaComoTitular: Boolean(assistant?.actuaComoTitular),
+        nombreTitular: String(assistant?.nombreTitular ?? ""),
+      });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "No se pudo cargar la configuración del bot.");
+      setBotEditDialogOpen(false);
+      setBotEditBot(null);
+    } finally {
+      setLoadingBotEdit(false);
+    }
   };
 
   const saveBotEdit = async (event: React.FormEvent) => {
@@ -733,7 +783,18 @@ function Clients() {
         body: JSON.stringify({
           botId: botEditBot.id,
           name: botEditDraft.name,
-          promptExtra: botEditDraft.promptExtra,
+          behavior: botEditDraft.behavior,
+          companyInfo: botEditDraft.companyInfo,
+          extraInstructions: botEditDraft.extraInstructions,
+          ...(botEditBot.kind === "assistant" ? {
+            asistente: {
+              intervaloMinutos: Number(botEditDraft.intervaloMinutos),
+              horaReporte: botEditDraft.horaReporte,
+              enviarAutomatico: botEditDraft.enviarAutomatico,
+              actuaComoTitular: botEditDraft.actuaComoTitular,
+              nombreTitular: botEditDraft.nombreTitular,
+            },
+          } : {}),
         }),
       });
       const body = await res.json();
@@ -741,7 +802,7 @@ function Clients() {
       setBots((items) =>
         items.map((item) =>
           item.id === botEditBot.id
-            ? { ...item, name: botEditDraft.name, prompt_extra: botEditDraft.promptExtra }
+            ? { ...item, name: botEditDraft.name, prompt_extra: botEditDraft.extraInstructions }
             : item,
         ),
       );
@@ -1609,14 +1670,19 @@ function Clients() {
           if (!next) setBotEditBot(null);
         }}
       >
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Editar bot</DialogTitle>
+            <DialogTitle>Configuración y prompts del bot</DialogTitle>
             <DialogDescription>
-              Actualiza el nombre y el prompt extra. El tenant se sincroniza en GitHub.
+              Los cambios se guardan en GitHub y se aplican automáticamente en la app de Fly.
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={saveBotEdit} className="space-y-4">
+          {loadingBotEdit ? (
+            <div className="flex min-h-48 items-center justify-center text-sm text-muted-foreground">
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Cargando configuración real…
+            </div>
+          ) : (
+          <form onSubmit={saveBotEdit} className="space-y-6">
             <div className="space-y-2">
               <Label>Nombre del bot</Label>
               <Input
@@ -1625,14 +1691,116 @@ function Clients() {
                 required
               />
             </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Función principal</Label>
+                <Select
+                  value={botEditDraft.behavior}
+                  onValueChange={(value) => setBotEditDraft((d) => ({ ...d, behavior: value as BotBehavior }))}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="sales">Ventas y atención</SelectItem>
+                    <SelectItem value="technical_support">Soporte técnico</SelectItem>
+                    <SelectItem value="personal_assistant">Asistente personal</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Contexto de la empresa o titular</Label>
+                <Textarea
+                  value={botEditDraft.companyInfo}
+                  onChange={(e) => setBotEditDraft((d) => ({ ...d, companyInfo: e.target.value }))}
+                  placeholder="Información que el bot debe conocer…"
+                  rows={4}
+                />
+              </div>
+            </div>
+
+            {botEditBot?.kind === "assistant" && (
+              <section className="space-y-4 rounded-lg border border-border/60 p-4">
+                <div>
+                  <h3 className="font-medium">Operación del asistente de correo</h3>
+                  <p className="text-xs text-muted-foreground">Estos valores son los que verá el cliente en su tarjeta de Gmail.</p>
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="assistant-interval">Revisa cada (minutos)</Label>
+                    <Input
+                      id="assistant-interval"
+                      type="number"
+                      min={1}
+                      max={1440}
+                      value={botEditDraft.intervaloMinutos}
+                      onChange={(e) => setBotEditDraft((d) => ({ ...d, intervaloMinutos: e.target.value }))}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="assistant-report">Reporte diario</Label>
+                    <Input
+                      id="assistant-report"
+                      type="time"
+                      value={botEditDraft.horaReporte}
+                      onChange={(e) => setBotEditDraft((d) => ({ ...d, horaReporte: e.target.value }))}
+                      required
+                    />
+                  </div>
+                </div>
+                <div className="flex items-start justify-between gap-4 rounded-md bg-muted/30 p-3">
+                  <div>
+                    <Label htmlFor="assistant-auto">Enviar automáticamente lo rutinario</Label>
+                    <p className="mt-1 text-xs text-muted-foreground">Lo delicado seguirá quedando como borrador para revisión.</p>
+                  </div>
+                  <Switch
+                    id="assistant-auto"
+                    checked={botEditDraft.enviarAutomatico}
+                    onCheckedChange={(checked) => setBotEditDraft((d) => ({ ...d, enviarAutomatico: checked }))}
+                  />
+                </div>
+                <div className="flex items-start justify-between gap-4 rounded-md bg-muted/30 p-3">
+                  <div>
+                    <Label htmlFor="assistant-owner-voice">Responder a nombre del titular</Label>
+                    <p className="mt-1 text-xs text-muted-foreground">Si se desactiva, se identificará como asistente.</p>
+                  </div>
+                  <Switch
+                    id="assistant-owner-voice"
+                    checked={botEditDraft.actuaComoTitular}
+                    onCheckedChange={(checked) => setBotEditDraft((d) => ({ ...d, actuaComoTitular: checked }))}
+                  />
+                </div>
+                {botEditDraft.actuaComoTitular && (
+                  <div className="space-y-2">
+                    <Label htmlFor="assistant-owner-name">Nombre para la firma</Label>
+                    <Input
+                      id="assistant-owner-name"
+                      value={botEditDraft.nombreTitular}
+                      onChange={(e) => setBotEditDraft((d) => ({ ...d, nombreTitular: e.target.value }))}
+                      placeholder="Joseph Antonio"
+                      required
+                    />
+                  </div>
+                )}
+              </section>
+            )}
+
             <div className="space-y-2">
-              <Label>Prompt extra</Label>
+              <Label>Instrucciones personalizadas</Label>
               <Textarea
-                value={botEditDraft.promptExtra}
-                onChange={(e) => setBotEditDraft((d) => ({ ...d, promptExtra: e.target.value }))}
-                placeholder="Instrucciones adicionales para este cliente..."
+                value={botEditDraft.extraInstructions}
+                onChange={(e) => setBotEditDraft((d) => ({ ...d, extraInstructions: e.target.value }))}
+                placeholder="Reglas, tono, excepciones o conocimiento adicional para este cliente…"
                 rows={6}
               />
+            </div>
+            <div className="space-y-2">
+              <div>
+                <Label>Prompt completo del tenant</Label>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Incluye función, contexto, seguridad e instrucciones. Cada canal añade además un prompt técnico protegido (por ejemplo, clasificación de correo) para garantizar salidas válidas; ajústalo mediante los campos anteriores.
+                </p>
+              </div>
+              <Textarea value={effectiveBotPrompt} readOnly rows={14} className="font-mono text-xs" />
             </div>
             <DialogFooter>
               <Button type="submit" disabled={savingBotEdit}>
@@ -1640,6 +1808,7 @@ function Clients() {
               </Button>
             </DialogFooter>
           </form>
+          )}
         </DialogContent>
       </Dialog>
 
