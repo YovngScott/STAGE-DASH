@@ -11,7 +11,7 @@ export type BotKind = "assistant" | "messaging" | "voice";
 export type ProvisionState = "queued" | "running" | "complete" | "failed";
 
 export interface ProvisionPreflightCheck {
-  id: "credentials" | "template" | "github" | "fly";
+  id: "credentials" | "groq" | "template" | "github" | "fly";
   label: string;
   ok: boolean;
   details: string;
