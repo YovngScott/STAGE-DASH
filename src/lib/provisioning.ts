@@ -119,14 +119,19 @@ type JobsStore = Map<string, ProvisionJob>;
 
 const globalStore = globalThis as typeof globalThis & {
   __stageProvisioningJobs?: JobsStore;
-  __stageTemplateDownload?: Promise<string>;
+  __stageActiveProvisioningBySlug?: Map<string, ProvisionJob>;
 };
 const jobs = globalStore.__stageProvisioningJobs ?? new Map<string, ProvisionJob>();
 globalStore.__stageProvisioningJobs = jobs;
+const trabajosActivosPorSlug = globalStore.__stageActiveProvisioningBySlug ?? new Map<string, ProvisionJob>();
+globalStore.__stageActiveProvisioningBySlug = trabajosActivosPorSlug;
 
 const FLY_REGION = "ewr";
 
 export function startProvision(input: ProvisionInput): ProvisionJob {
+  const activo = trabajosActivosPorSlug.get(input.slug);
+  if (activo && (activo.state === "queued" || activo.state === "running")) return activo;
+
   const id = randomUUID();
   const appName = makeFlyAppName(input.slug, input.kind);
   const dashboardUrl = buildDashboardUrl(input.slug, appName);
@@ -151,9 +156,12 @@ export function startProvision(input: ProvisionInput): ProvisionJob {
     updatedAt: now,
   };
   jobs.set(id, job);
+  trabajosActivosPorSlug.set(input.slug, job);
 
   void runProvision(job, input).catch((error) => {
     fail(job, error instanceof Error ? error.message : "El provisioning falló por un error inesperado.");
+  }).finally(() => {
+    if (trabajosActivosPorSlug.get(input.slug)?.id === job.id) trabajosActivosPorSlug.delete(input.slug);
   });
 
   return job;
@@ -311,7 +319,15 @@ async function runProvision(job: ProvisionJob, input: ProvisionInput) {
     );
   }
 
-  await runCommand("fly", ["secrets", "set", ...secretos, "--app", job.appName], backendDir, flyEnv);
+  // Los valores viajan por stdin: nunca aparecen en la línea de comandos ni
+  // en el listado de procesos del servidor.
+  await runCommand(
+    "fly",
+    ["secrets", "import", "--app", job.appName],
+    backendDir,
+    flyEnv,
+    { stdin: `${secretos.join("\n")}\n`, timeoutMs: 5 * 60_000 },
+  );
 
   update(job, { progress: 48, phase: "Construyendo y desplegando el bot…" });
   const tenantPath = path.join(backendDir, "config", "tenants", `${input.slug}.json`);
@@ -365,6 +381,28 @@ function buildDashboardUrl(slug: string, appName: string) {
   return url.toString();
 }
 
+export function getActiveProvisionBySlug(slug: string): ProvisionJob | null {
+  const job = trabajosActivosPorSlug.get(slug);
+  return job && (job.state === "queued" || job.state === "running") ? job : null;
+}
+
+/** Falla antes de escribir GitHub o crear recursos parciales. */
+export async function preflightProvision(
+  groqOverride?: string,
+  proveedorCorreo?: ProveedorCorreo,
+): Promise<void> {
+  const infra = readInfrastructure(groqOverride, proveedorCorreo);
+  const backendDir = await resolveBackendDirectory();
+  await access(path.join(backendDir, "Dockerfile"), constants.R_OK);
+  await runCommand(
+    "fly",
+    ["apps", "list", "--json"],
+    backendDir,
+    { ...process.env, FLY_ACCESS_TOKEN: infra.flyToken },
+    { timeoutMs: 30_000 },
+  );
+}
+
 /**
  * Credenciales de plataforma que se inyectan en la app de cada cliente.
  *
@@ -377,16 +415,23 @@ function readInfrastructure(groqOverride?: string, proveedorCorreo?: ProveedorCo
   const needed: string[] = [
     "STAGE_FLY_API_TOKEN",
     "STAGE_FLY_ORG_SLUG",
-    "STAGE_DEFAULT_GROQ_API_KEY",
     "STAGE_MESSAGING_SUPABASE_URL",
     "STAGE_MESSAGING_SUPABASE_SERVICE_ROLE_KEY",
     "STAGE_PLATFORM_ADMIN_SECRET",
   ];
+  if (!groqOverride?.trim()) needed.push("STAGE_DEFAULT_GROQ_API_KEY");
 
   // Microsoft e IMAP guardan credenciales del cliente cifradas: sin la llave,
   // conectar el buzón falla en el último paso, después de todo el trámite.
   if (proveedorCorreo === "microsoft" || proveedorCorreo === "imap") {
     needed.push("STAGE_CREDENCIALES_SECRET");
+  }
+  if (proveedorCorreo === "gmail") {
+    needed.push(
+      "STAGE_CREDENCIALES_SECRET",
+      "STAGE_GOOGLE_OAUTH_CLIENT_ID",
+      "STAGE_GOOGLE_OAUTH_CLIENT_SECRET",
+    );
   }
   if (proveedorCorreo === "microsoft") {
     needed.push("STAGE_MICROSOFT_OAUTH_CLIENT_ID", "STAGE_MICROSOFT_OAUTH_CLIENT_SECRET");
@@ -418,13 +463,10 @@ async function resolveBackendDirectory() {
     await access(path.join(backendDir, "Dockerfile"), constants.R_OK);
     return backendDir;
   } catch {
-    if (!globalStore.__stageTemplateDownload) {
-      globalStore.__stageTemplateDownload = downloadBackendTemplate().catch((error) => {
-        globalStore.__stageTemplateDownload = undefined;
-        throw error;
-      });
-    }
-    return globalStore.__stageTemplateDownload;
+    // En producción el repositorio no está montado. Descargamos una copia
+    // fresca por operación para no desplegar una plantilla obsoleta que quedó
+    // cacheada antes del último arreglo de seguridad.
+    return downloadBackendTemplate();
   }
 }
 
@@ -438,15 +480,11 @@ async function downloadBackendTemplate() {
     );
   }
 
-  const cacheRoot = path.join(tmpdir(), `stage-bot-template-${branch.replace(/[^a-z0-9-]/gi, "-")}`);
+  const cacheRoot = path.join(
+    tmpdir(),
+    `stage-bot-template-${branch.replace(/[^a-z0-9-]/gi, "-")}-${randomUUID()}`,
+  );
   const cachedBackend = path.join(cacheRoot, "backend");
-  try {
-    await access(path.join(cachedBackend, "Dockerfile"), constants.R_OK);
-    return cachedBackend;
-  } catch {
-    // Download the private repository below. The token stays in the HTTPS
-    // request header and never appears in a process argument or deployment log.
-  }
 
   const response = await fetch(
     `https://api.github.com/repos/${repo}/tarball/${encodeURIComponent(branch)}`,
@@ -467,6 +505,12 @@ async function downloadBackendTemplate() {
   const archivePath = path.join(tmpdir(), `.stage-template-${randomUUID()}.tar.gz`);
   await rm(cacheRoot, { recursive: true, force: true });
   await mkdir(cacheRoot, { recursive: true });
+  // El Owner es un proceso longevo; cada copia fresca se elimina después de
+  // dar margen suficiente para que el despliegue termine.
+  const limpiarCache = setTimeout(() => {
+    void rm(cacheRoot, { recursive: true, force: true });
+  }, 60 * 60_000);
+  limpiarCache.unref();
   try {
     await writeFile(archivePath, Buffer.from(await response.arrayBuffer()));
     await runCommand("tar", ["-xzf", archivePath, "--strip-components=1", "-C", cacheRoot], cacheRoot, process.env);
@@ -534,17 +578,38 @@ async function commandSucceeds(binary: string, args: string[], cwd: string, env:
   }
 }
 
-function runCommand(binary: string, args: string[], cwd: string, env: NodeJS.ProcessEnv): Promise<string> {
+function runCommand(
+  binary: string,
+  args: string[],
+  cwd: string,
+  env: NodeJS.ProcessEnv,
+  options: { stdin?: string; timeoutMs?: number } = {},
+): Promise<string> {
   return new Promise((resolve, reject) => {
     const child = spawn(binary, args, { cwd, env, windowsHide: true });
     let output = "";
+    let settled = false;
+    const timeout = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      child.kill("SIGTERM");
+      reject(new Error(`${binary} excedió el tiempo máximo de ejecución.`));
+    }, options.timeoutMs ?? 15 * 60_000);
+    timeout.unref();
     child.stdout.on("data", (data) => { output += String(data); });
     child.stderr.on("data", (data) => { output += String(data); });
+    child.stdin.end(options.stdin);
     child.on("error", (error: NodeJS.ErrnoException) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
       if (error.code === "ENOENT") reject(new Error(`No se encontró el comando ${binary} en el servidor.`));
       else reject(error);
     });
     child.on("close", (code) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
       if (code === 0) resolve(output);
       else reject(new Error(compactCommandError(output, `Fly terminó con código ${code ?? "desconocido"}.`)));
     });
