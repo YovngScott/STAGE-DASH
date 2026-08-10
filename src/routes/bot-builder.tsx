@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import {
   Bot,
@@ -53,6 +53,8 @@ interface Product {
 }
 
 interface BuildResult {
+  draft?: boolean;
+  qualityUrl?: string;
   slug: string;
   tenantPath: string;
   commitUrl: string | null;
@@ -240,6 +242,7 @@ const groqModels = [
 ];
 
 function BotBuilder() {
+  const navigate = useNavigate();
   const [clients, setClients] = useState<Client[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -437,8 +440,13 @@ function BotBuilder() {
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body?.error ?? "The bot could not be created.");
+      if (body?.draft && body?.slug) {
+        toast.success("Borrador guardado. Vamos a probarlo antes de publicar.");
+        await navigate({ to: "/quality-center", search: { slug: body.slug } as never });
+        return;
+      }
       setResult(body as BuildResult);
-      toast.success("Provisioning iniciado. Puedes seguir usando el Owner Console.");
+      toast.success("Publicación iniciada.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "The bot could not be created.");
     } finally {
@@ -463,7 +471,7 @@ function BotBuilder() {
         </div>
         <Button variant="outline" className="gap-2" disabled={saving || loading} onClick={commitBot}>
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Rocket className="h-4 w-4" />}
-          Create and deploy bot
+          Guardar y probar bot
         </Button>
       </div>
 
