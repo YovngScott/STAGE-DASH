@@ -82,7 +82,6 @@ export interface ProvisionInput {
   productName: string | null;
   tenantConfig: TenantConfigDraft;
   githubCommitUrl: string | null;
-  dashboardUrl: string;
   groqModel: string;
   groqApiKey?: string;
 }
@@ -509,7 +508,7 @@ primary_region = '${FLY_REGION}'
   force_https = true
   auto_stop_machines = 'off'
   auto_start_machines = true
-  min_machines_running = 1
+  min_machines_running = 0
 
   [[http_service.checks]]
     interval = '30s'
