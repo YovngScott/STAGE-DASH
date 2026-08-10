@@ -9,6 +9,7 @@ const VERSION_ROOT = "backend/config/versions";
 const BACKUP_ROOT = "backend/config/backups";
 
 export type QualityState = "draft" | "ready" | "publishing" | "active" | "failed";
+export type GroqKeyMode = "automatic" | "dedicated";
 
 export interface QualityTestResult {
   id:
@@ -49,6 +50,7 @@ export interface QualityRecord {
   productName: string | null;
   botType: "assistant" | "messaging" | "voice";
   groqModel: string;
+  groqKeyMode?: GroqKeyMode;
   updateClient: boolean;
   tenantConfig: TenantConfigDraft;
   state: QualityState;

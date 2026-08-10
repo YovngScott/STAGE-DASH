@@ -823,9 +823,9 @@ async function readFlyModel(appName: string, cwd: string, env: NodeJS.ProcessEnv
       await runCommand("fly", ["machines", "list", "--app", appName, "--json"], cwd, env),
     );
     const model = machines[0]?.config?.env?.GROQ_MODEL;
-    return typeof model === "string" && model.trim() ? model.trim() : "llama-3.3-70b-versatile";
+    return typeof model === "string" && model.trim() ? model.trim() : "openai/gpt-oss-120b";
   } catch {
-    return "llama-3.3-70b-versatile";
+    return "openai/gpt-oss-120b";
   }
 }
 

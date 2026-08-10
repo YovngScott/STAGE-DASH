@@ -16,6 +16,7 @@ import {
   qualityGatePassed,
   saveQualityRecord,
 } from "@/lib/quality-center.server";
+import type { GroqKeyMode } from "@/lib/quality-center.server";
 
 const DEFAULT_REPO = "YovngScott/Stage-Bot-Template";
 const DEFAULT_BRANCH = "main";
@@ -62,6 +63,7 @@ interface BotBuilderRequest {
     };
   };
   groqModel?: string;
+  groqKeyMode?: GroqKeyMode;
   groqApiKey?: string;
   updateClient?: boolean;
 }
@@ -272,14 +274,13 @@ export const Route = createFileRoute("/api/bot-builder")({
           );
         }
 
-        const groqModel = [
-          "llama-3.3-70b-versatile",
-          "openai/gpt-oss-120b",
-          "qwen/qwen3.6-27b",
-          "llama-3.1-8b-instant",
-        ].includes(body.groqModel?.trim() ?? "")
+        let groqModel = ["openai/gpt-oss-120b", "qwen/qwen3.6-27b", "openai/gpt-oss-20b"].includes(
+          body.groqModel?.trim() ?? "",
+        )
           ? body.groqModel!.trim()
-          : "llama-3.3-70b-versatile";
+          : "openai/gpt-oss-120b";
+        const groqKeyMode: GroqKeyMode =
+          body.groqKeyMode === "dedicated" ? "dedicated" : "automatic";
 
         if (body.mode !== "publish") {
           try {
@@ -291,6 +292,7 @@ export const Route = createFileRoute("/api/bot-builder")({
               productName: body.productName ?? null,
               botType,
               groqModel,
+              groqKeyMode,
               updateClient: body.updateClient === true,
               tenantConfig,
             });
@@ -336,6 +338,14 @@ export const Route = createFileRoute("/api/bot-builder")({
         // La configuración aprobada es la única que se publica. El cuerpo de
         // la solicitud no puede sustituir silenciosamente lo que se probó.
         tenantConfig = quality.tenantConfig;
+        groqModel = quality.groqModel || "openai/gpt-oss-120b";
+        const approvedKeyMode = quality.groqKeyMode ?? "automatic";
+        if (approvedKeyMode === "dedicated" && !body.groqApiKey?.trim()) {
+          return Response.json(
+            { error: "Este bot requiere una clave Groq dedicada. Introdúcela para publicar." },
+            { status: 400 },
+          );
+        }
 
         try {
           await preflightProvision(body.groqApiKey?.trim(), asistente?.proveedor);

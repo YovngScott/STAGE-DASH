@@ -3,7 +3,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { type BotKind, type TenantConfigDraft } from "@/lib/provisioning";
 import { composeTenantPrompt, normalizeBotBehavior, type BotBehavior } from "@/lib/bot-prompts";
-import { createSnapshot, loadQualityRecord, newQualityRecord, saveQualityRecord } from "@/lib/quality-center.server";
+import {
+  createSnapshot,
+  loadQualityRecord,
+  newQualityRecord,
+  saveQualityRecord,
+} from "@/lib/quality-center.server";
 
 const DEFAULT_REPO = "YovngScott/Stage-Bot-Template";
 
@@ -84,7 +89,8 @@ export const Route = createFileRoute("/api/bot-edit")({
 
         const config = current.config;
         const name = String(body.name ?? "").trim();
-        if (!name) return Response.json({ error: "El nombre del bot es obligatorio." }, { status: 400 });
+        if (!name)
+          return Response.json({ error: "El nombre del bot es obligatorio." }, { status: 400 });
         const behavior = normalizeBotBehavior(body.behavior ?? config.behavior);
         const supplementalPrompt = String(body.companyInfo ?? "").trim();
         const mainPrompt = String(body.extraInstructions ?? "").trim();
@@ -98,26 +104,41 @@ export const Route = createFileRoute("/api/bot-edit")({
         config.promptConsolidated = true;
         config.promptExtra = composeTenantPrompt({
           behavior,
-          extraInstructions: [mainPrompt, supplementalPrompt && `### PROMPT EXTRA AUTORIZADO\n${supplementalPrompt}`]
+          extraInstructions: [
+            mainPrompt,
+            supplementalPrompt && `### PROMPT EXTRA AUTORIZADO\n${supplementalPrompt}`,
+          ]
             .filter(Boolean)
             .join("\n\n"),
         });
 
         if (kind === "assistant") {
           if (!config.asistente) {
-            return Response.json({ error: "Este asistente no tiene configuración de correo." }, { status: 400 });
+            return Response.json(
+              { error: "Este asistente no tiene configuración de correo." },
+              { status: 400 },
+            );
           }
           const interval = Number(body.asistente?.intervaloMinutos);
           const reportTime = String(body.asistente?.horaReporte ?? "");
           const ownerName = String(body.asistente?.nombreTitular ?? "").trim();
           if (!Number.isInteger(interval) || interval < 1 || interval > 1440) {
-            return Response.json({ error: "El intervalo debe ser un número entero entre 1 y 1440 minutos." }, { status: 400 });
+            return Response.json(
+              { error: "El intervalo debe ser un número entero entre 1 y 1440 minutos." },
+              { status: 400 },
+            );
           }
           if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(reportTime)) {
-            return Response.json({ error: "La hora del reporte debe tener formato HH:mm." }, { status: 400 });
+            return Response.json(
+              { error: "La hora del reporte debe tener formato HH:mm." },
+              { status: 400 },
+            );
           }
           if (body.asistente?.actuaComoTitular && !ownerName) {
-            return Response.json({ error: "Indica el nombre con el que firmará el asistente." }, { status: 400 });
+            return Response.json(
+              { error: "Indica el nombre con el que firmará el asistente." },
+              { status: 400 },
+            );
           }
           config.asistente = {
             ...config.asistente,
@@ -132,23 +153,30 @@ export const Route = createFileRoute("/api/bot-edit")({
         // Los cambios se guardan como borrador y nunca pisan producción antes
         // de superar el Centro de Calidad. El bloque histórico inferior queda
         // como fallback inalcanzable hasta retirar la ruta de despliegue vieja.
-        await createSnapshot(botResult.slug, "version", current.config, "Antes de editar el bot activo");
+        await createSnapshot(
+          botResult.slug,
+          "version",
+          current.config,
+          "Antes de editar el bot activo",
+        );
         const { data: client } = await supabaseAdmin
           .from("clients")
           .select("company_name")
           .eq("id", botResult.client_id)
           .maybeSingle();
         const previous = await loadQualityRecord(botResult.slug);
-        const quality = previous ?? newQualityRecord({
-          slug: botResult.slug,
-          clientId: botResult.client_id,
-          clientName: client?.company_name ?? config.nombre,
-          productName: botResult.product_name,
-          botType: kind,
-          groqModel: "llama-3.3-70b-versatile",
-          updateClient: false,
-          tenantConfig: config as TenantConfigDraft,
-        });
+        const quality =
+          previous ??
+          newQualityRecord({
+            slug: botResult.slug,
+            clientId: botResult.client_id,
+            clientName: client?.company_name ?? config.nombre,
+            productName: botResult.product_name,
+            botType: kind,
+            groqModel: "openai/gpt-oss-120b",
+            updateClient: false,
+            tenantConfig: config as TenantConfigDraft,
+          });
         quality.tenantConfig = config as TenantConfigDraft;
         quality.state = "draft";
         quality.tests = [];
@@ -220,7 +248,10 @@ async function authorizeOwner(request: Request): Promise<Response | null> {
   if (!token) return Response.json({ error: "No autorizado." }, { status: 401 });
   const { data: user, error } = await supabase.auth.getUser(token);
   if (error || !user.user) return Response.json({ error: "No autorizado." }, { status: 401 });
-  const { data: owner } = await supabase.rpc("has_role", { _user_id: user.user.id, _role: "owner" });
+  const { data: owner } = await supabase.rpc("has_role", {
+    _user_id: user.user.id,
+    _role: "owner",
+  });
   return owner ? null : Response.json({ error: "No autorizado." }, { status: 401 });
 }
 
@@ -254,22 +285,32 @@ function githubContext(slug: string) {
 
 async function readTenant(base: string, headers: Record<string, string>) {
   const response = await fetch(`${base}?ref=main`, { headers });
-  if (!response.ok) return Response.json({ error: `GitHub no encontró el tenant (${response.status}).` }, { status: 502 });
+  if (!response.ok)
+    return Response.json(
+      { error: `GitHub no encontró el tenant (${response.status}).` },
+      { status: 502 },
+    );
   const file = await response.json();
   try {
     return {
       sha: String(file.sha),
-      config: JSON.parse(Buffer.from(String(file.content ?? ""), "base64").toString("utf8")) as TenantConfigDraft,
+      config: JSON.parse(
+        Buffer.from(String(file.content ?? ""), "base64").toString("utf8"),
+      ) as TenantConfigDraft,
     };
   } catch {
-    return Response.json({ error: "La configuración del tenant no es JSON válido." }, { status: 502 });
+    return Response.json(
+      { error: "La configuración del tenant no es JSON válido." },
+      { status: 502 },
+    );
   }
 }
 
 async function updateAutomaticSending(bot: BotRow, active: boolean) {
   const base = String(bot.bot_status_url ?? "").replace(/\/$/, "");
   const secret = process.env.STAGE_PLATFORM_ADMIN_SECRET?.trim() || bot.bot_secret || "";
-  if (!base || !secret) throw new Error("Falta el endpoint o secreto para actualizar el envío automático.");
+  if (!base || !secret)
+    throw new Error("Falta el endpoint o secreto para actualizar el envío automático.");
   const endpoint = base.endsWith("/bot-activo")
     ? base.replace(/\/bot-activo$/, "/envio-automatico")
     : `${base}/api/${bot.slug}/config/envio-automatico`;
@@ -307,7 +348,9 @@ function promptsForEditor(config: TenantConfigDraft, behavior: BotBehavior) {
   const main = [
     context && `### CONTEXTO INICIAL\n${context}`,
     instructions && `### INSTRUCCIONES INICIALES\n${instructions}`,
-  ].filter(Boolean).join("\n\n");
+  ]
+    .filter(Boolean)
+    .join("\n\n");
   return {
     main: main || String(config.promptExtra ?? composeTenantPrompt({ behavior })),
     supplemental: "",

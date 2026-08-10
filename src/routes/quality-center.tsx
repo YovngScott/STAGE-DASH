@@ -9,6 +9,7 @@ import {
   DatabaseBackup,
   FlaskConical,
   History,
+  KeyRound,
   Loader2,
   Play,
   RefreshCw,
@@ -23,6 +24,8 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 
@@ -63,6 +66,7 @@ type RecordRow = {
   preflightChecks?: Array<{ id: string; label: string; ok: boolean; details: string }>;
   preflightAt?: string | null;
   manualApprovedAt?: string | null;
+  groqKeyMode?: "automatic" | "dedicated";
 };
 type BotRow = {
   id: string;
@@ -103,6 +107,9 @@ function QualityCenterPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [job, setJob] = useState<ProvisionJob | null>(null);
+  const [dedicatedKey, setDedicatedKey] = useState("");
+
+  useEffect(() => setDedicatedKey(""), [record?.slug]);
 
   const authFetch = useCallback(async (url: string, init?: RequestInit) => {
     const { data } = await supabase.auth.getSession();
@@ -217,6 +224,13 @@ function QualityCenterPage() {
 
   const publish = async () => {
     if (!record) return;
+    if (
+      record.groqKeyMode === "dedicated" &&
+      !/^gsk_[A-Za-z0-9_-]{20,}$/.test(dedicatedKey.trim())
+    ) {
+      toast.error("Introduce una clave Groq dedicada válida antes de publicar.");
+      return;
+    }
     setBusy("publish");
     setError(null);
     try {
@@ -226,7 +240,10 @@ function QualityCenterPage() {
       });
       const result = await authFetch("/api/bot-builder", {
         method: "POST",
-        body: JSON.stringify(prepared.request),
+        body: JSON.stringify({
+          ...prepared.request,
+          groqApiKey: record.groqKeyMode === "dedicated" ? dedicatedKey.trim() : undefined,
+        }),
       });
       setJob(result.job);
       toast.success("Publicación iniciada. El Centro de Calidad seguirá el progreso.");
@@ -353,6 +370,28 @@ function QualityCenterPage() {
                   {record.state === "active" ? "Publicar nueva versión" : "Crear y publicar bot"}
                 </Button>
               </div>
+              {record.groqKeyMode === "dedicated" ? (
+                <div className="mt-4 rounded-lg border border-primary/25 bg-primary/5 p-4">
+                  <div className="flex items-start gap-3">
+                    <KeyRound className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                    <div className="w-full max-w-xl space-y-2">
+                      <Label htmlFor="dedicated-groq-key">Clave Groq dedicada del cliente</Label>
+                      <Input
+                        id="dedicated-groq-key"
+                        type="password"
+                        autoComplete="off"
+                        value={dedicatedKey}
+                        onChange={(event) => setDedicatedKey(event.target.value)}
+                        placeholder="gsk_…"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Se envía directamente como secreto a la app del cliente al publicar. No se
+                        guarda en GitHub ni en el borrador.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
               <div className="mt-4 grid gap-3 sm:grid-cols-3">
                 <GateStep
                   label="Pruebas del bot"
