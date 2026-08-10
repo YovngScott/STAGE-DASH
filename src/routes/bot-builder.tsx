@@ -101,8 +101,8 @@ const botTypes: Record<
     productCategory: "virtual_assistant",
   },
   voice: {
-    label: "Voice bot",
-    description: "Phone-style voice agent setup for future voice products.",
+    label: "Voice bot · En desarrollo",
+    description: "No se publica todavía: primero completaremos llamadas, pruebas y controles de seguridad.",
     icon: Mic,
     productCategory: "voice",
   },
@@ -280,9 +280,10 @@ function BotBuilder() {
         const { data: sessionData } = await supabase.auth.getSession();
         const token = sessionData.session?.access_token;
         if (!token) return;
-        const response = await fetch(`/api/provision-status?jobId=${encodeURIComponent(jobId)}`, {
-          headers: { authorization: `Bearer ${token}` },
-        });
+        const response = await fetch(
+          `/api/provision-status?jobId=${encodeURIComponent(jobId)}&slug=${encodeURIComponent(result?.slug ?? "")}`,
+          { headers: { authorization: `Bearer ${token}` } },
+        );
         const body = await response.json();
         if (!response.ok) throw new Error(body?.error ?? "No se pudo leer el provisioning.");
         if (!cancelled) {
@@ -301,7 +302,7 @@ function BotBuilder() {
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [result?.job?.id, result?.job?.state]);
+  }, [result?.job?.id, result?.job?.state, result?.slug]);
 
   const selectedClient = clients.find((client) => client.id === draft.clientId);
   const selectedProduct = products.find((product) => product.id === draft.productId);
@@ -497,10 +498,13 @@ function BotBuilder() {
                   <button
                     key={type}
                     type="button"
+                    disabled={type === "voice"}
                     onClick={() => selectBotType(type)}
                     className={
                       "rounded-lg border p-4 text-left transition-colors " +
-                      (active
+                      (type === "voice"
+                        ? "cursor-not-allowed border-border/40 bg-muted/20 text-muted-foreground opacity-60"
+                        : active
                         ? "border-primary bg-primary/10 text-foreground"
                         : "border-border/60 bg-card/40 text-muted-foreground hover:border-primary/40 hover:text-foreground")
                     }

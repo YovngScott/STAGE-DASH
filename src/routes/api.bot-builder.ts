@@ -2,7 +2,12 @@ import { createFileRoute } from "@tanstack/react-router";
 import type {} from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { startProvision, type TenantConfigDraft } from "@/lib/provisioning";
+import {
+  getActiveProvisionBySlug,
+  preflightProvision,
+  startProvision,
+  type TenantConfigDraft,
+} from "@/lib/provisioning";
 import { composeTenantPrompt, normalizeBotBehavior, type BotBehavior } from "@/lib/bot-prompts";
 
 const DEFAULT_REPO = "YovngScott/Stage-Bot-Template";
@@ -111,6 +116,12 @@ export const Route = createFileRoute("/api/bot-builder")({
 
         const behavior = normalizeBotBehavior(body.tenant.behavior);
         const botType: BotType = body.botType ?? "messaging";
+        if (botType === "voice") {
+          return Response.json(
+            { error: "El bot de llamadas todavía está en desarrollo y no se puede publicar como si estuviera listo." },
+            { status: 409 },
+          );
+        }
 
         // El asistente se valida en el servidor además del formulario: sin
         // correo no hay bandeja que triar y el bot quedaría inerte.
@@ -143,9 +154,9 @@ export const Route = createFileRoute("/api/bot-builder")({
             // titular es una decisión explícita del cliente, no un default.
             actuaComoTitular: body.tenant.asistente?.actuaComoTitular === true,
             nombreTitular: (body.tenant.asistente?.nombreTitular ?? "").trim() || client.company_name,
-            // El valor del asistente está en vaciar la bandeja, así que enviar
-            // es el default; se puede apagar por cliente desde el formulario.
-            enviarAutomatico: body.tenant.asistente?.enviarAutomatico !== false,
+            // Nunca se envía automáticamente por omisión. El cliente debe
+            // aprobar borradores y activarlo de forma explícita.
+            enviarAutomatico: body.tenant.asistente?.enviarAutomatico === true,
           };
         }
 
@@ -185,6 +196,66 @@ export const Route = createFileRoute("/api/bot-builder")({
           googleCalendarId: body.tenant.googleCalendarId?.trim() || "primary",
           ...(asistente ? { asistente } : {}),
         };
+
+        try {
+          new Intl.DateTimeFormat("en", { timeZone: tenantConfig.zonaHoraria }).format();
+        } catch {
+          return Response.json({ error: "La zona horaria no es válida." }, { status: 400 });
+        }
+
+        const activo = getActiveProvisionBySlug(slug);
+        if (activo) {
+          return Response.json({
+            ok: true,
+            slug,
+            tenantPath: `backend/config/tenants/${slug}.json`,
+            commitUrl: null,
+            deployTriggered: false,
+            job: activo,
+            botStatusUrl: activo.botStatusUrl,
+            dashboardUrl: activo.dashboardUrl,
+          }, { status: 202 });
+        }
+
+        const { data: botExistente, error: botExistenteError } = await supabaseAdmin
+          .from("client_bots")
+          .select("client_id,status")
+          .eq("slug", slug)
+          .maybeSingle();
+        if (botExistenteError) {
+          return Response.json({ error: `No se pudo validar el slug: ${botExistenteError.message}` }, { status: 500 });
+        }
+        if (botExistente?.status === "active") {
+          return Response.json(
+            { error: "Ese slug ya pertenece a un bot activo. Edítalo desde Client Manager en vez de crear otro." },
+            { status: 409 },
+          );
+        }
+        if (botExistente && botExistente.client_id !== clientId) {
+          return Response.json({ error: "Ese slug ya está reservado por otro cliente." }, { status: 409 });
+        }
+
+        const groqModel = [
+          "llama-3.3-70b-versatile",
+          "openai/gpt-oss-120b",
+          "qwen/qwen3.6-27b",
+          "llama-3.1-8b-instant",
+        ].includes(body.groqModel?.trim() ?? "")
+          ? body.groqModel!.trim()
+          : "llama-3.3-70b-versatile";
+
+        try {
+          await preflightProvision(body.groqApiKey?.trim(), asistente?.proveedor);
+        } catch (error) {
+          return Response.json(
+            {
+              error: `No se inició la creación porque la infraestructura no está lista: ${
+                error instanceof Error ? error.message : String(error)
+              }`,
+            },
+            { status: 503 },
+          );
+        }
 
         const githubToken = process.env.STAGE_GITHUB_TOKEN;
         if (!githubToken) {
@@ -241,7 +312,7 @@ export const Route = createFileRoute("/api/bot-builder")({
           productName: body.productName ?? null,
           tenantConfig,
           githubCommitUrl: createdFile.commitUrl,
-          groqModel: body.groqModel?.trim() || "llama-3.3-70b-versatile",
+          groqModel,
           groqApiKey: body.groqApiKey?.trim(),
         });
 
