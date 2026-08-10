@@ -499,6 +499,39 @@ export async function inspectProvisionPreflight(
     });
   }
 
+  if (infra) {
+    try {
+      const response = await fetch("https://api.groq.com/openai/v1/models", {
+        headers: { authorization: `Bearer ${infra.groqApiKey}` },
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (!response.ok) throw new Error(`Groq rechazó la clave (${response.status}).`);
+      const body = (await response.json()) as { data?: Array<{ id?: string }> };
+      const recommendedAvailable = body.data?.some((model) => model.id === "openai/gpt-oss-120b");
+      if (!recommendedAvailable) throw new Error("La clave no tiene acceso a GPT-OSS 120B.");
+      checks.push({
+        id: "groq",
+        label: "Groq y modelo de IA",
+        ok: true,
+        details: "Clave válida y GPT-OSS 120B disponible.",
+      });
+    } catch (error) {
+      checks.push({
+        id: "groq",
+        label: "Groq y modelo de IA",
+        ok: false,
+        details: error instanceof Error ? error.message : String(error),
+      });
+    }
+  } else {
+    checks.push({
+      id: "groq",
+      label: "Groq y modelo de IA",
+      ok: false,
+      details: "Bloqueado hasta configurar una clave Groq.",
+    });
+  }
+
   let backendDir = "";
   try {
     backendDir = await resolveBackendDirectory();
