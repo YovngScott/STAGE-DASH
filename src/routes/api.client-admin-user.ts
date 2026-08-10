@@ -40,6 +40,7 @@ export const Route = createFileRoute("/api/client-admin-user")({
         }
 
         try {
+          await assertClientOwnsTenant(clientId, tenantSlug);
           const messagingAdmin = getMessagingAdmin();
           const tenantId = await resolveTenantId(messagingAdmin, tenantSlug);
           const { data: memberships, error } = await messagingAdmin
@@ -84,6 +85,7 @@ export const Route = createFileRoute("/api/client-admin-user")({
         }
 
         try {
+          await assertClientOwnsTenant(clientId, tenantSlug);
           const messagingAdmin = getMessagingAdmin();
           const tenantId = await resolveTenantId(messagingAdmin, tenantSlug);
           const displayName = String(body.displayName ?? "").trim();
@@ -110,6 +112,16 @@ export const Route = createFileRoute("/api/client-admin-user")({
             .upsert({ user_id: user.id, tenant_id: tenantId }, { onConflict: "user_id,tenant_id" });
           if (membershipError) throw new Error(membershipError.message);
 
+          // Dashboard accounts are intentionally scoped to one customer. If
+          // an existing email is reassigned, remove access to every other
+          // tenant only after the intended membership has been persisted.
+          const { error: exclusiveAccessError } = await messagingAdmin
+            .from("tenant_admins")
+            .delete()
+            .eq("user_id", user.id)
+            .neq("tenant_id", tenantId);
+          if (exclusiveAccessError) throw new Error(exclusiveAccessError.message);
+
           await trackClientAccount({ clientId, userId: user.id, email, displayName });
           return Response.json({ ok: true, user: serializeAuthUser(user) });
         } catch (error) {
@@ -133,6 +145,7 @@ export const Route = createFileRoute("/api/client-admin-user")({
         }
 
         try {
+          await assertClientOwnsTenant(clientId, tenantSlug);
           const messagingAdmin = getMessagingAdmin();
           const tenantId = await resolveTenantId(messagingAdmin, tenantSlug);
           await assertTenantMembership(messagingAdmin, tenantId, userId);
@@ -168,6 +181,7 @@ export const Route = createFileRoute("/api/client-admin-user")({
         }
 
         try {
+          await assertClientOwnsTenant(clientId, tenantSlug);
           const messagingAdmin = getMessagingAdmin();
           const tenantId = await resolveTenantId(messagingAdmin, tenantSlug);
           await assertTenantMembership(messagingAdmin, tenantId, userId);
@@ -227,6 +241,30 @@ async function resolveTenantId(messagingAdmin: MessagingAdmin, tenantSlug: strin
   const { data, error } = await messagingAdmin.from("tenants").select("id").eq("slug", tenantSlug).maybeSingle();
   if (error || !data?.id) throw new Error(`No existe el tenant ${tenantSlug}.`);
   return data.id as string;
+}
+
+async function assertClientOwnsTenant(clientId: string, tenantSlug: string) {
+  const [{ data: bot, error: botError }, { data: dashboard, error: dashboardError }] = await Promise.all([
+    supabaseAdmin
+      .from("client_bots")
+      .select("id")
+      .eq("client_id", clientId)
+      .eq("slug", tenantSlug)
+      .limit(1)
+      .maybeSingle(),
+    supabaseAdmin
+      .from("client_dashboards")
+      .select("id")
+      .eq("client_id", clientId)
+      .eq("slug", tenantSlug)
+      .limit(1)
+      .maybeSingle(),
+  ]);
+  if (botError) throw new Error(`No se pudo validar el bot del cliente: ${botError.message}`);
+  if (dashboardError) throw new Error(`No se pudo validar el dashboard del cliente: ${dashboardError.message}`);
+  if (!bot && !dashboard) {
+    throw new Error("El tenant seleccionado no pertenece a este cliente. Recarga la ficha e inténtalo de nuevo.");
+  }
 }
 
 async function assertTenantMembership(messagingAdmin: MessagingAdmin, tenantId: string, userId: string) {

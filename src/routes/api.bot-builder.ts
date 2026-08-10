@@ -7,7 +7,6 @@ import { composeTenantPrompt, normalizeBotBehavior, type BotBehavior } from "@/l
 
 const DEFAULT_REPO = "YovngScott/Stage-Bot-Template";
 const DEFAULT_BRANCH = "main";
-const LOCAL_CLIENT_DASHBOARD_URL = "http://127.0.0.1:5174/";
 
 type BotType = "assistant" | "messaging" | "voice";
 
@@ -221,9 +220,6 @@ export const Route = createFileRoute("/api/bot-builder")({
           return Response.json({ error: createdFile.error }, { status: createdFile.status });
         }
 
-        const dashboardBaseUrl = process.env.STAGE_CLIENT_DASHBOARD_URL || LOCAL_CLIENT_DASHBOARD_URL;
-        const dashboardUrl = `${dashboardBaseUrl.replace(/\/$/, "")}/?tenant=${encodeURIComponent(slug)}`;
-
         if (body.updateClient) {
           const currentServices = Array.isArray(client.services) ? client.services : [];
           const nextServices = body.productName && !currentServices.includes(body.productName)
@@ -245,7 +241,6 @@ export const Route = createFileRoute("/api/bot-builder")({
           productName: body.productName ?? null,
           tenantConfig,
           githubCommitUrl: createdFile.commitUrl,
-          dashboardUrl,
           groqModel: body.groqModel?.trim() || "llama-3.3-70b-versatile",
           groqApiKey: body.groqApiKey?.trim(),
         });

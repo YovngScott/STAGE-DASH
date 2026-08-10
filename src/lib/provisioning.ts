@@ -1,7 +1,8 @@
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { access, readFile, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { constants } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import type { BotBehavior } from "@/lib/bot-prompts";
@@ -81,7 +82,6 @@ export interface ProvisionInput {
   productName: string | null;
   tenantConfig: TenantConfigDraft;
   githubCommitUrl: string | null;
-  dashboardUrl: string;
   groqModel: string;
   groqApiKey?: string;
 }
@@ -117,7 +117,10 @@ export interface RedeployBotInput {
 
 type JobsStore = Map<string, ProvisionJob>;
 
-const globalStore = globalThis as typeof globalThis & { __stageProvisioningJobs?: JobsStore };
+const globalStore = globalThis as typeof globalThis & {
+  __stageProvisioningJobs?: JobsStore;
+  __stageTemplateDownload?: Promise<string>;
+};
 const jobs = globalStore.__stageProvisioningJobs ?? new Map<string, ProvisionJob>();
 globalStore.__stageProvisioningJobs = jobs;
 
@@ -126,7 +129,7 @@ const FLY_REGION = "ewr";
 export function startProvision(input: ProvisionInput): ProvisionJob {
   const id = randomUUID();
   const appName = makeFlyAppName(input.slug, input.kind);
-  const dashboardUrl = buildDashboardUrl(input.dashboardUrl, input.slug, appName);
+  const dashboardUrl = buildDashboardUrl(input.slug, appName);
   const now = new Date().toISOString();
   const job: ProvisionJob = {
     id,
@@ -241,7 +244,7 @@ async function runProvision(job: ProvisionJob, input: ProvisionInput) {
     name: `${input.tenantConfig.nombre} Dashboard`,
     slug: input.slug,
     url: job.dashboardUrl,
-    provider: "local",
+    provider: "fly",
     status: "draft",
   };
   const dashboardResult = existingDashboard
@@ -354,16 +357,12 @@ async function runProvision(job: ProvisionJob, input: ProvisionInput) {
   });
 }
 
-function buildDashboardUrl(baseUrl: string, slug: string, appName: string) {
-  try {
-    const url = new URL(baseUrl);
-    url.searchParams.set("tenant", slug);
-    url.searchParams.set("api", `https://${appName}.fly.dev`);
-    return url.toString();
-  } catch {
-    const separator = baseUrl.includes("?") ? "&" : "?";
-    return `${baseUrl}${separator}tenant=${encodeURIComponent(slug)}&api=${encodeURIComponent(`https://${appName}.fly.dev`)}`;
-  }
+function buildDashboardUrl(slug: string, appName: string) {
+  const origin = `https://${appName}.fly.dev`;
+  const url = new URL(origin);
+  url.searchParams.set("tenant", slug);
+  url.searchParams.set("api", origin);
+  return url.toString();
 }
 
 /**
@@ -417,10 +416,65 @@ async function resolveBackendDirectory() {
   const backendDir = path.join(templateRoot, "backend");
   try {
     await access(path.join(backendDir, "Dockerfile"), constants.R_OK);
+    return backendDir;
   } catch {
-    throw new Error("No se encontró Stage-Bot-Template. Define STAGE_BOT_TEMPLATE_PATH con la carpeta local del template.");
+    if (!globalStore.__stageTemplateDownload) {
+      globalStore.__stageTemplateDownload = downloadBackendTemplate().catch((error) => {
+        globalStore.__stageTemplateDownload = undefined;
+        throw error;
+      });
+    }
+    return globalStore.__stageTemplateDownload;
   }
-  return backendDir;
+}
+
+async function downloadBackendTemplate() {
+  const repo = process.env.STAGE_BOT_TEMPLATE_REPO?.trim();
+  const branch = process.env.STAGE_BOT_TEMPLATE_BRANCH?.trim() || "main";
+  const token = process.env.STAGE_GITHUB_TOKEN?.trim();
+  if (!repo || !/^[^/\s]+\/[^/\s]+$/.test(repo) || !token) {
+    throw new Error(
+      "No se encontró Stage-Bot-Template y faltan STAGE_BOT_TEMPLATE_REPO/STAGE_GITHUB_TOKEN para descargarlo.",
+    );
+  }
+
+  const cacheRoot = path.join(tmpdir(), `stage-bot-template-${branch.replace(/[^a-z0-9-]/gi, "-")}`);
+  const cachedBackend = path.join(cacheRoot, "backend");
+  try {
+    await access(path.join(cachedBackend, "Dockerfile"), constants.R_OK);
+    return cachedBackend;
+  } catch {
+    // Download the private repository below. The token stays in the HTTPS
+    // request header and never appears in a process argument or deployment log.
+  }
+
+  const response = await fetch(
+    `https://api.github.com/repos/${repo}/tarball/${encodeURIComponent(branch)}`,
+    {
+      headers: {
+        authorization: `Bearer ${token}`,
+        accept: "application/vnd.github+json",
+        "user-agent": "stage-owner-console",
+        "x-github-api-version": "2022-11-28",
+      },
+      redirect: "follow",
+    },
+  );
+  if (!response.ok) {
+    throw new Error(`GitHub no permitió descargar Stage-Bot-Template (${response.status}).`);
+  }
+
+  const archivePath = path.join(tmpdir(), `.stage-template-${randomUUID()}.tar.gz`);
+  await rm(cacheRoot, { recursive: true, force: true });
+  await mkdir(cacheRoot, { recursive: true });
+  try {
+    await writeFile(archivePath, Buffer.from(await response.arrayBuffer()));
+    await runCommand("tar", ["-xzf", archivePath, "--strip-components=1", "-C", cacheRoot], cacheRoot, process.env);
+    await access(path.join(cachedBackend, "Dockerfile"), constants.R_OK);
+  } finally {
+    await rm(archivePath, { force: true });
+  }
+  return cachedBackend;
 }
 
 function makeFlyAppName(slug: string, kind: BotKind) {
@@ -454,7 +508,7 @@ primary_region = '${FLY_REGION}'
   force_https = true
   auto_stop_machines = 'off'
   auto_start_machines = true
-  min_machines_running = 1
+  min_machines_running = 0
 
   [[http_service.checks]]
     interval = '30s'
@@ -487,7 +541,7 @@ function runCommand(binary: string, args: string[], cwd: string, env: NodeJS.Pro
     child.stdout.on("data", (data) => { output += String(data); });
     child.stderr.on("data", (data) => { output += String(data); });
     child.on("error", (error: NodeJS.ErrnoException) => {
-      if (error.code === "ENOENT") reject(new Error("No se encontró flyctl. Instala Fly.io CLI y asegúrate de que el comando fly funcione en PowerShell."));
+      if (error.code === "ENOENT") reject(new Error(`No se encontró el comando ${binary} en el servidor.`));
       else reject(error);
     });
     child.on("close", (code) => {
