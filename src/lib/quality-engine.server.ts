@@ -41,12 +41,46 @@ Nombre: ${tenant.nombre}
 Descripción: ${tenant.descripcion}
 Horario: ${tenant.horario}
 Moneda: ${tenant.moneda}
-Servicios: ${(tenant.servicios || []).join(" | ") || "No especificados"}
+Servicios: ${formatServicesForQualityPrompt(tenant.servicios)}
 Instrucciones del tenant:
 ${tenant.promptExtra}
 
 Responde EXCLUSIVAMENTE como JSON válido con esta forma:
 {"response":"respuesta al usuario","decision":"answer|redirect|human_review","tools":["herramienta"],"reason":"explicación breve de la decisión"}`;
+}
+
+/**
+ * Los tenants históricos guardaron `servicios` en tres formatos distintos:
+ * arreglo de textos, objeto por categorías y texto libre. El laboratorio debe
+ * poder probarlos sin obligar a migrar primero su configuración productiva.
+ */
+export function formatServicesForQualityPrompt(value: unknown): string {
+  const normalized = Array.isArray(value)
+    ? value.map(formatServiceValue)
+    : typeof value === "string"
+      ? [value]
+      : value && typeof value === "object"
+        ? Object.entries(value as Record<string, unknown>).flatMap(([key, item]) => {
+            if (Array.isArray(item)) return item.map((entry) => `${key}: ${formatServiceValue(entry)}`);
+            return [`${key}: ${formatServiceValue(item)}`];
+          })
+        : [];
+  const text = normalized.map((item) => item.trim()).filter(Boolean).join(" | ");
+  return text || "No especificados";
+}
+
+function formatServiceValue(value: unknown): string {
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  if (value && typeof value === "object") {
+    const object = value as Record<string, unknown>;
+    const name = object.nombre ?? object.name ?? object.servicio ?? object.title;
+    const price = object.precio ?? object.price;
+    if (name) return price === undefined || price === null || price === "" ? String(name) : `${String(name)} (${String(price)})`;
+    return Object.entries(object).map(([key, item]) => `${key}: ${String(item)}`).join(", ");
+  }
+  return "";
 }
 
 async function runModel(record: QualityRecord, question: string): Promise<ModelResult & { reason: string }> {
