@@ -5,6 +5,7 @@ import {
   BrainCircuit,
   Check,
   Loader2,
+  KeyRound,
   MessageSquare,
   Mail,
   Mic,
@@ -128,7 +129,8 @@ const defaultDraft = {
   behavior: "sales" as BotBehavior,
   companyInfo: "",
   extraPrompt: "",
-  groqModel: "llama-3.3-70b-versatile",
+  groqModel: "openai/gpt-oss-120b",
+  groqKeyMode: "automatic" as "automatic" | "dedicated",
   groqApiKey: "",
   updateClient: true,
   // --- Solo para bots tipo "assistant" -------------------------------------
@@ -440,7 +442,7 @@ function BotBuilder() {
                 : undefined,
           },
           groqModel: draft.groqModel,
-          groqApiKey: draft.groqApiKey || undefined,
+          groqKeyMode: draft.groqKeyMode,
           updateClient: draft.updateClient,
         }),
       });
@@ -569,6 +571,46 @@ function BotBuilder() {
             Incluido automáticamente: protección del prompt y datos privados, bloqueo fuera del
             negocio, precios solo desde catálogo, acciones delicadas con aprobación humana y
             validación de herramientas.
+          </div>
+          <div className="mt-4 rounded-lg border border-border/60 bg-background/30 p-4">
+            <div className="flex items-start gap-3">
+              <KeyRound className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+              <div className="min-w-0 flex-1">
+                <h4 className="text-sm font-medium">Clave y modelo de inteligencia artificial</h4>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  GPT-OSS 120B se selecciona automáticamente por precisión, razonamiento y uso
+                  fiable de herramientas.
+                </p>
+                <div className="mt-3 grid gap-3 md:grid-cols-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setDraft((current) => ({ ...current, groqKeyMode: "automatic" }))
+                    }
+                    className={`rounded-lg border p-3 text-left transition-colors ${draft.groqKeyMode === "automatic" ? "border-primary bg-primary/10" : "border-border/60 hover:border-primary/40"}`}
+                  >
+                    <span className="text-sm font-medium">Automática · recomendada</span>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Usa la clave general de Stage. Es la opción correcta para la mayoría de los
+                      clientes.
+                    </p>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setDraft((current) => ({ ...current, groqKeyMode: "dedicated" }))
+                    }
+                    className={`rounded-lg border p-3 text-left transition-colors ${draft.groqKeyMode === "dedicated" ? "border-primary bg-primary/10" : "border-border/60 hover:border-primary/40"}`}
+                  >
+                    <span className="text-sm font-medium">Clave dedicada</span>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Para clientes grandes que necesitan límites y consumo independientes. La clave
+                      se solicita al publicar.
+                    </p>
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         </Card>
 

@@ -133,9 +133,9 @@ async function runModel(
   record: QualityRecord,
   question: string,
 ): Promise<ModelResult & { reason: string }> {
-  const apiKey = process.env.STAGE_DEFAULT_GROQ_API_KEY?.trim();
-  if (!apiKey)
-    throw new Error("Falta STAGE_DEFAULT_GROQ_API_KEY para ejecutar las pruebas reales.");
+  const apiKey =
+    process.env.STAGE_TEST_GROQ_API_KEY?.trim() || process.env.STAGE_DEFAULT_GROQ_API_KEY?.trim();
+  if (!apiKey) throw new Error("Falta STAGE_TEST_GROQ_API_KEY para ejecutar las pruebas reales.");
   const started = Date.now();
   let attempt = await requestQualityCompletion(record, apiKey, question, true);
   if (!attempt.ok && attempt.retryable) {
@@ -177,9 +177,12 @@ async function requestQualityCompletion(
     method: "POST",
     headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
     body: JSON.stringify({
-      model: record.groqModel || "llama-3.3-70b-versatile",
+      model: record.groqModel || "openai/gpt-oss-120b",
       temperature: 0,
       max_completion_tokens: 600,
+      ...(record.groqModel?.startsWith("openai/gpt-oss")
+        ? { reasoning_effort: "medium", include_reasoning: false }
+        : {}),
       ...(forceJson ? { response_format: { type: "json_object" } } : {}),
       messages: [
         { role: "system", content: systemPrompt(record) },

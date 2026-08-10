@@ -66,7 +66,7 @@ export const Route = createFileRoute("/api/quality-center")({
                 productName: bot.product_name ?? null,
                 botType: (bot.kind ?? tenant.kind ?? "messaging") as
                   "assistant" | "messaging" | "voice",
-                groqModel: "llama-3.3-70b-versatile",
+                groqModel: "openai/gpt-oss-120b",
                 updateClient: false,
                 tenantConfig: tenant,
               });
@@ -184,6 +184,7 @@ export const Route = createFileRoute("/api/quality-center")({
                 botType: record.botType,
                 tenant: record.tenantConfig,
                 groqModel: record.groqModel,
+                groqKeyMode: record.groqKeyMode ?? "automatic",
                 updateClient: record.updateClient,
               },
             });
