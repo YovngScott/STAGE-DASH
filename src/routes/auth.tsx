@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
+import { useLanguage } from "@/hooks/use-language";
 
 export const Route = createFileRoute("/auth")({
   component: AuthPage,
@@ -15,6 +16,7 @@ export const Route = createFileRoute("/auth")({
 
 function AuthPage() {
   const { session, isOwner, loading, signIn, signUp } = useAuth();
+  const { text } = useLanguage();
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -32,7 +34,7 @@ function AuthPage() {
     const { error } = await signIn(email, password);
     setBusy(false);
     if (error) toast.error(error);
-    else toast.success("Signed in");
+    else toast.success(text("Sesión iniciada", "Signed in"));
   };
 
   const handleSignUp = async (e: React.FormEvent) => {
@@ -43,7 +45,10 @@ function AuthPage() {
     if (error) toast.error(error);
     else
       toast.success(
-        "Account created. Grant yourself the 'owner' role in Supabase before signing in.",
+        text(
+          "Cuenta creada. Asigna el rol 'owner' en Supabase antes de iniciar sesión.",
+          "Account created. Grant yourself the 'owner' role in Supabase before signing in.",
+        ),
       );
   };
 
@@ -59,7 +64,7 @@ function AuthPage() {
           </div>
           <h1 className="mt-4 text-xl font-semibold tracking-tight">Stage AI Labs</h1>
           <p className="text-xs uppercase tracking-widest text-muted-foreground">
-            Owner Console · Restricted Access
+            {text("Consola del dueño · Acceso restringido", "Owner Console · Restricted Access")}
           </p>
         </div>
 
@@ -68,13 +73,22 @@ function AuthPage() {
             <div className="flex items-start gap-3">
               <ShieldAlert className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
               <div className="text-sm">
-                <p className="font-medium text-destructive">Access denied</p>
+                <p className="font-medium text-destructive">
+                  {text("Acceso denegado", "Access denied")}
+                </p>
                 <p className="mt-1 text-muted-foreground">
-                  Your account is signed in but lacks the <code>owner</code> role.
-                  Grant it in Supabase and reload:
+                  {text(
+                    "La cuenta inició sesión, pero no tiene el rol ",
+                    "Your account is signed in but lacks the ",
+                  )}
+                  <code>owner</code>
+                  {text(
+                    ". Asígnalo en Supabase y recarga:",
+                    " role. Grant it in Supabase and reload:",
+                  )}
                 </p>
                 <pre className="mt-2 overflow-x-auto rounded-md bg-background/60 p-2 text-[11px] font-mono">
-{`INSERT INTO public.user_roles (user_id, role)
+                  {`INSERT INTO public.user_roles (user_id, role)
 VALUES ('${session.user.id}', 'owner');`}
                 </pre>
               </div>
@@ -85,16 +99,23 @@ VALUES ('${session.user.id}', 'owner');`}
         <Card className="p-6">
           <Tabs defaultValue="signin">
             <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="signin">Sign in</TabsTrigger>
-              <TabsTrigger value="signup">Create account</TabsTrigger>
+              <TabsTrigger value="signin">{text("Iniciar sesión", "Sign in")}</TabsTrigger>
+              <TabsTrigger value="signup">{text("Crear cuenta", "Create account")}</TabsTrigger>
             </TabsList>
 
             <TabsContent value="signin" className="mt-4">
               <form onSubmit={handleSignIn} className="space-y-4">
                 <Field id="si-email" label="Email" type="email" value={email} onChange={setEmail} />
-                <Field id="si-pass" label="Password" type="password" value={password} onChange={setPassword} />
+                <Field
+                  id="si-pass"
+                  label={text("Contraseña", "Password")}
+                  type="password"
+                  value={password}
+                  onChange={setPassword}
+                />
                 <Button type="submit" className="w-full gap-2" disabled={busy}>
-                  <Lock className="h-4 w-4" /> {busy ? "Signing in…" : "Sign in"}
+                  <Lock className="h-4 w-4" />{" "}
+                  {busy ? text("Iniciando…", "Signing in…") : text("Iniciar sesión", "Sign in")}
                 </Button>
               </form>
             </TabsContent>
@@ -102,13 +123,25 @@ VALUES ('${session.user.id}', 'owner');`}
             <TabsContent value="signup" className="mt-4">
               <form onSubmit={handleSignUp} className="space-y-4">
                 <Field id="su-email" label="Email" type="email" value={email} onChange={setEmail} />
-                <Field id="su-pass" label="Password" type="password" value={password} onChange={setPassword} />
+                <Field
+                  id="su-pass"
+                  label={text("Contraseña", "Password")}
+                  type="password"
+                  value={password}
+                  onChange={setPassword}
+                />
                 <Button type="submit" variant="secondary" className="w-full" disabled={busy}>
-                  {busy ? "Creating…" : "Create account"}
+                  {busy ? text("Creando…", "Creating…") : text("Crear cuenta", "Create account")}
                 </Button>
                 <p className="text-[11px] text-muted-foreground">
-                  After creating the account, insert a row in <code>user_roles</code> with
-                  role <code>owner</code> to unlock the console.
+                  {text(
+                    "Después de crear la cuenta, agrega una fila en ",
+                    "After creating the account, insert a row in ",
+                  )}
+                  <code>user_roles</code>
+                  {text(" con el rol ", " with role ")}
+                  <code>owner</code>
+                  {text(" para desbloquear la consola.", " to unlock the console.")}
                 </p>
               </form>
             </TabsContent>

@@ -14,24 +14,28 @@ import { useEffect, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { AuthProvider, useAuth } from "@/hooks/use-auth";
+import { LanguageProvider, useLanguage } from "@/hooks/use-language";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { Toaster } from "@/components/ui/sonner";
 
 function NotFoundComponent() {
+  const { text } = useLanguage();
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
         <h1 className="text-7xl font-bold">404</h1>
-        <h2 className="mt-4 text-xl font-semibold">Page not found</h2>
+        <h2 className="mt-4 text-xl font-semibold">
+          {text("Página no encontrada", "Page not found")}
+        </h2>
         <p className="mt-2 text-sm text-muted-foreground">
-          The page you're looking for doesn't exist.
+          {text("La página que buscas no existe.", "The page you're looking for doesn't exist.")}
         </p>
         <Link
           to="/"
           className="mt-6 inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
         >
-          Go to Dashboard
+          {text("Ir al panel", "Go to Dashboard")}
         </Link>
       </div>
     </div>
@@ -40,14 +44,19 @@ function NotFoundComponent() {
 
 function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   const router = useRouter();
+  const { text } = useLanguage();
   useEffect(() => {
     reportLovableError(error, { boundary: "tanstack_root_error_component" });
   }, [error]);
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
-        <h1 className="text-xl font-semibold">This page didn't load</h1>
-        <p className="mt-2 text-sm text-muted-foreground">Something went wrong.</p>
+        <h1 className="text-xl font-semibold">
+          {text("Esta página no cargó", "This page didn't load")}
+        </h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          {text("Algo salió mal.", "Something went wrong.")}
+        </p>
         <button
           onClick={() => {
             router.invalidate();
@@ -55,7 +64,7 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
           }}
           className="mt-6 inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
         >
-          Try again
+          {text("Intentar de nuevo", "Try again")}
         </button>
       </div>
     </div>
@@ -102,28 +111,30 @@ function RootShell({ children }: { children: ReactNode }) {
         <HeadContent />
       </head>
       <body>
-        {children}
+        <LanguageProvider>{children}</LanguageProvider>
         <Scripts />
       </body>
     </html>
   );
 }
 
-const titleMap: Record<string, string> = {
-  "/": "Dashboard",
-  "/products": "My Products",
-  "/bot-builder": "Bot Builder",
-  "/quality-center": "Centro de Calidad",
-  "/health": "Salud de bots",
-  "/clients": "Client Manager",
-  "/webapps": "Web Apps",
-  "/ledger": "Financial Ledger",
-  "/settings": "Settings",
-};
-
 function AppShell() {
   const pathname = useRouterState({ select: (r) => r.location.pathname });
   const { loading, session, isOwner, signOut } = useAuth();
+  const { text } = useLanguage();
+  const titleMap: Record<string, string> = {
+    "/": text("Panel", "Dashboard"),
+    "/products": text("Mis productos", "My Products"),
+    "/bot-builder": text("Creador de bots", "Bot Builder"),
+    "/quality-center": text("Centro de Calidad", "Quality Center"),
+    "/health": text("Salud de bots", "Bot Health"),
+    "/clients": text("Gestión de clientes", "Client Manager"),
+    "/leads": text("Prospectos", "Leads"),
+    "/webapps": text("Aplicaciones web", "Web Apps"),
+    "/ledger": text("Libro financiero", "Financial Ledger"),
+    "/settings": text("Configuración", "Settings"),
+    "/website": text("Personalizar sitio web", "Customize Website"),
+  };
 
   const isAuthRoute = pathname === "/auth";
 
@@ -131,7 +142,7 @@ function AppShell() {
   if (loading && !isAuthRoute) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background text-xs text-muted-foreground">
-        Verifying access…
+        {text("Verificando acceso…", "Verifying access…")}
       </div>
     );
   }
@@ -166,14 +177,14 @@ function AppShell() {
             <div className="h-4 w-px bg-border" />
             <div className="flex flex-col leading-tight">
               <span className="text-[11px] uppercase tracking-widest text-muted-foreground">
-                Console
+                {text("Consola", "Console")}
               </span>
               <h1 className="text-sm font-semibold tracking-tight">{title}</h1>
             </div>
             <div className="ml-auto flex items-center gap-2">
               <div className="hidden md:flex items-center gap-1.5 rounded-full border border-success/30 bg-success/10 px-2.5 py-1 text-[11px] font-medium text-success">
                 <span className="h-1.5 w-1.5 rounded-full bg-success animate-pulse" />
-                All systems operational
+                {text("Todos los sistemas operativos", "All systems operational")}
               </div>
             </div>
           </header>

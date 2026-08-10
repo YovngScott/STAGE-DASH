@@ -1,14 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import {
-  DollarSign,
-  Wallet,
-  Users,
-  Receipt,
-  Percent,
-  ArrowUpRight,
-  Loader2,
-} from "lucide-react";
+import { DollarSign, Wallet, Users, Receipt, Percent, ArrowUpRight, Loader2 } from "lucide-react";
 import {
   Area,
   AreaChart,
@@ -21,26 +13,14 @@ import {
 } from "recharts";
 import { KpiCard } from "@/components/kpi-card";
 import { Card } from "@/components/ui/card";
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-} from "@/components/ui/chart";
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
+import { useLanguage } from "@/hooks/use-language";
 
 export const Route = createFileRoute("/")({
   component: Dashboard,
 });
-
-const monthlyChartConfig = {
-  investments: { label: "Investments", color: "var(--chart-1)" },
-  expenses: { label: "Expenses", color: "var(--chart-3)" },
-};
-
-const categoryChartConfig = {
-  amount: { label: "Amount", color: "var(--chart-3)" },
-};
 
 interface Client {
   id: string;
@@ -56,11 +36,15 @@ interface LedgerEntry {
   category: string;
 }
 
-function monthLabel(dateStr: string) {
-  return new Date(dateStr + "T00:00:00").toLocaleDateString("en-US", { month: "short", year: "2-digit" });
+function monthLabel(dateStr: string, locale: string) {
+  return new Date(dateStr + "T00:00:00").toLocaleDateString(locale, {
+    month: "short",
+    year: "2-digit",
+  });
 }
 
 function Dashboard() {
+  const { language, locale, text } = useLanguage();
   const [clients, setClients] = useState<Client[]>([]);
   const [entries, setEntries] = useState<LedgerEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -91,17 +75,28 @@ function Dashboard() {
   const runwayMonths = monthlyExpenses > 0 ? (totalInvestments / monthlyExpenses).toFixed(1) : "—";
 
   const monthlySeries = useMemo(() => {
-    const buckets = new Map<string, { month: string; investments: number; expenses: number; sort: string }>();
+    const buckets = new Map<
+      string,
+      { month: string; investments: number; expenses: number; sort: string }
+    >();
     for (const e of entries) {
       const sort = e.date.slice(0, 7);
-      const month = monthLabel(e.date);
+      const month = monthLabel(e.date, locale);
       if (!buckets.has(sort)) buckets.set(sort, { month, investments: 0, expenses: 0, sort });
       const bucket = buckets.get(sort)!;
       if (e.kind === "investment") bucket.investments += Number(e.amount);
       else bucket.expenses += Number(e.amount);
     }
     return Array.from(buckets.values()).sort((a, b) => a.sort.localeCompare(b.sort));
-  }, [entries]);
+  }, [entries, locale]);
+
+  const monthlyChartConfig = {
+    investments: { label: text("Inversiones", "Investments"), color: "var(--chart-1)" },
+    expenses: { label: text("Gastos", "Expenses"), color: "var(--chart-3)" },
+  };
+  const categoryChartConfig = {
+    amount: { label: text("Monto", "Amount"), color: "var(--chart-3)" },
+  };
 
   const categorySeries = useMemo(() => {
     const buckets = new Map<string, number>();
@@ -116,7 +111,8 @@ function Dashboard() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-32 text-sm text-muted-foreground">
-        <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading dashboard…
+        <Loader2 className="mr-2 h-4 w-4 animate-spin" />{" "}
+        {text("Cargando panel…", "Loading dashboard…")}
       </div>
     );
   }
@@ -126,54 +122,61 @@ function Dashboard() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-xs uppercase tracking-widest text-muted-foreground">
-            Global Overview
+            {text("Resumen global", "Global Overview")}
           </p>
           <h2 className="mt-1 text-2xl font-semibold tracking-tight">
-            Welcome back to Stage AI Labs
+            {text("Bienvenido de nuevo a Stage AI Labs", "Welcome back to Stage AI Labs")}
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Real-time snapshot of MRR, expenses, and product health.
+            {text(
+              "Estado en tiempo real del MRR, los gastos y la salud de los productos.",
+              "Real-time snapshot of MRR, expenses, and product health.",
+            )}
           </p>
         </div>
         <Button variant="default" className="gap-2">
-          New Report <ArrowUpRight className="h-4 w-4" />
+          {text("Nuevo reporte", "New Report")} <ArrowUpRight className="h-4 w-4" />
         </Button>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <KpiCard
-          label="Total MRR"
+          label={text("MRR total", "Total MRR")}
           value={`$${mrr.toLocaleString()}`}
-          delta={`From ${activeClients.length} active client${activeClients.length === 1 ? "" : "s"}`}
+          delta={
+            language === "es"
+              ? `De ${activeClients.length} cliente${activeClients.length === 1 ? "" : "s"} activo${activeClients.length === 1 ? "" : "s"}`
+              : `From ${activeClients.length} active client${activeClients.length === 1 ? "" : "s"}`
+          }
           trend="up"
           icon={DollarSign}
           accent
         />
         <KpiCard
-          label="Total Investments"
+          label={text("Inversiones totales", "Total Investments")}
           value={`$${totalInvestments.toLocaleString()}`}
-          delta="Personal capital"
+          delta={text("Capital personal", "Personal capital")}
           trend="neutral"
           icon={Wallet}
         />
         <KpiCard
-          label="Active Clients"
+          label={text("Clientes activos", "Active Clients")}
           value={String(activeClients.length)}
-          delta={`${clients.length} total on file`}
+          delta={text(`${clients.length} registrados en total`, `${clients.length} total on file`)}
           trend="up"
           icon={Users}
         />
         <KpiCard
-          label="Monthly Expenses"
+          label={text("Gastos mensuales", "Monthly Expenses")}
           value={`$${monthlyExpenses.toLocaleString()}`}
-          delta="Logged operational costs"
+          delta={text("Costos operativos registrados", "Logged operational costs")}
           trend="down"
           icon={Receipt}
         />
         <KpiCard
-          label="Net Profit Margin"
+          label={text("Margen neto", "Net Profit Margin")}
           value={`${margin}%`}
-          delta={`$${profit.toLocaleString()} cleared`}
+          delta={text(`$${profit.toLocaleString()} netos`, `$${profit.toLocaleString()} cleared`)}
           trend={profit >= 0 ? "up" : "down"}
           icon={Percent}
           accent
@@ -188,20 +191,28 @@ function Dashboard() {
           <div className="flex items-start justify-between">
             <div>
               <h3 className="text-sm font-semibold tracking-tight">
-                Investments vs Expenses
+                {text("Inversiones frente a gastos", "Investments vs Expenses")}
               </h3>
               <p className="text-xs text-muted-foreground">
-                By month, from logged ledger transactions
+                {text(
+                  "Por mes, según las transacciones registradas",
+                  "By month, from logged ledger transactions",
+                )}
               </p>
             </div>
             <div className="flex gap-3 text-[11px]">
-              <LegendDot label="Investments" color="var(--chart-1)" />
-              <LegendDot label="Expenses" color="var(--chart-3)" />
+              <LegendDot label={text("Inversiones", "Investments")} color="var(--chart-1)" />
+              <LegendDot label={text("Gastos", "Expenses")} color="var(--chart-3)" />
             </div>
           </div>
           <div className="mt-6 h-[320px]">
             {monthlySeries.length === 0 ? (
-              <EmptyChartState message="Log transactions in the Financial Ledger to see this trend." />
+              <EmptyChartState
+                message={text(
+                  "Registra transacciones en el libro financiero para ver esta tendencia.",
+                  "Log transactions in the Financial Ledger to see this trend.",
+                )}
+              />
             ) : (
               <ChartContainer config={monthlyChartConfig} className="h-full w-full">
                 <ResponsiveContainer>
@@ -217,11 +228,33 @@ function Dashboard() {
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 6" stroke="var(--border)" vertical={false} />
-                    <XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fill: "var(--muted-foreground)", fontSize: 11 }} />
-                    <YAxis tickLine={false} axisLine={false} tick={{ fill: "var(--muted-foreground)", fontSize: 11 }} tickFormatter={(v) => `$${v}`} />
+                    <XAxis
+                      dataKey="month"
+                      tickLine={false}
+                      axisLine={false}
+                      tick={{ fill: "var(--muted-foreground)", fontSize: 11 }}
+                    />
+                    <YAxis
+                      tickLine={false}
+                      axisLine={false}
+                      tick={{ fill: "var(--muted-foreground)", fontSize: 11 }}
+                      tickFormatter={(v) => `$${v}`}
+                    />
                     <ChartTooltip content={<ChartTooltipContent />} />
-                    <Area type="monotone" dataKey="investments" stroke="var(--chart-1)" strokeWidth={2} fill="url(#inv)" />
-                    <Area type="monotone" dataKey="expenses" stroke="var(--chart-3)" strokeWidth={2} fill="url(#exp)" />
+                    <Area
+                      type="monotone"
+                      dataKey="investments"
+                      stroke="var(--chart-1)"
+                      strokeWidth={2}
+                      fill="url(#inv)"
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="expenses"
+                      stroke="var(--chart-3)"
+                      strokeWidth={2}
+                      fill="url(#exp)"
+                    />
                   </AreaChart>
                 </ResponsiveContainer>
               </ChartContainer>
@@ -230,18 +263,33 @@ function Dashboard() {
         </Card>
 
         <Card className="border-border/60 p-6">
-          <h3 className="text-sm font-semibold tracking-tight">Expenses by Category</h3>
-          <p className="text-xs text-muted-foreground">Where operational spend goes</p>
+          <h3 className="text-sm font-semibold tracking-tight">
+            {text("Gastos por categoría", "Expenses by Category")}
+          </h3>
+          <p className="text-xs text-muted-foreground">
+            {text("Distribución de los gastos operativos", "Where operational spend goes")}
+          </p>
           <div className="mt-4 h-[200px]">
             {categorySeries.length === 0 ? (
-              <EmptyChartState message="No expenses logged yet." />
+              <EmptyChartState
+                message={text("Aún no hay gastos registrados.", "No expenses logged yet.")}
+              />
             ) : (
               <ChartContainer config={categoryChartConfig} className="h-full w-full">
                 <ResponsiveContainer>
                   <BarChart data={categorySeries} margin={{ left: 0, right: 8, top: 4 }}>
                     <CartesianGrid strokeDasharray="3 6" stroke="var(--border)" vertical={false} />
-                    <XAxis dataKey="category" tickLine={false} axisLine={false} tick={false} height={8} />
-                    <ChartTooltip content={<ChartTooltipContent />} cursor={{ fill: "var(--muted)", opacity: 0.15 }} />
+                    <XAxis
+                      dataKey="category"
+                      tickLine={false}
+                      axisLine={false}
+                      tick={false}
+                      height={8}
+                    />
+                    <ChartTooltip
+                      content={<ChartTooltipContent />}
+                      cursor={{ fill: "var(--muted)", opacity: 0.15 }}
+                    />
                     <Bar dataKey="amount" fill="var(--chart-3)" radius={[6, 6, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
@@ -249,9 +297,21 @@ function Dashboard() {
             )}
           </div>
           <div className="mt-4 space-y-2 border-t border-border/60 pt-4">
-            <RunwayLine label="Cash Runway" value={runwayMonths === "—" ? "—" : `${runwayMonths} months`} />
-            <RunwayLine label="Burn Rate" value={`$${monthlyExpenses.toLocaleString()} / mo`} />
-            <RunwayLine label="Break-even" value={profit >= 0 ? "Reached ✓" : "Not yet"} positive={profit >= 0} />
+            <RunwayLine
+              label={text("Meses de caja", "Cash Runway")}
+              value={
+                runwayMonths === "—" ? "—" : text(`${runwayMonths} meses`, `${runwayMonths} months`)
+              }
+            />
+            <RunwayLine
+              label={text("Tasa de gasto", "Burn Rate")}
+              value={`$${monthlyExpenses.toLocaleString()} / ${text("mes", "mo")}`}
+            />
+            <RunwayLine
+              label={text("Punto de equilibrio", "Break-even")}
+              value={profit >= 0 ? text("Alcanzado ✓", "Reached ✓") : text("Aún no", "Not yet")}
+              positive={profit >= 0}
+            />
           </div>
         </Card>
       </div>
@@ -276,7 +336,15 @@ function EmptyChartState({ message }: { message: string }) {
   );
 }
 
-function RunwayLine({ label, value, positive }: { label: string; value: string; positive?: boolean }) {
+function RunwayLine({
+  label,
+  value,
+  positive,
+}: {
+  label: string;
+  value: string;
+  positive?: boolean;
+}) {
   return (
     <div className="flex items-center justify-between text-xs">
       <span className="text-muted-foreground">{label}</span>
