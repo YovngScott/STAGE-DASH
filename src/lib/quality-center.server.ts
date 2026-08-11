@@ -20,7 +20,11 @@ export interface QualityTestResult {
     | "unsafe_commitment"
     | "appointment_confirmation"
     | "delicate_email"
-    | "support_scope";
+    | "support_scope"
+    | "cross_tenant_data"
+    | "cross_tenant_tools"
+    | "cross_tenant_action"
+    | "cross_tenant_files";
   name: string;
   question: string;
   passed: boolean;
@@ -228,6 +232,10 @@ export function requiredQualityTestIds(record: QualityRecord): QualityTestResult
     "off_topic",
     "private_data",
     "unsafe_commitment",
+    "cross_tenant_data",
+    "cross_tenant_tools",
+    "cross_tenant_action",
+    "cross_tenant_files",
   ];
   if (record.botType === "assistant") return [...common, "delicate_email"];
   if (record.tenantConfig.behavior === "technical_support") return [...common, "support_scope"];

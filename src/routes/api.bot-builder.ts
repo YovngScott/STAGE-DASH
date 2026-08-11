@@ -4,8 +4,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import {
   getActiveProvisionBySlug,
+  preflightMetaWhatsApp,
   preflightProvision,
   startProvision,
+  type MetaWhatsAppSecrets,
   type TenantConfigDraft,
 } from "@/lib/provisioning";
 import { composeTenantPrompt, normalizeBotBehavior, type BotBehavior } from "@/lib/bot-prompts";
@@ -44,6 +46,12 @@ interface BotBuilderRequest {
     contacto?: string;
     moneda?: string;
     zonaHoraria?: string;
+    whatsapp?: {
+      provider?: string;
+      phoneNumberId?: string;
+      businessAccountId?: string;
+      apiVersion?: string;
+    };
     schedule?: {
       businessDays?: number[];
       businessStart?: string;
@@ -75,6 +83,7 @@ interface BotBuilderRequest {
   groqModel?: string;
   groqKeyMode?: GroqKeyMode;
   groqApiKey?: string;
+  whatsappSecrets?: Partial<MetaWhatsAppSecrets>;
   updateClient?: boolean;
 }
 
@@ -222,6 +231,14 @@ export const Route = createFileRoute("/api/bot-builder")({
           servicios: body.tenant.servicios ?? [],
           moneda: body.tenant.moneda?.trim() || "USD",
           zonaHoraria: body.tenant.zonaHoraria?.trim() || "America/Santo_Domingo",
+          whatsapp: {
+            provider: body.tenant.whatsapp?.provider === "meta_cloud" ? "meta_cloud" : "baileys",
+            phoneNumberId: String(body.tenant.whatsapp?.phoneNumberId ?? "").replace(/\D/g, ""),
+            businessAccountId: String(body.tenant.whatsapp?.businessAccountId ?? "").replace(/\D/g, ""),
+            apiVersion: /^v\d+\.\d+$/.test(String(body.tenant.whatsapp?.apiVersion ?? ""))
+              ? String(body.tenant.whatsapp!.apiVersion)
+              : "v23.0",
+          },
           schedule: {
             businessDays,
             businessStart: validTime(body.tenant.schedule?.businessStart, "09:00"),
@@ -380,7 +397,18 @@ export const Route = createFileRoute("/api/bot-builder")({
         }
 
         try {
-          await preflightProvision(body.groqApiKey?.trim(), asistente?.proveedor);
+          const whatsappSecrets: MetaWhatsAppSecrets | undefined =
+            tenantConfig.whatsapp.provider === "meta_cloud"
+              ? {
+                  accessToken: String(body.whatsappSecrets?.accessToken ?? "").trim(),
+                  appSecret: String(body.whatsappSecrets?.appSecret ?? "").trim(),
+                  verifyToken: String(body.whatsappSecrets?.verifyToken ?? "").trim(),
+                }
+              : undefined;
+          await Promise.all([
+            preflightProvision(body.groqApiKey?.trim(), tenantConfig.asistente?.proveedor),
+            preflightMetaWhatsApp(tenantConfig.whatsapp, whatsappSecrets),
+          ]);
         } catch (error) {
           return Response.json(
             {
@@ -460,6 +488,14 @@ export const Route = createFileRoute("/api/bot-builder")({
           githubCommitUrl: createdFile.commitUrl,
           groqModel,
           groqApiKey: body.groqApiKey?.trim(),
+          whatsappSecrets:
+            tenantConfig.whatsapp.provider === "meta_cloud"
+              ? {
+                  accessToken: String(body.whatsappSecrets?.accessToken ?? "").trim(),
+                  appSecret: String(body.whatsappSecrets?.appSecret ?? "").trim(),
+                  verifyToken: String(body.whatsappSecrets?.verifyToken ?? "").trim(),
+                }
+              : undefined,
         });
 
         quality.state = "publishing";

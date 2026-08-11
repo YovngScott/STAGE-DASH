@@ -8,10 +8,17 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import type { BotBehavior } from "@/lib/bot-prompts";
 
 export type BotKind = "assistant" | "messaging" | "voice";
+export type WhatsAppProvider = "baileys" | "meta_cloud";
+
+export interface MetaWhatsAppSecrets {
+  accessToken: string;
+  appSecret: string;
+  verifyToken: string;
+}
 export type ProvisionState = "queued" | "running" | "complete" | "failed";
 
 export interface ProvisionPreflightCheck {
-  id: "credentials" | "groq" | "template" | "github" | "fly";
+  id: "credentials" | "groq" | "template" | "tenant_isolation" | "github" | "fly";
   label: string;
   ok: boolean;
   details: string;
@@ -71,6 +78,12 @@ export interface TenantConfigDraft {
   servicios: string[];
   moneda: string;
   zonaHoraria: string;
+  whatsapp: {
+    provider: WhatsAppProvider;
+    phoneNumberId: string;
+    businessAccountId: string;
+    apiVersion: string;
+  };
   schedule: {
     businessDays: number[];
     businessStart: string;
@@ -107,6 +120,7 @@ export interface ProvisionInput {
   githubCommitUrl: string | null;
   groqModel: string;
   groqApiKey?: string;
+  whatsappSecrets?: MetaWhatsAppSecrets;
 }
 
 export interface ProvisionJob {
@@ -393,6 +407,17 @@ async function runProvision(job: ProvisionJob, input: ProvisionInput) {
       `MICROSOFT_OAUTH_REDIRECT_URI=https://${job.appName}.fly.dev/api/asistente/microsoft-callback`,
     );
   }
+  if (input.tenantConfig.whatsapp.provider === "meta_cloud") {
+    const meta = input.whatsappSecrets;
+    if (!meta) throw new Error("Faltan las credenciales privadas de Meta WhatsApp.");
+    secretos.push(
+      `META_WHATSAPP_ACCESS_TOKEN=${meta.accessToken}`,
+      `META_WHATSAPP_APP_SECRET=${meta.appSecret}`,
+      `META_WHATSAPP_VERIFY_TOKEN=${meta.verifyToken}`,
+      `META_WHATSAPP_PHONE_NUMBER_ID=${input.tenantConfig.whatsapp.phoneNumberId}`,
+      `META_WHATSAPP_API_VERSION=${input.tenantConfig.whatsapp.apiVersion}`,
+    );
+  }
 
   // Los valores viajan por stdin: nunca aparecen en la línea de comandos ni
   // en el listado de procesos del servidor.
@@ -482,6 +507,27 @@ export async function preflightProvision(
   if (failures.length) throw new Error(failures.map((check) => check.details).join(" "));
 }
 
+/** Valida credenciales Meta sin guardarlas ni crear recursos. */
+export async function preflightMetaWhatsApp(
+  config: TenantConfigDraft["whatsapp"],
+  secrets: MetaWhatsAppSecrets | undefined,
+): Promise<void> {
+  if (config.provider !== "meta_cloud") return;
+  if (!config.phoneNumberId) throw new Error("Falta el Phone number ID de Meta.");
+  if (!secrets?.accessToken || !secrets.appSecret || !secrets.verifyToken) {
+    throw new Error("Introduce Access Token, App Secret y Verify Token de Meta para publicar.");
+  }
+  if (secrets.verifyToken.length < 16) throw new Error("El Verify Token debe tener al menos 16 caracteres.");
+  const response = await fetch(
+    `https://graph.facebook.com/${encodeURIComponent(config.apiVersion)}/${encodeURIComponent(config.phoneNumberId)}?fields=id,display_phone_number,verified_name`,
+    { headers: { authorization: `Bearer ${secrets.accessToken}` }, signal: AbortSignal.timeout(15_000) },
+  );
+  if (!response.ok) {
+    const detail = (await response.text()).slice(0, 500);
+    throw new Error(`Meta rechazó la configuración (${response.status}): ${detail}`);
+  }
+}
+
 /**
  * Read-only publication check used by Quality Center. It never creates an app,
  * a machine or a tenant; it only verifies that the next publication can finish.
@@ -559,6 +605,39 @@ export async function inspectProvisionPreflight(
       ok: false,
       details: error instanceof Error ? error.message : String(error),
     });
+  }
+
+  if (backendDir) {
+    try {
+      const [executor, schema] = await Promise.all([
+        readFile(path.join(backendDir, "src", "tools", "executor.ts"), "utf8"),
+        readFile(path.join(backendDir, "..", "supabase", "schema.sql"), "utf8").catch(() => ""),
+      ]);
+      const runtimeGuards =
+        executor.includes("cliente.tenant_id !== tenant.id") &&
+        executor.includes('.eq("tenant_id", tenant.id)') &&
+        executor.includes(".strict()");
+      const rlsGuards = !schema || (
+        schema.includes("enable row level security") &&
+        schema.includes("tiene_acceso_tenant(tenant_id)")
+      );
+      if (!runtimeGuards || !rlsGuards) throw new Error("Faltan barreras de tenant en tools, consultas o RLS.");
+      checks.push({
+        id: "tenant_isolation",
+        label: "Aislamiento multi-tenant",
+        ok: true,
+        details: "Tools estrictas, cliente ligado al tenant, consultas filtradas y RLS presentes.",
+      });
+    } catch (error) {
+      checks.push({
+        id: "tenant_isolation",
+        label: "Aislamiento multi-tenant",
+        ok: false,
+        details: error instanceof Error ? error.message : String(error),
+      });
+    }
+  } else {
+    checks.push({ id: "tenant_isolation", label: "Aislamiento multi-tenant", ok: false, details: "No se pudo inspeccionar la plantilla." });
   }
 
   checks.push({

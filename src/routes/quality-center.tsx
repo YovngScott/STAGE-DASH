@@ -67,6 +67,9 @@ type RecordRow = {
   preflightAt?: string | null;
   manualApprovedAt?: string | null;
   groqKeyMode?: "automatic" | "dedicated";
+  tenantConfig: {
+    whatsapp?: { provider?: "baileys" | "meta_cloud"; phoneNumberId?: string; apiVersion?: string };
+  };
 };
 type BotRow = {
   id: string;
@@ -108,8 +111,16 @@ function QualityCenterPage() {
   const [error, setError] = useState<string | null>(null);
   const [job, setJob] = useState<ProvisionJob | null>(null);
   const [dedicatedKey, setDedicatedKey] = useState("");
+  const [metaAccessToken, setMetaAccessToken] = useState("");
+  const [metaAppSecret, setMetaAppSecret] = useState("");
+  const [metaVerifyToken, setMetaVerifyToken] = useState("");
 
-  useEffect(() => setDedicatedKey(""), [record?.slug]);
+  useEffect(() => {
+    setDedicatedKey("");
+    setMetaAccessToken("");
+    setMetaAppSecret("");
+    setMetaVerifyToken("");
+  }, [record?.slug]);
 
   const authFetch = useCallback(async (url: string, init?: RequestInit) => {
     const { data } = await supabase.auth.getSession();
@@ -231,6 +242,12 @@ function QualityCenterPage() {
       toast.error("Introduce una clave Groq dedicada válida antes de publicar.");
       return;
     }
+    if (record.tenantConfig?.whatsapp?.provider === "meta_cloud") {
+      if (!metaAccessToken.trim() || !metaAppSecret.trim() || metaVerifyToken.trim().length < 16) {
+        toast.error("Completa las tres credenciales Meta antes de publicar.");
+        return;
+      }
+    }
     setBusy("publish");
     setError(null);
     try {
@@ -243,6 +260,14 @@ function QualityCenterPage() {
         body: JSON.stringify({
           ...prepared.request,
           groqApiKey: record.groqKeyMode === "dedicated" ? dedicatedKey.trim() : undefined,
+          whatsappSecrets:
+            record.tenantConfig?.whatsapp?.provider === "meta_cloud"
+              ? {
+                  accessToken: metaAccessToken.trim(),
+                  appSecret: metaAppSecret.trim(),
+                  verifyToken: metaVerifyToken.trim(),
+                }
+              : undefined,
         }),
       });
       setJob(result.job);
@@ -388,6 +413,25 @@ function QualityCenterPage() {
                         Se envía directamente como secreto a la app del cliente al publicar. No se
                         guarda en GitHub ni en el borrador.
                       </p>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+              {record.tenantConfig?.whatsapp?.provider === "meta_cloud" ? (
+                <div className="mt-4 rounded-lg border border-primary/25 bg-primary/5 p-4">
+                  <div className="flex items-start gap-3">
+                    <KeyRound className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                    <div className="w-full space-y-3">
+                      <div>
+                        <p className="text-sm font-medium">Credenciales Meta WhatsApp Cloud API</p>
+                        <p className="mt-1 text-xs text-muted-foreground">Se validan con Meta y se envían directamente a secretos de Fly. Nunca se guardan en GitHub.</p>
+                      </div>
+                      <div className="grid gap-3 md:grid-cols-3">
+                        <div className="space-y-2"><Label>Access Token</Label><Input type="password" autoComplete="off" value={metaAccessToken} onChange={(event) => setMetaAccessToken(event.target.value)} /></div>
+                        <div className="space-y-2"><Label>App Secret</Label><Input type="password" autoComplete="off" value={metaAppSecret} onChange={(event) => setMetaAppSecret(event.target.value)} /></div>
+                        <div className="space-y-2"><Label>Verify Token</Label><Input type="password" autoComplete="new-password" value={metaVerifyToken} onChange={(event) => setMetaVerifyToken(event.target.value)} /></div>
+                      </div>
+                      <p className="text-xs text-muted-foreground">Webhook: https://stage-{record.slug}-{record.botType}.fly.dev/api/{record.slug}/whatsapp/meta-webhook</p>
                     </div>
                   </div>
                 </div>

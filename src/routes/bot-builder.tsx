@@ -148,6 +148,10 @@ const defaultDraft = {
   groqModel: "openai/gpt-oss-120b",
   groqKeyMode: "automatic" as "automatic" | "dedicated",
   groqApiKey: "",
+  whatsappProvider: "baileys" as "baileys" | "meta_cloud",
+  metaPhoneNumberId: "",
+  metaBusinessAccountId: "",
+  metaApiVersion: "v23.0",
   updateClient: true,
   // --- Solo para bots tipo "assistant" -------------------------------------
   // El correo NO tiene valor por defecto a propósito: cada asistente atiende
@@ -492,6 +496,9 @@ function BotBuilder() {
       return toast.error(text("El bot necesita un slug válido.", "The bot needs a valid slug."));
     // Un asistente sin correo no tiene bandeja que triar: se pide aquí y no
     // se completa nunca a mano en el repositorio.
+    if (draft.whatsappProvider === "meta_cloud" && !/^\d{5,}$/.test(draft.metaPhoneNumberId)) {
+      return toast.error(text("Indica el Phone number ID de Meta.", "Enter the Meta Phone number ID."));
+    }
     if (draft.botType === "assistant") {
       if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(draft.asistenteCorreo.trim())) {
         return toast.error(
@@ -545,6 +552,12 @@ function BotBuilder() {
             contacto: draft.contacto || selectedClient.phone || "",
             moneda: draft.moneda,
             zonaHoraria: draft.zonaHoraria,
+            whatsapp: {
+              provider: draft.whatsappProvider,
+              phoneNumberId: draft.metaPhoneNumberId,
+              businessAccountId: draft.metaBusinessAccountId,
+              apiVersion: draft.metaApiVersion,
+            },
             schedule: {
               businessDays: draft.businessDays,
               businessStart: draft.businessStart,
@@ -743,6 +756,29 @@ function BotBuilder() {
             {text(
               "Incluido automáticamente: protección del prompt y datos privados, bloqueo fuera del negocio, precios solo desde catálogo, acciones delicadas con aprobación humana y validación de herramientas.",
               "Included automatically: prompt and private-data protection, out-of-scope blocking, catalog-only pricing, human approval for sensitive actions, and tool validation.",
+            )}
+          </div>
+          <div className="mt-4 rounded-lg border border-border/60 bg-background/30 p-4">
+            <h4 className="text-sm font-medium">{text("Conexión de WhatsApp", "WhatsApp connection")}</h4>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {text("Elige QR para pilotos o Meta Cloud para clientes críticos. Los secretos se pedirán solo al publicar.", "Choose QR for pilots or Meta Cloud for critical clients. Secrets are requested only when publishing.")}
+            </p>
+            <div className="mt-3 grid gap-3 md:grid-cols-2">
+              <button type="button" onClick={() => setDraft((current) => ({ ...current, whatsappProvider: "baileys" }))} className={`rounded-lg border p-3 text-left ${draft.whatsappProvider === "baileys" ? "border-primary bg-primary/10" : "border-border/60"}`}>
+                <span className="text-sm font-medium">{text("QR · piloto", "QR · pilot")}</span>
+                <p className="mt-1 text-xs text-muted-foreground">{text("Conexión rápida mediante WhatsApp Web.", "Fast connection through WhatsApp Web.")}</p>
+              </button>
+              <button type="button" onClick={() => setDraft((current) => ({ ...current, whatsappProvider: "meta_cloud" }))} className={`rounded-lg border p-3 text-left ${draft.whatsappProvider === "meta_cloud" ? "border-primary bg-primary/10" : "border-border/60"}`}>
+                <span className="text-sm font-medium">Meta WhatsApp Cloud API</span>
+                <p className="mt-1 text-xs text-muted-foreground">{text("Canal oficial para operación crítica y mayor estabilidad.", "Official channel for critical, higher-stability operations.")}</p>
+              </button>
+            </div>
+            {draft.whatsappProvider === "meta_cloud" && (
+              <div className="mt-3 grid gap-3 md:grid-cols-3">
+                <div className="space-y-2"><Label>Phone number ID</Label><Input value={draft.metaPhoneNumberId} onChange={(event) => setDraft((current) => ({ ...current, metaPhoneNumberId: event.target.value.replace(/\D/g, "") }))} /></div>
+                <div className="space-y-2"><Label>WhatsApp Business Account ID</Label><Input value={draft.metaBusinessAccountId} onChange={(event) => setDraft((current) => ({ ...current, metaBusinessAccountId: event.target.value.replace(/\D/g, "") }))} /></div>
+                <div className="space-y-2"><Label>Graph API version</Label><Input value={draft.metaApiVersion} onChange={(event) => setDraft((current) => ({ ...current, metaApiVersion: event.target.value }))} placeholder="v23.0" /></div>
+              </div>
             )}
           </div>
           <div className="mt-4 rounded-lg border border-border/60 bg-background/30 p-4">
