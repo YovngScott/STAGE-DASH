@@ -10,6 +10,7 @@ import {
   Download,
   FlaskConical,
   Loader2,
+  Mail,
   Power,
   RefreshCw,
   ServerCrash,
@@ -75,6 +76,7 @@ interface BotHealth {
   shadows: Array<{ id: string; channel: string; conversation_id: string; proposed_response: string; decision: string; reviewed: boolean; correct_response: string | null; created_at: string }>;
   channelTests: Array<{ id: string; channel: string; status: string; challenge: string; destination: string; results: Record<string, boolean>; error: string | null; started_at: string }>;
   conversations: Array<{ channel: "whatsapp" | "email"; id: string; contact: string; subject: string | null; updatedAt: string }>;
+  emailFollowups: Array<{ id: string; thread_id: string; recipient: string; subject: string; task_type: string; title: string; notes: string | null; status: string; draft_reply: string | null; owner_note: string | null; created_at: string; updated_at: string }>;
   severity: Severity;
   statusLabel: string;
   checkedAt: string;
@@ -126,6 +128,7 @@ function HealthPage() {
   const [emailTestDestination, setEmailTestDestination] = useState("");
   const [whatsappTestDestination, setWhatsappTestDestination] = useState("");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [followupReplies, setFollowupReplies] = useState<Record<string, string>>({});
   const knownAlertIds = useRef<Set<string>>(new Set());
 
   const load = useCallback(async (silent = false) => {
@@ -500,6 +503,43 @@ function HealthPage() {
               </TabsList>
 
               <TabsContent value="conversations" className="mt-0 grid gap-4 lg:grid-cols-2">
+                {selectedBot.kind === "assistant" && (
+                  <div className="rounded-lg border border-primary/20 bg-primary/[0.03] p-4 lg:col-span-2">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div>
+                        <p className="flex items-center gap-2 text-sm font-medium"><Mail className="h-4 w-4 text-primary" /> Seguimientos de correo</p>
+                        <p className="mt-1 text-xs text-muted-foreground">Compromisos que el asistente debe continuar. La respuesta siempre vuelve al destinatario y al hilo original.</p>
+                      </div>
+                      <Badge variant="outline">{selectedBot.emailFollowups.length} pendientes</Badge>
+                    </div>
+                    <div className="mt-4 max-h-80 space-y-3 overflow-auto pr-1">
+                      {selectedBot.emailFollowups.map((item) => (
+                        <div key={item.id} className="rounded-lg border border-border/60 bg-background/70 p-3">
+                          <div className="flex flex-wrap items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium">{item.title}</p>
+                              <p className="mt-1 truncate text-xs text-muted-foreground">{item.recipient} · {item.subject}</p>
+                            </div>
+                            <Badge variant="secondary">{item.task_type === "calendar" ? "Agenda" : item.task_type === "review" ? "Revisión" : "Seguimiento"}</Badge>
+                          </div>
+                          {item.notes && <p className="mt-2 text-xs text-muted-foreground">{item.notes}</p>}
+                          {item.draft_reply && <p className="mt-2 rounded-md bg-muted/40 p-2 text-xs">Borrador: {item.draft_reply}</p>}
+                          <textarea
+                            className="mt-3 min-h-20 w-full resize-y rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary"
+                            placeholder="Escribe la respuesta final; Stage conservará el hilo y el destinatario original…"
+                            value={followupReplies[item.id] ?? ""}
+                            onChange={(event) => setFollowupReplies((current) => ({ ...current, [item.id]: event.target.value }))}
+                          />
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            <Button size="sm" disabled={(followupReplies[item.id] ?? "").trim().length < 25 || actionLoading === "replyFollowup"} onClick={() => void runAction("replyFollowup", { id: item.id, payload: { response: followupReplies[item.id] } })}>Responder en el hilo</Button>
+                            <Button size="sm" variant="outline" disabled={actionLoading === "resolveFollowup"} onClick={() => void runAction("resolveFollowup", { id: item.id, payload: { resolution: "Resuelto manualmente desde Owner Console" } })}>Marcar resuelto</Button>
+                          </div>
+                        </div>
+                      ))}
+                      {!selectedBot.emailFollowups.length && <p className="rounded-md border border-dashed p-6 text-center text-xs text-muted-foreground">No hay compromisos de correo pendientes.</p>}
+                    </div>
+                  </div>
+                )}
                 <div className="rounded-lg border border-border/60 p-4">
                   <p className="flex items-center gap-2 text-sm font-medium"><UserRound className="h-4 w-4 text-primary" /> Intervención humana</p>
                   <p className="mt-1 text-xs text-muted-foreground">Toma una conversación para que el bot deje de responder temporalmente.</p>

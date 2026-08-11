@@ -45,12 +45,13 @@ interface BotHealth {
   shadows: Array<{ id: string; channel: string; conversation_id: string; proposed_response: string; decision: string; reviewed: boolean; correct_response: string | null; created_at: string }>;
   channelTests: Array<{ id: string; channel: string; status: string; challenge: string; destination: string; results: Record<string, boolean>; error: string | null; started_at: string }>;
   conversations: Array<{ channel: "whatsapp" | "email"; id: string; contact: string; subject: string | null; updatedAt: string }>;
+  emailFollowups: Array<{ id: string; thread_id: string; recipient: string; subject: string; task_type: string; title: string; notes: string | null; status: string; draft_reply: string | null; owner_note: string | null; created_at: string; updated_at: string }>;
   severity: "ok" | "warn" | "down" | "unknown";
   statusLabel: string;
   checkedAt: string;
 }
 
-const FETCH_TIMEOUT_MS = 6000;
+const FETCH_TIMEOUT_MS = 15_000;
 
 export const Route = createFileRoute("/api/bot-health")({
   server: {
@@ -94,6 +95,8 @@ export const Route = createFileRoute("/api/bot-health")({
           else if (command.action === "channelTest") path = `/api/${slug}/operations/channel-tests/${command.channel === "email" ? "email" : "whatsapp"}`;
           else if (command.action === "take" || command.action === "return") path = `/api/${slug}/operations/conversations/${command.channel === "email" ? "email" : "whatsapp"}/${encodeURIComponent(command.conversationId)}/${command.action}`;
           else if (command.action === "reviewShadow") path = `/api/${slug}/operations/shadows/${encodeURIComponent(command.id)}/review`;
+          else if (command.action === "replyFollowup") path = `/api/${slug}/operations/email-followups/${encodeURIComponent(command.id)}/reply`;
+          else if (command.action === "resolveFollowup") path = `/api/${slug}/operations/email-followups/${encodeURIComponent(command.id)}/resolve`;
           else if (command.action === "recoveryDrill") path = `/api/${slug}/operations/recovery-drill`;
           else if (command.action === "export") { path = `/api/${slug}/operations/export`; method = "GET"; }
           else return Response.json({ error: "Acción desconocida." }, { status: 400 });
@@ -209,6 +212,7 @@ async function checkBot(
     shadows: [],
     channelTests: [],
     conversations: [],
+    emailFollowups: [],
     severity: "unknown",
     statusLabel: "Sin desplegar",
     checkedAt: new Date().toISOString(),
@@ -261,6 +265,7 @@ async function checkBot(
         base.shadows = Array.isArray(d?.shadows) ? d.shadows : [];
         base.channelTests = Array.isArray(d?.channelTests) ? d.channelTests : [];
         base.conversations = Array.isArray(d?.conversations) ? d.conversations : [];
+        base.emailFollowups = Array.isArray(d?.emailFollowups) ? d.emailFollowups : [];
       }
     } catch {
       /* telemetría no disponible en versiones antiguas */

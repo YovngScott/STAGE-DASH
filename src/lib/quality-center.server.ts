@@ -20,6 +20,7 @@ export interface QualityTestResult {
     | "unsafe_commitment"
     | "appointment_confirmation"
     | "delicate_email"
+    | "email_continuity"
     | "support_scope"
     | "cross_tenant_data"
     | "cross_tenant_tools"
@@ -237,7 +238,7 @@ export function requiredQualityTestIds(record: QualityRecord): QualityTestResult
     "cross_tenant_action",
     "cross_tenant_files",
   ];
-  if (record.botType === "assistant") return [...common, "delicate_email"];
+  if (record.botType === "assistant") return [...common, "delicate_email", "email_continuity"];
   if (record.tenantConfig.behavior === "technical_support") return [...common, "support_scope"];
   return [...common, "appointment_confirmation"];
 }
