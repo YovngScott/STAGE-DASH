@@ -133,6 +133,14 @@ const defaultDraft = {
   contacto: "",
   moneda: "USD",
   zonaHoraria: "America/Santo_Domingo",
+  businessDays: [1, 2, 3, 4, 5] as number[],
+  businessStart: "09:00",
+  businessEnd: "18:00",
+  quietStart: "20:00",
+  quietEnd: "08:00",
+  holidays: [] as string[],
+  appointmentReminderTime: "09:00",
+  dailyReportTime: "20:00",
   cotizaPorChat: true,
   behavior: "sales" as BotBehavior,
   companyInfo: "",
@@ -160,6 +168,16 @@ const defaultDraft = {
   asistenteEnviarAutomatico: false,
   asistenteProveedor: "gmail" as ProveedorCorreo,
 };
+
+const scheduleDays = [
+  { value: 1, label: ["Lun", "Mon"] as const },
+  { value: 2, label: ["Mar", "Tue"] as const },
+  { value: 3, label: ["Mié", "Wed"] as const },
+  { value: 4, label: ["Jue", "Thu"] as const },
+  { value: 5, label: ["Vie", "Fri"] as const },
+  { value: 6, label: ["Sáb", "Sat"] as const },
+  { value: 0, label: ["Dom", "Sun"] as const },
+];
 
 type ProveedorCorreo = "gmail" | "microsoft" | "imap";
 
@@ -303,6 +321,7 @@ function BotBuilder() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [draft, setDraft] = useState(defaultDraft);
+  const [holidayDraft, setHolidayDraft] = useState("");
   const [result, setResult] = useState<BuildResult | null>(null);
 
   useEffect(() => {
@@ -526,6 +545,17 @@ function BotBuilder() {
             contacto: draft.contacto || selectedClient.phone || "",
             moneda: draft.moneda,
             zonaHoraria: draft.zonaHoraria,
+            schedule: {
+              businessDays: draft.businessDays,
+              businessStart: draft.businessStart,
+              businessEnd: draft.businessEnd,
+              quietStart: draft.quietStart,
+              quietEnd: draft.quietEnd,
+              holidays: draft.holidays,
+              appointmentReminderTime: draft.appointmentReminderTime,
+              dailyReportTime:
+                draft.botType === "assistant" ? draft.asistenteHoraReporte : draft.dailyReportTime,
+            },
             // El catálogo ya no se captura aquí: el cliente lo carga desde su
             // propio dashboard (pestaña Archivos), que es donde puede mantenerlo.
             servicios: [],
@@ -1017,6 +1047,91 @@ function BotBuilder() {
                 }
               />
             </Field>
+            <div className="space-y-4 rounded-lg border border-border/60 p-4 md:col-span-2">
+              <div>
+                <Label>{text("Calendario operativo", "Operating calendar")}</Label>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {text(
+                    "Controla reportes, recordatorios y mensajes proactivos. Las consultas entrantes siguen siendo atendidas.",
+                    "Controls reports, reminders, and proactive messages. Incoming questions are still handled.",
+                  )}
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label>{text("Días laborables", "Business days")}</Label>
+                <div className="flex flex-wrap gap-2">
+                  {scheduleDays.map((day) => {
+                    const selected = draft.businessDays.includes(day.value);
+                    return (
+                      <Button
+                        key={day.value}
+                        type="button"
+                        size="sm"
+                        variant={selected ? "default" : "outline"}
+                        onClick={() =>
+                          setDraft((current) => ({
+                            ...current,
+                            businessDays: selected
+                              ? current.businessDays.filter((value) => value !== day.value)
+                              : [...current.businessDays, day.value],
+                          }))
+                        }
+                      >
+                        {text(day.label[0], day.label[1])}
+                      </Button>
+                    );
+                  })}
+                </div>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <Field label={text("Abre", "Opens")}>
+                  <Input type="time" value={draft.businessStart} onChange={(event) => setDraft((current) => ({ ...current, businessStart: event.target.value }))} />
+                </Field>
+                <Field label={text("Cierra", "Closes")}>
+                  <Input type="time" value={draft.businessEnd} onChange={(event) => setDraft((current) => ({ ...current, businessEnd: event.target.value }))} />
+                </Field>
+                <Field label={text("Silencio desde", "Quiet from")}>
+                  <Input type="time" value={draft.quietStart} onChange={(event) => setDraft((current) => ({ ...current, quietStart: event.target.value }))} />
+                </Field>
+                <Field label={text("Silencio hasta", "Quiet until")}>
+                  <Input type="time" value={draft.quietEnd} onChange={(event) => setDraft((current) => ({ ...current, quietEnd: event.target.value }))} />
+                </Field>
+                <Field label={text("Recordar citas", "Appointment reminders")}>
+                  <Input type="time" value={draft.appointmentReminderTime} onChange={(event) => setDraft((current) => ({ ...current, appointmentReminderTime: event.target.value }))} />
+                </Field>
+                {draft.botType !== "assistant" && (
+                  <Field label={text("Reporte diario", "Daily report")}>
+                    <Input type="time" value={draft.dailyReportTime} onChange={(event) => setDraft((current) => ({ ...current, dailyReportTime: event.target.value }))} />
+                  </Field>
+                )}
+              </div>
+              <div className="space-y-2">
+                <Label>{text("Feriados y cierres", "Holidays and closures")}</Label>
+                <div className="flex flex-wrap gap-2">
+                  <Input type="date" className="w-48" value={holidayDraft} onChange={(event) => setHolidayDraft(event.target.value)} />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={!holidayDraft || draft.holidays.includes(holidayDraft)}
+                    onClick={() => {
+                      setDraft((current) => ({ ...current, holidays: [...current.holidays, holidayDraft].sort() }));
+                      setHolidayDraft("");
+                    }}
+                  >
+                    {text("Agregar cierre", "Add closure")}
+                  </Button>
+                </div>
+                {draft.holidays.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {draft.holidays.map((date) => (
+                      <Button key={date} type="button" size="sm" variant="secondary" onClick={() => setDraft((current) => ({ ...current, holidays: current.holidays.filter((value) => value !== date) }))}>
+                        {date} ×
+                      </Button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
             {muestra("direccion") && (
               <Field label={text("Dirección", "Address")}>
                 <Input

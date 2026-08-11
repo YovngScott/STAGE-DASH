@@ -71,6 +71,16 @@ export interface TenantConfigDraft {
   servicios: string[];
   moneda: string;
   zonaHoraria: string;
+  schedule: {
+    businessDays: number[];
+    businessStart: string;
+    businessEnd: string;
+    quietStart: string;
+    quietEnd: string;
+    holidays: string[];
+    appointmentReminderTime: string;
+    dailyReportTime: string;
+  };
   adminEmails: string[];
   behavior?: BotBehavior;
   companyInfo?: string;

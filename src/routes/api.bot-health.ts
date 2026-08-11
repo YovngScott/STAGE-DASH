@@ -80,17 +80,18 @@ export const Route = createFileRoute("/api/bot-health")({
         const url = new URL(request.url);
         const retrySlug = url.searchParams.get("retrySlug")?.trim();
         const failureId = url.searchParams.get("failureId")?.trim();
+        const failureAction = url.searchParams.get("failureAction") === "resolve" ? "resolve" : "retry";
         if (retrySlug && failureId) {
           const bot = bots.find((item) => item.slug === retrySlug);
           const host = deriveHost(bot?.bot_status_url ?? null);
           if (!bot || !host || !secret) return Response.json({ error: "No se puede contactar ese bot." }, { status: 400 });
-          const retry = await fetch(`${host}/api/${encodeURIComponent(retrySlug)}/operations/failures/${encodeURIComponent(failureId)}/retry`, {
+          const retry = await fetch(`${host}/api/${encodeURIComponent(retrySlug)}/operations/failures/${encodeURIComponent(failureId)}/${failureAction}`, {
             method: "POST",
             headers: { "x-platform-secret": secret },
             signal: AbortSignal.timeout(45_000),
           });
           const payload = await retry.json().catch(() => null);
-          if (!retry.ok) return Response.json({ error: payload?.error || `El reintento respondió ${retry.status}.` }, { status: retry.status });
+          if (!retry.ok) return Response.json({ error: payload?.error || `La operación respondió ${retry.status}.` }, { status: retry.status });
           return Response.json({ ok: true });
         }
 

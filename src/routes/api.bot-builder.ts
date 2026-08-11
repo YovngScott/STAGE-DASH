@@ -44,6 +44,16 @@ interface BotBuilderRequest {
     contacto?: string;
     moneda?: string;
     zonaHoraria?: string;
+    schedule?: {
+      businessDays?: number[];
+      businessStart?: string;
+      businessEnd?: string;
+      quietStart?: string;
+      quietEnd?: string;
+      holidays?: string[];
+      appointmentReminderTime?: string;
+      dailyReportTime?: string;
+    };
     servicios?: string[];
     behavior?: string;
     companyInfo?: string;
@@ -188,6 +198,15 @@ export const Route = createFileRoute("/api/bot-builder")({
           ? asistente.nombreTitular
           : `${client.company_name} Bot`;
 
+        const validTime = (value: unknown, fallback: string) =>
+          /^([01]\d|2[0-3]):[0-5]\d$/.test(String(value ?? "")) ? String(value) : fallback;
+        const businessDays = Array.isArray(body.tenant.schedule?.businessDays)
+          ? [...new Set(body.tenant.schedule.businessDays.map(Number).filter((day) => Number.isInteger(day) && day >= 0 && day <= 6))]
+          : [1, 2, 3, 4, 5];
+        const holidays = Array.isArray(body.tenant.schedule?.holidays)
+          ? [...new Set(body.tenant.schedule.holidays.map(String).filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date)))].sort()
+          : [];
+
         let tenantConfig: TenantConfigDraft = {
           slug,
           kind: botType,
@@ -203,6 +222,19 @@ export const Route = createFileRoute("/api/bot-builder")({
           servicios: body.tenant.servicios ?? [],
           moneda: body.tenant.moneda?.trim() || "USD",
           zonaHoraria: body.tenant.zonaHoraria?.trim() || "America/Santo_Domingo",
+          schedule: {
+            businessDays,
+            businessStart: validTime(body.tenant.schedule?.businessStart, "09:00"),
+            businessEnd: validTime(body.tenant.schedule?.businessEnd, "18:00"),
+            quietStart: validTime(body.tenant.schedule?.quietStart, "20:00"),
+            quietEnd: validTime(body.tenant.schedule?.quietEnd, "08:00"),
+            holidays,
+            appointmentReminderTime: validTime(body.tenant.schedule?.appointmentReminderTime, "09:00"),
+            dailyReportTime: validTime(
+              body.tenant.schedule?.dailyReportTime,
+              asistente?.horaReporte ?? "20:00",
+            ),
+          },
           // Dashboard users are created explicitly from Client Manager →
           // Access. Do not grant access implicitly from a contact email.
           adminEmails: [],

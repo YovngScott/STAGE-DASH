@@ -190,6 +190,21 @@ function HealthPage() {
     }
   };
 
+  const resolveFailure = async (slug: string, id: string) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(
+        `/api/bot-health?retrySlug=${encodeURIComponent(slug)}&failureId=${encodeURIComponent(id)}&failureAction=resolve`,
+        { method: "POST", headers: { Authorization: `Bearer ${session?.access_token ?? ""}` } },
+      );
+      const body = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(body?.error || "No se pudo resolver la operación.");
+      await load(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo resolver la operación.");
+    }
+  };
+
   const toggleBot = async (bot: BotHealth, activo: boolean) => {
     setToggling(bot.botId);
     setError(null);
@@ -396,14 +411,14 @@ function HealthPage() {
                     {failure.status}
                   </p>
                 </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={failure.status === "intervention"}
-                  onClick={() => void retryFailure(bot.slug, failure.id)}
-                >
-                  {failure.status === "intervention" ? "Intervención requerida" : "Reintentar"}
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button size="sm" variant="outline" onClick={() => void retryFailure(bot.slug, failure.id)}>
+                    {failure.status === "intervention" ? "Reintentar manualmente" : "Reintentar"}
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => void resolveFailure(bot.slug, failure.id)}>
+                    Marcar resuelto
+                  </Button>
+                </div>
               </div>
             ))}
           </div>
