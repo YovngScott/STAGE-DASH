@@ -39,6 +39,12 @@ interface BotHealth {
   tokens24h: number;
   abnormalCost: boolean;
   failures: Array<{ id: string; source: string; operation: string; message: string; status: string; attempts: number; maxAttempts: number; updatedAt: string }>;
+  runtime: { mode: "shadow" | "limited" | "live" | "paused"; autoSendPercentage: number; monthlyMessages: number; monthlyEmails: number; monthlyTokens: number; monthlyCostUsd: number } | null;
+  usage: Array<{ channel: string; messages: number; emails: number; input_tokens: number; output_tokens: number; estimated_cost_usd: number }>;
+  handoffs: Array<{ channel: string; conversation_id: string; taken_by: string; reason: string; taken_at: string }>;
+  shadows: Array<{ id: string; channel: string; conversation_id: string; proposed_response: string; decision: string; reviewed: boolean; correct_response: string | null; created_at: string }>;
+  channelTests: Array<{ id: string; channel: string; status: string; challenge: string; destination: string; results: Record<string, boolean>; error: string | null; started_at: string }>;
+  conversations: Array<{ channel: "whatsapp" | "email"; id: string; contact: string; subject: string | null; updatedAt: string }>;
   severity: "ok" | "warn" | "down" | "unknown";
   statusLabel: string;
   checkedAt: string;
@@ -76,6 +82,30 @@ export const Route = createFileRoute("/api/bot-health")({
           .select("id,name,slug,kind,status,bot_status_url,client_id");
         if (botsError) return Response.json({ error: botsError.message }, { status: 500 });
         const bots = (botsData ?? []) as BotRow[];
+        const command = await request.json().catch(() => null) as any;
+        if (command?.action && command?.slug) {
+          const bot = bots.find((item) => item.slug === command.slug);
+          const host = deriveHost(bot?.bot_status_url ?? null);
+          if (!bot || !host || !secret) return Response.json({ error: "No se puede contactar ese bot." }, { status: 400 });
+          const slug = encodeURIComponent(command.slug);
+          let path = "";
+          let method = "POST";
+          if (command.action === "runtime") path = `/api/${slug}/operations/runtime`;
+          else if (command.action === "channelTest") path = `/api/${slug}/operations/channel-tests/${command.channel === "email" ? "email" : "whatsapp"}`;
+          else if (command.action === "take" || command.action === "return") path = `/api/${slug}/operations/conversations/${command.channel === "email" ? "email" : "whatsapp"}/${encodeURIComponent(command.conversationId)}/${command.action}`;
+          else if (command.action === "reviewShadow") path = `/api/${slug}/operations/shadows/${encodeURIComponent(command.id)}/review`;
+          else if (command.action === "recoveryDrill") path = `/api/${slug}/operations/recovery-drill`;
+          else if (command.action === "export") { path = `/api/${slug}/operations/export`; method = "GET"; }
+          else return Response.json({ error: "Acción desconocida." }, { status: 400 });
+          const upstream = await fetch(`${host}${path}`, {
+            method,
+            headers: { "x-platform-secret": secret, "content-type": "application/json" },
+            ...(method === "GET" ? {} : { body: JSON.stringify(command.payload ?? {}) }),
+            signal: AbortSignal.timeout(90_000),
+          });
+          const payload = await upstream.json().catch(() => null);
+          return Response.json(payload ?? { ok: upstream.ok }, { status: upstream.status });
+        }
 
         const url = new URL(request.url);
         const retrySlug = url.searchParams.get("retrySlug")?.trim();
@@ -173,6 +203,12 @@ async function checkBot(
     tokens24h: 0,
     abnormalCost: false,
     failures: [],
+    runtime: null,
+    usage: [],
+    handoffs: [],
+    shadows: [],
+    channelTests: [],
+    conversations: [],
     severity: "unknown",
     statusLabel: "Sin desplegar",
     checkedAt: new Date().toISOString(),
@@ -219,6 +255,12 @@ async function checkBot(
         base.tokens24h = Number(d?.tokens24h ?? 0);
         base.abnormalCost = Boolean(d?.abnormalCost);
         base.failures = Array.isArray(d?.failures) ? d.failures : [];
+        base.runtime = d?.runtime ?? null;
+        base.usage = Array.isArray(d?.usage) ? d.usage : [];
+        base.handoffs = Array.isArray(d?.handoffs) ? d.handoffs : [];
+        base.shadows = Array.isArray(d?.shadows) ? d.shadows : [];
+        base.channelTests = Array.isArray(d?.channelTests) ? d.channelTests : [];
+        base.conversations = Array.isArray(d?.conversations) ? d.conversations : [];
       }
     } catch {
       /* telemetría no disponible en versiones antiguas */

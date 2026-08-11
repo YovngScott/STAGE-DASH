@@ -4,11 +4,16 @@ import {
   Activity,
   AlertTriangle,
   Bell,
+  Bot,
   CheckCircle2,
+  DatabaseBackup,
+  Download,
+  FlaskConical,
   Loader2,
   Power,
   RefreshCw,
   ServerCrash,
+  UserRound,
   Wifi,
   WifiOff,
 } from "lucide-react";
@@ -63,6 +68,12 @@ interface BotHealth {
     maxAttempts: number;
     updatedAt: string;
   }>;
+  runtime: { mode: "shadow" | "limited" | "live" | "paused"; autoSendPercentage: number; monthlyMessages: number; monthlyEmails: number; monthlyTokens: number; monthlyCostUsd: number } | null;
+  usage: Array<{ channel: string; messages: number; emails: number; input_tokens: number; output_tokens: number; estimated_cost_usd: number }>;
+  handoffs: Array<{ channel: string; conversation_id: string; taken_by: string; reason: string; taken_at: string }>;
+  shadows: Array<{ id: string; channel: string; conversation_id: string; proposed_response: string; decision: string; reviewed: boolean; correct_response: string | null; created_at: string }>;
+  channelTests: Array<{ id: string; channel: string; status: string; challenge: string; destination: string; results: Record<string, boolean>; error: string | null; started_at: string }>;
+  conversations: Array<{ channel: "whatsapp" | "email"; id: string; contact: string; subject: string | null; updatedAt: string }>;
   severity: Severity;
   statusLabel: string;
   checkedAt: string;
@@ -110,6 +121,10 @@ function HealthPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [toggling, setToggling] = useState<string | null>(null);
+  const [selectedSlug, setSelectedSlug] = useState("");
+  const [emailTestDestination, setEmailTestDestination] = useState("");
+  const [whatsappTestDestination, setWhatsappTestDestination] = useState("");
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
   const knownAlertIds = useRef<Set<string>>(new Set());
 
   const load = useCallback(async (silent = false) => {
@@ -158,6 +173,7 @@ function HealthPage() {
   }, [load]);
 
   const bots = data?.bots ?? [];
+  const selectedBot = bots.find((bot) => bot.slug === selectedSlug) ?? bots[0] ?? null;
   const summary = data?.summary;
   const activeAlerts = useMemo(() => (data?.alerts ?? []).filter((a) => !a.resolved_at), [data]);
   const failures = useMemo(
@@ -228,6 +244,41 @@ function HealthPage() {
     } finally {
       setToggling(null);
     }
+  };
+
+  const runAction = async (action: string, extra: Record<string, unknown> = {}) => {
+    if (!selectedBot) return null;
+    setActionLoading(action);
+    setError(null);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch("/api/bot-health", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session?.access_token ?? ""}`, "content-type": "application/json" },
+        body: JSON.stringify({ action, slug: selectedBot.slug, ...extra }),
+      });
+      const body = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(body?.error || `La acción respondió ${res.status}.`);
+      if (action !== "export") await load(true);
+      return body;
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo completar la acción.");
+      return null;
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const exportBot = async () => {
+    const body = await runAction("export");
+    if (!body || !selectedBot) return;
+    const blob = new Blob([JSON.stringify(body, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `stage-${selectedBot.slug}-${new Date().toISOString().slice(0, 10)}.json`;
+    anchor.click();
+    URL.revokeObjectURL(url);
   };
 
   if (loading && !data) {
@@ -382,6 +433,122 @@ function HealthPage() {
           </Table>
         )}
       </Card>
+
+      {selectedBot && (
+        <Card className="overflow-hidden">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 px-5 py-4">
+            <div>
+              <h3 className="flex items-center gap-2 text-sm font-semibold">
+                <Bot className="h-4 w-4 text-primary" /> Control de producción
+              </h3>
+              <p className="mt-1 text-xs text-muted-foreground">Modo sombra, pruebas reales, consumo, intervención y recuperación.</p>
+            </div>
+            <select
+              className="h-9 rounded-md border border-border bg-background px-3 text-sm"
+              value={selectedBot.slug}
+              onChange={(event) => setSelectedSlug(event.target.value)}
+            >
+              {bots.map((bot) => <option key={bot.slug} value={bot.slug}>{bot.clientName} · {bot.name}</option>)}
+            </select>
+          </div>
+
+          <div className="grid gap-4 p-5 lg:grid-cols-3">
+            <div className="space-y-4 rounded-lg border border-border/60 p-4">
+              <div>
+                <p className="text-sm font-medium">Envío automático</p>
+                <p className="text-xs text-muted-foreground">Sombra redacta sin enviar; gradual libera un porcentaje estable.</p>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {(["shadow", "limited", "live", "paused"] as const).map((mode) => (
+                  <Button
+                    key={mode}
+                    size="sm"
+                    variant={selectedBot.runtime?.mode === mode ? "default" : "outline"}
+                    disabled={actionLoading === "runtime"}
+                    onClick={() => void runAction("runtime", { payload: { mode, autoSendPercentage: mode === "limited" ? Math.max(10, selectedBot.runtime?.autoSendPercentage ?? 10) : mode === "live" ? 100 : 0 } })}
+                  >
+                    {mode === "shadow" ? "Sombra" : mode === "limited" ? "Gradual" : mode === "live" ? "En vivo" : "Pausado"}
+                  </Button>
+                ))}
+              </div>
+              <div className="rounded-md bg-muted/40 p-3 text-xs">
+                <p><strong>{selectedBot.runtime?.autoSendPercentage ?? 0}%</strong> de envío automático</p>
+                <p className="mt-1 text-muted-foreground">Límites: {selectedBot.runtime?.monthlyMessages ?? 0} mensajes · {selectedBot.runtime?.monthlyEmails ?? 0} correos · ${selectedBot.runtime?.monthlyCostUsd ?? 0}/mes</p>
+              </div>
+              <div className="space-y-1 text-xs text-muted-foreground">
+                {selectedBot.usage.map((usage) => (
+                  <p key={usage.channel}>{usage.channel}: {usage.messages || usage.emails} operaciones · {(usage.input_tokens + usage.output_tokens).toLocaleString()} tokens · ${Number(usage.estimated_cost_usd).toFixed(4)}</p>
+                ))}
+                {!selectedBot.usage.length && <p>Sin consumo registrado este mes.</p>}
+              </div>
+            </div>
+
+            <div className="space-y-4 rounded-lg border border-border/60 p-4">
+              <div>
+                <p className="flex items-center gap-2 text-sm font-medium"><FlaskConical className="h-4 w-4 text-primary" /> Pruebas reales de canal</p>
+                <p className="text-xs text-muted-foreground">Se envía un reto real; la prueba termina cuando el canal recibe y responde el código.</p>
+              </div>
+              <div className="space-y-2">
+                <input className="h-9 w-full rounded-md border border-border bg-background px-3 text-sm" placeholder="Correo de prueba" value={emailTestDestination} onChange={(e) => setEmailTestDestination(e.target.value)} />
+                <Button size="sm" className="w-full" variant="outline" disabled={!emailTestDestination || actionLoading === "channelTest"} onClick={() => void runAction("channelTest", { channel: "email", payload: { destination: emailTestDestination } })}>Probar Gmail real</Button>
+              </div>
+              <div className="space-y-2">
+                <input className="h-9 w-full rounded-md border border-border bg-background px-3 text-sm" placeholder="WhatsApp +1809…" value={whatsappTestDestination} onChange={(e) => setWhatsappTestDestination(e.target.value)} />
+                <Button size="sm" className="w-full" variant="outline" disabled={!whatsappTestDestination || actionLoading === "channelTest"} onClick={() => void runAction("channelTest", { channel: "whatsapp", payload: { destination: whatsappTestDestination } })}>Probar WhatsApp real</Button>
+              </div>
+              <div className="max-h-28 space-y-1 overflow-auto text-xs">
+                {selectedBot.channelTests.slice(0, 5).map((run) => <p key={run.id}><Badge variant={run.status === "passed" ? "secondary" : run.status === "failed" ? "destructive" : "outline"}>{run.status}</Badge> <span className="ml-1 text-muted-foreground">{run.channel} · {run.destination}</span></p>)}
+              </div>
+            </div>
+
+            <div className="space-y-4 rounded-lg border border-border/60 p-4">
+              <div>
+                <p className="flex items-center gap-2 text-sm font-medium"><UserRound className="h-4 w-4 text-primary" /> Intervención humana</p>
+                <p className="text-xs text-muted-foreground">Mientras esté tomada, el bot conserva mensajes pero no responde.</p>
+              </div>
+              <div className="max-h-28 space-y-2 overflow-auto">
+                {selectedBot.handoffs.map((item) => (
+                  <div key={`${item.channel}:${item.conversation_id}`} className="flex items-center justify-between gap-2 rounded-md bg-muted/40 p-2 text-xs">
+                    <span className="truncate">{item.channel} · {item.conversation_id}</span>
+                    <Button size="sm" variant="ghost" onClick={() => void runAction("return", { channel: item.channel, conversationId: item.conversation_id })}>Devolver al bot</Button>
+                  </div>
+                ))}
+                {!selectedBot.handoffs.length && <p className="text-xs text-muted-foreground">Ninguna conversación tomada.</p>}
+              </div>
+              <div className="border-t border-border/60 pt-3">
+                <p className="mb-2 text-xs font-medium">Conversaciones recientes</p>
+                <div className="max-h-32 space-y-2 overflow-auto">
+                  {selectedBot.conversations
+                    .filter((conversation, index, all) => all.findIndex((item) => item.channel === conversation.channel && item.id === conversation.id) === index)
+                    .filter((conversation) => !selectedBot.handoffs.some((handoff) => handoff.channel === conversation.channel && handoff.conversation_id === conversation.id))
+                    .slice(0, 8)
+                    .map((conversation) => (
+                      <div key={`${conversation.channel}:${conversation.id}`} className="flex items-center justify-between gap-2 rounded-md bg-muted/40 p-2 text-xs">
+                        <span className="min-w-0 truncate">{conversation.channel} · {conversation.contact}{conversation.subject ? ` · ${conversation.subject}` : ""}</span>
+                        <Button size="sm" variant="ghost" className="shrink-0" onClick={() => void runAction("take", { channel: conversation.channel, conversationId: conversation.id, payload: { reason: "Tomada desde Owner Console" } })}>Tomar</Button>
+                      </div>
+                    ))}
+                </div>
+              </div>
+              <div className="border-t border-border/60 pt-3">
+                <p className="text-xs font-medium">Respuestas en sombra pendientes: {selectedBot.shadows.filter((item) => !item.reviewed).length}</p>
+                <div className="mt-2 max-h-28 space-y-2 overflow-auto">
+                  {selectedBot.shadows.filter((item) => !item.reviewed).slice(0, 5).map((item) => (
+                    <div key={item.id} className="rounded-md bg-muted/40 p-2 text-xs">
+                      <p className="line-clamp-2 text-muted-foreground">{item.proposed_response}</p>
+                      <Button size="sm" variant="ghost" className="mt-1 h-7" onClick={() => void runAction("reviewShadow", { id: item.id, payload: {} })}>Marcar revisada</Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2 border-t border-border/60 pt-3">
+                <Button size="sm" variant="outline" disabled={actionLoading === "recoveryDrill"} onClick={() => void runAction("recoveryDrill")}><DatabaseBackup className="mr-2 h-3.5 w-3.5" /> Simulacro</Button>
+                <Button size="sm" variant="outline" disabled={actionLoading === "export"} onClick={() => void exportBot()}><Download className="mr-2 h-3.5 w-3.5" /> Exportar</Button>
+              </div>
+            </div>
+          </div>
+        </Card>
+      )}
 
       <Card className="overflow-hidden">
         <div className="border-b border-border/60 px-5 py-3">
