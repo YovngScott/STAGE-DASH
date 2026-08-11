@@ -29,6 +29,7 @@ import { Switch } from "@/components/ui/switch";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { useLanguage } from "@/hooks/use-language";
 
 export const Route = createFileRoute("/bot-builder")({
   component: BotBuilder,
@@ -85,29 +86,36 @@ interface ProvisionJob {
 const botTypes: Record<
   BotType,
   {
-    label: string;
-    description: string;
+    label: readonly [string, string];
+    description: readonly [string, string];
     icon: typeof MessageSquare;
     productCategory: string;
   }
 > = {
   messaging: {
-    label: "Messaging bot",
-    description: "WhatsApp sales and support automation.",
+    label: ["Bot de mensajería", "Messaging bot"],
+    description: [
+      "Automatización de ventas y soporte por WhatsApp.",
+      "WhatsApp sales and support automation.",
+    ],
     icon: MessageSquare,
     productCategory: "messaging",
   },
   assistant: {
-    label: "Assistant bot",
-    description:
+    label: ["Bot asistente", "Assistant bot"],
+    description: [
       "Asistente ejecutivo: tría el correo, redacta borradores y escala lo dudoso por WhatsApp.",
+      "Executive assistant: triages email, drafts replies, and escalates uncertain cases through WhatsApp.",
+    ],
     icon: BrainCircuit,
     productCategory: "virtual_assistant",
   },
   voice: {
-    label: "Voice bot · En desarrollo",
-    description:
+    label: ["Bot de voz · En desarrollo", "Voice bot · In development"],
+    description: [
       "No se publica todavía: primero completaremos llamadas, pruebas y controles de seguridad.",
+      "Not available for publishing yet: calls, testing, and safety controls must be completed first.",
+    ],
     icon: Mic,
     productCategory: "voice",
   },
@@ -120,7 +128,7 @@ const defaultDraft = {
   slug: "",
   nombreBot: "",
   descripcion: "",
-  direccion: "Atencion por WhatsApp",
+  direccion: "Atención por WhatsApp",
   horario: "Lunes a viernes de 9:00 AM a 6:00 PM",
   contacto: "",
   moneda: "USD",
@@ -162,45 +170,80 @@ type ProveedorCorreo = "gmail" | "microsoft" | "imap";
  */
 const proveedoresCorreo: Record<
   ProveedorCorreo,
-  { label: string; description: string; comoConecta: string }
+  {
+    label: readonly [string, string];
+    description: readonly [string, string];
+    comoConecta: readonly [string, string];
+  }
 > = {
   gmail: {
-    label: "Gmail / Google Workspace",
-    description: "Cuentas @gmail.com y dominios en Google Workspace.",
-    comoConecta: "El ejecutivo autoriza con un clic desde su dashboard.",
+    label: ["Gmail / Google Workspace", "Gmail / Google Workspace"],
+    description: [
+      "Cuentas @gmail.com y dominios en Google Workspace.",
+      "@gmail.com accounts and Google Workspace domains.",
+    ],
+    comoConecta: [
+      "El ejecutivo autoriza con un clic desde su panel.",
+      "The executive authorizes access with one click from their dashboard.",
+    ],
   },
   microsoft: {
-    label: "Microsoft / Outlook",
-    description: "Outlook.com, Hotmail, Live y Microsoft 365 corporativo.",
-    comoConecta: "El ejecutivo autoriza con un clic desde su dashboard.",
+    label: ["Microsoft / Outlook", "Microsoft / Outlook"],
+    description: [
+      "Outlook.com, Hotmail, Live y Microsoft 365 corporativo.",
+      "Outlook.com, Hotmail, Live, and business Microsoft 365 accounts.",
+    ],
+    comoConecta: [
+      "El ejecutivo autoriza con un clic desde su panel.",
+      "The executive authorizes access with one click from their dashboard.",
+    ],
   },
   imap: {
-    label: "Correo corporativo (IMAP)",
-    description: "Cualquier dominio propio con IMAP y SMTP.",
-    comoConecta:
-      "El ejecutivo carga los datos de su servidor desde su dashboard; la contraseña se guarda cifrada.",
+    label: ["Correo corporativo (IMAP)", "Business email (IMAP)"],
+    description: [
+      "Cualquier dominio propio con IMAP y SMTP.",
+      "Any custom domain with IMAP and SMTP.",
+    ],
+    comoConecta: [
+      "El ejecutivo carga los datos de su servidor desde su panel; la contraseña se guarda cifrada.",
+      "The executive enters the server details from their dashboard; the password is stored encrypted.",
+    ],
   },
 };
 
-const botBehaviors: Record<BotBehavior, { label: string; description: string; icon: typeof Bot }> =
+const botBehaviors: Record<
+  BotBehavior,
   {
-    sales: {
-      label: "Ventas, agendamiento y fidelización",
-      description: "Capta clientes, coordina reservas y fortalece la relación post-venta.",
-      icon: Bot,
-    },
-    technical_support: {
-      label: "Soporte técnico especializado",
-      description: "Diagnostica, guía paso a paso y escala casos complejos sin vender.",
-      icon: BrainCircuit,
-    },
-    personal_assistant: {
-      label: "Personal assistant",
-      description:
-        "Le quita carga administrativa al ejecutivo: tría su correo, deja borradores listos y solo lo interrumpe con lo que amerita su criterio.",
-      icon: UserRound,
-    },
-  };
+    label: readonly [string, string];
+    description: readonly [string, string];
+    icon: typeof Bot;
+  }
+> = {
+  sales: {
+    label: ["Ventas, agendamiento y fidelización", "Sales, scheduling, and retention"],
+    description: [
+      "Capta clientes, coordina reservas y fortalece la relación postventa.",
+      "Captures leads, coordinates bookings, and strengthens the post-sale relationship.",
+    ],
+    icon: Bot,
+  },
+  technical_support: {
+    label: ["Soporte técnico especializado", "Specialized technical support"],
+    description: [
+      "Diagnostica, guía paso a paso y escala casos complejos sin vender.",
+      "Diagnoses issues, provides step-by-step guidance, and escalates complex cases without selling.",
+    ],
+    icon: BrainCircuit,
+  },
+  personal_assistant: {
+    label: ["Asistente personal", "Personal assistant"],
+    description: [
+      "Le quita carga administrativa al ejecutivo: tría su correo, deja borradores listos y solo lo interrumpe con lo que amerita su criterio.",
+      "Reduces the executive's administrative load: triages email, prepares drafts, and only interrupts when human judgment is needed.",
+    ],
+    icon: UserRound,
+  },
+};
 
 /**
  * Qué campos de "Información del bot" tienen sentido en cada comportamiento.
@@ -219,21 +262,30 @@ const camposPorComportamiento: Record<BotBehavior, CampoInfo[]> = {
 };
 
 /** El bloque de contexto libre cambia de sentido según a quién sirve el bot. */
-const contextoPorComportamiento: Record<BotBehavior, { label: string; placeholder: string }> = {
+const contextoPorComportamiento: Record<
+  BotBehavior,
+  { label: readonly [string, string]; placeholder: readonly [string, string] }
+> = {
   sales: {
-    label: "Información de la empresa",
-    placeholder:
+    label: ["Información de la empresa", "Company information"],
+    placeholder: [
       "Describe a qué se dedica la empresa, sus servicios, políticas, garantías, procesos y cualquier información útil para atender correctamente.",
+      "Describe what the company does, its services, policies, warranties, processes, and any information needed to serve customers correctly.",
+    ],
   },
   technical_support: {
-    label: "Información de la empresa",
-    placeholder:
+    label: ["Información de la empresa", "Company information"],
+    placeholder: [
       "Describe los productos que soporta, fallas frecuentes, políticas de garantía y devolución, y los pasos de diagnóstico habituales.",
+      "Describe supported products, common failures, warranty and return policies, and the usual diagnostic steps.",
+    ],
   },
   personal_assistant: {
-    label: "Contexto del ejecutivo",
-    placeholder:
+    label: ["Contexto del ejecutivo", "Executive context"],
+    placeholder: [
       "¿A quién asiste y a qué se dedica? Qué asuntos son prioritarios para él, con qué remitentes o temas debe tener especial cuidado, y qué puede resolver sin consultarle.",
+      "Who does the bot assist and what do they do? Which matters are high priority, which senders or topics require special care, and what can be resolved without consulting them?",
+    ],
   },
 };
 
@@ -245,12 +297,34 @@ const contextoPorComportamiento: Record<BotBehavior, { label: string; placeholde
  */
 function BotBuilder() {
   const navigate = useNavigate();
+  const { language, text } = useLanguage();
   const [clients, setClients] = useState<Client[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [draft, setDraft] = useState(defaultDraft);
   const [result, setResult] = useState<BuildResult | null>(null);
+
+  useEffect(() => {
+    const addressDefaults = ["Atención por WhatsApp", "WhatsApp support"];
+    const hoursDefaults = [
+      "Lunes a viernes de 9:00 AM a 6:00 PM",
+      "Monday through Friday, 9:00 AM to 6:00 PM",
+    ];
+    setDraft((current) => ({
+      ...current,
+      direccion: addressDefaults.includes(current.direccion)
+        ? language === "es"
+          ? addressDefaults[0]
+          : addressDefaults[1]
+        : current.direccion,
+      horario: hoursDefaults.includes(current.horario)
+        ? language === "es"
+          ? hoursDefaults[0]
+          : hoursDefaults[1]
+        : current.horario,
+    }));
+  }, [language]);
 
   useEffect(() => {
     const load = async () => {
@@ -287,7 +361,11 @@ function BotBuilder() {
           { headers: { authorization: `Bearer ${token}` } },
         );
         const body = await response.json();
-        if (!response.ok) throw new Error(body?.error ?? "No se pudo leer el provisioning.");
+        if (!response.ok)
+          throw new Error(
+            body?.error ??
+              text("No se pudo consultar el despliegue.", "Deployment status could not be loaded."),
+          );
         if (!cancelled) {
           setResult((current) =>
             current
@@ -295,12 +373,25 @@ function BotBuilder() {
               : current,
           );
           if (body.job.state === "complete")
-            toast.success("Bot desplegado. Ya puedes abrir el QR desde Client Manager.");
-          if (body.job.state === "failed") toast.error(body.job.error ?? "El provisioning falló.");
+            toast.success(
+              text(
+                "Bot desplegado. Ya puedes abrir el QR desde Gestión de clientes.",
+                "Bot deployed. You can now open the QR code from Client Manager.",
+              ),
+            );
+          if (body.job.state === "failed")
+            toast.error(body.job.error ?? text("El despliegue falló.", "Deployment failed."));
         }
       } catch (error) {
         if (!cancelled)
-          toast.error(error instanceof Error ? error.message : "No se pudo leer el provisioning.");
+          toast.error(
+            error instanceof Error
+              ? error.message
+              : text(
+                  "No se pudo consultar el despliegue.",
+                  "Deployment status could not be loaded.",
+                ),
+          );
       }
     };
 
@@ -310,7 +401,7 @@ function BotBuilder() {
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [result?.job?.id, result?.job?.state, result?.slug]);
+  }, [result?.job?.id, result?.job?.state, result?.slug, text]);
 
   const selectedClient = clients.find((client) => client.id === draft.clientId);
   const selectedProduct = products.find((product) => product.id === draft.productId);
@@ -374,17 +465,29 @@ function BotBuilder() {
   };
 
   const commitBot = async () => {
-    if (!selectedClient) return toast.error("Choose an existing client first.");
-    if (!slug) return toast.error("The bot needs a valid slug.");
+    if (!selectedClient)
+      return toast.error(
+        text("Primero elige un cliente existente.", "Choose an existing client first."),
+      );
+    if (!slug)
+      return toast.error(text("El bot necesita un slug válido.", "The bot needs a valid slug."));
     // Un asistente sin correo no tiene bandeja que triar: se pide aquí y no
     // se completa nunca a mano en el repositorio.
     if (draft.botType === "assistant") {
       if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(draft.asistenteCorreo.trim())) {
-        return toast.error("Indica el correo que este asistente va a atender.");
+        return toast.error(
+          text(
+            "Indica el correo que este asistente va a atender.",
+            "Enter the email account this assistant will manage.",
+          ),
+        );
       }
       if (draft.asistenteWhatsapp.replace(/\D/g, "").length < 8) {
         return toast.error(
-          "Indica el WhatsApp (con código de país) donde el ejecutivo recibirá las alertas.",
+          text(
+            "Indica el WhatsApp (con código de país) donde el ejecutivo recibirá las alertas.",
+            "Enter the WhatsApp number (including country code) where the executive will receive alerts.",
+          ),
         );
       }
     }
@@ -393,7 +496,13 @@ function BotBuilder() {
     try {
       const { data: sessionData } = await supabase.auth.getSession();
       const token = sessionData.session?.access_token;
-      if (!token) throw new Error("Your session expired. Sign in again.");
+      if (!token)
+        throw new Error(
+          text(
+            "Tu sesión expiró. Inicia sesión nuevamente.",
+            "Your session expired. Sign in again.",
+          ),
+        );
       const res = await fetch("/api/bot-builder", {
         method: "POST",
         headers: {
@@ -447,16 +556,28 @@ function BotBuilder() {
         }),
       });
       const body = await res.json();
-      if (!res.ok) throw new Error(body?.error ?? "The bot could not be created.");
+      if (!res.ok)
+        throw new Error(
+          body?.error ?? text("No se pudo crear el bot.", "The bot could not be created."),
+        );
       if (body?.draft && body?.slug) {
-        toast.success("Borrador guardado. Vamos a probarlo antes de publicar.");
+        toast.success(
+          text(
+            "Borrador guardado. Vamos a probarlo antes de publicar.",
+            "Draft saved. Let's test it before publishing.",
+          ),
+        );
         await navigate({ to: "/quality-center", search: { slug: body.slug } as never });
         return;
       }
       setResult(body as BuildResult);
-      toast.success("Publicación iniciada.");
+      toast.success(text("Publicación iniciada.", "Publishing started."));
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "The bot could not be created.");
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : text("No se pudo crear el bot.", "The bot could not be created."),
+      );
     } finally {
       setSaving(false);
     }
@@ -466,17 +587,22 @@ function BotBuilder() {
     <div className="mx-auto max-w-[1400px] p-6 md:p-8 space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-xs uppercase tracking-widest text-muted-foreground">Bot Factory</p>
-          <h2 className="mt-1 text-2xl font-semibold tracking-tight">Create Client Bot</h2>
+          <p className="text-xs uppercase tracking-widest text-muted-foreground">
+            {text("Fábrica de bots", "Bot Factory")}
+          </p>
+          <h2 className="mt-1 text-2xl font-semibold tracking-tight">
+            {text("Crear bot para cliente", "Create Client Bot")}
+          </h2>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            Elige la función y añade únicamente la información del negocio. Las políticas seguras se
-            aplican en el backend; primero se prueba en borrador y no se crea ninguna máquina hasta
-            que tú lo apruebes.
+            {text(
+              "Elige la función y añade únicamente la información del negocio. Las políticas de seguridad se aplican en el backend; primero se prueba en borrador y no se crea ninguna máquina hasta que tú lo apruebes.",
+              "Choose the function and add only the business information. Safety policies are enforced by the backend; the bot is tested as a draft first, and no machine is created until you approve it.",
+            )}
           </p>
         </div>
         <Button className="gap-2" disabled={saving || loading} onClick={commitBot}>
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Rocket className="h-4 w-4" />}
-          Guardar y probar bot
+          {text("Guardar y probar bot", "Save and test bot")}
         </Button>
       </div>
 
@@ -484,14 +610,22 @@ function BotBuilder() {
         <Card className="border-border/60 p-5">
           <div className="flex items-center gap-2">
             <Bot className="h-4 w-4 text-primary" />
-            <h3 className="text-sm font-semibold">1. Cliente y tipo de bot</h3>
+            <h3 className="text-sm font-semibold">
+              {text("1. Cliente y tipo de bot", "1. Client and bot type")}
+            </h3>
           </div>
           <div className="mt-4">
             <div className="space-y-2 md:max-w-md">
-              <Label>Cliente existente</Label>
+              <Label>{text("Cliente existente", "Existing client")}</Label>
               <Select value={draft.clientId} onValueChange={selectClient}>
                 <SelectTrigger>
-                  <SelectValue placeholder={loading ? "Cargando clientes..." : "Elegir cliente"} />
+                  <SelectValue
+                    placeholder={
+                      loading
+                        ? text("Cargando clientes...", "Loading clients...")
+                        : text("Elegir cliente", "Choose client")
+                    }
+                  />
                 </SelectTrigger>
                 <SelectContent>
                   {clients.map((client) => (
@@ -524,9 +658,9 @@ function BotBuilder() {
                 >
                   <div className="flex items-center gap-2">
                     <Icon className="h-4 w-4" />
-                    <span className="text-sm font-medium">{botTypes[type].label}</span>
+                    <span className="text-sm font-medium">{text(...botTypes[type].label)}</span>
                   </div>
-                  <p className="mt-2 text-xs leading-5">{botTypes[type].description}</p>
+                  <p className="mt-2 text-xs leading-5">{text(...botTypes[type].description)}</p>
                 </button>
               );
             })}
@@ -536,11 +670,15 @@ function BotBuilder() {
         <Card className="border-border/60 p-5">
           <div className="flex items-center gap-2">
             <BrainCircuit className="h-4 w-4 text-primary" />
-            <h3 className="text-sm font-semibold">2. Función del bot</h3>
+            <h3 className="text-sm font-semibold">
+              {text("2. Función del bot", "2. Bot function")}
+            </h3>
           </div>
           <p className="mt-1 text-xs text-muted-foreground">
-            Cada función incluye comportamiento, límites, herramientas autorizadas y reglas de
-            escalamiento predeterminadas.
+            {text(
+              "Cada función incluye comportamiento, límites, herramientas autorizadas y reglas de escalamiento predeterminadas.",
+              "Each function includes default behavior, limits, authorized tools, and escalation rules.",
+            )}
           </p>
           <div className="mt-4 grid gap-3 md:grid-cols-2">
             {availableBehaviors.map((behavior) => {
@@ -560,26 +698,35 @@ function BotBuilder() {
                 >
                   <div className="flex items-center gap-2">
                     <Icon className="h-4 w-4" />
-                    <span className="text-sm font-medium">{botBehaviors[behavior].label}</span>
+                    <span className="text-sm font-medium">
+                      {text(...botBehaviors[behavior].label)}
+                    </span>
                   </div>
-                  <p className="mt-2 text-xs leading-5">{botBehaviors[behavior].description}</p>
+                  <p className="mt-2 text-xs leading-5">
+                    {text(...botBehaviors[behavior].description)}
+                  </p>
                 </button>
               );
             })}
           </div>
           <div className="mt-4 rounded-lg border border-success/20 bg-success/5 p-3 text-xs text-muted-foreground">
-            Incluido automáticamente: protección del prompt y datos privados, bloqueo fuera del
-            negocio, precios solo desde catálogo, acciones delicadas con aprobación humana y
-            validación de herramientas.
+            {text(
+              "Incluido automáticamente: protección del prompt y datos privados, bloqueo fuera del negocio, precios solo desde catálogo, acciones delicadas con aprobación humana y validación de herramientas.",
+              "Included automatically: prompt and private-data protection, out-of-scope blocking, catalog-only pricing, human approval for sensitive actions, and tool validation.",
+            )}
           </div>
           <div className="mt-4 rounded-lg border border-border/60 bg-background/30 p-4">
             <div className="flex items-start gap-3">
               <KeyRound className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
               <div className="min-w-0 flex-1">
-                <h4 className="text-sm font-medium">Clave y modelo de inteligencia artificial</h4>
+                <h4 className="text-sm font-medium">
+                  {text("Clave y modelo de inteligencia artificial", "AI key and model")}
+                </h4>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  GPT-OSS 120B se selecciona automáticamente por precisión, razonamiento y uso
-                  fiable de herramientas.
+                  {text(
+                    "GPT-OSS 120B se selecciona automáticamente por precisión, razonamiento y uso fiable de herramientas.",
+                    "GPT-OSS 120B is selected automatically for accuracy, reasoning, and reliable tool use.",
+                  )}
                 </p>
                 <div className="mt-3 grid gap-3 md:grid-cols-2">
                   <button
@@ -589,10 +736,14 @@ function BotBuilder() {
                     }
                     className={`rounded-lg border p-3 text-left transition-colors ${draft.groqKeyMode === "automatic" ? "border-primary bg-primary/10" : "border-border/60 hover:border-primary/40"}`}
                   >
-                    <span className="text-sm font-medium">Automática · recomendada</span>
+                    <span className="text-sm font-medium">
+                      {text("Automática · recomendada", "Automatic · recommended")}
+                    </span>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      Usa la clave general de Stage. Es la opción correcta para la mayoría de los
-                      clientes.
+                      {text(
+                        "Usa la clave general de Stage. Es la opción correcta para la mayoría de los clientes.",
+                        "Uses the general Stage key. This is the right option for most clients.",
+                      )}
                     </p>
                   </button>
                   <button
@@ -602,10 +753,14 @@ function BotBuilder() {
                     }
                     className={`rounded-lg border p-3 text-left transition-colors ${draft.groqKeyMode === "dedicated" ? "border-primary bg-primary/10" : "border-border/60 hover:border-primary/40"}`}
                   >
-                    <span className="text-sm font-medium">Clave dedicada</span>
+                    <span className="text-sm font-medium">
+                      {text("Clave dedicada", "Dedicated key")}
+                    </span>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      Para clientes grandes que necesitan límites y consumo independientes. La clave
-                      se solicita al publicar.
+                      {text(
+                        "Para clientes grandes que necesitan límites y consumo independientes. La clave se solicita al publicar.",
+                        "For large clients that need independent limits and usage. The key is requested when publishing.",
+                      )}
                     </p>
                   </button>
                 </div>
@@ -618,14 +773,15 @@ function BotBuilder() {
           <Card className="border-primary/40 bg-primary/5 p-5">
             <div className="flex items-center gap-2">
               <Mail className="h-4 w-4 text-primary" />
-              <h3 className="text-sm font-semibold">3. Correo y operación</h3>
+              <h3 className="text-sm font-semibold">
+                {text("3. Correo y operación", "3. Email and operation")}
+              </h3>
             </div>
             <p className="mt-1 text-xs text-muted-foreground">
-              El asistente revisa este correo, descarta lo automatizado (no-reply, boletines, correo
-              masivo) y responde el resto por su cuenta. Lo que debe decidir el titular en persona
-              —temas legales, dinero comprometido, seguridad o conflictos delicados— nunca se envía:
-              le deja el borrador escrito y le avisa por WhatsApp para que solo revise y mande. El
-              ejecutivo autoriza su cuenta con un clic desde su dashboard.
+              {text(
+                "El asistente revisa este correo, descarta lo automatizado (no-reply, boletines y correo masivo) y responde el resto por su cuenta. Lo que debe decidir el titular en persona —temas legales, dinero comprometido, seguridad o conflictos delicados— nunca se envía: deja el borrador escrito y avisa por WhatsApp para que solo tenga que revisarlo y enviarlo. El ejecutivo autoriza su cuenta con un clic desde su panel.",
+                "The assistant checks this inbox, discards automated messages (no-reply, newsletters, and bulk mail), and handles the rest. Matters requiring the owner's personal judgment—legal issues, financial commitments, security, or sensitive conflicts—are never sent automatically: a draft is prepared and the owner is notified through WhatsApp to review and send it. The executive authorizes the account with one click from their dashboard.",
+              )}
             </p>
             <div className="mt-4 grid gap-3 md:grid-cols-3">
               {(Object.keys(proveedoresCorreo) as ProveedorCorreo[]).map((p) => {
@@ -642,18 +798,22 @@ function BotBuilder() {
                         : "border-border/60 bg-card/40 text-muted-foreground hover:border-primary/40 hover:text-foreground")
                     }
                   >
-                    <span className="text-sm font-medium">{proveedoresCorreo[p].label}</span>
-                    <p className="mt-1 text-xs leading-5">{proveedoresCorreo[p].description}</p>
+                    <span className="text-sm font-medium">
+                      {text(...proveedoresCorreo[p].label)}
+                    </span>
+                    <p className="mt-1 text-xs leading-5">
+                      {text(...proveedoresCorreo[p].description)}
+                    </p>
                   </button>
                 );
               })}
             </div>
             <p className="mt-2 text-xs text-muted-foreground">
-              {proveedoresCorreo[draft.asistenteProveedor].comoConecta}
+              {text(...proveedoresCorreo[draft.asistenteProveedor].comoConecta)}
             </p>
 
             <div className="mt-4 grid gap-4 md:grid-cols-2">
-              <Field label="Correo a asistir">
+              <Field label={text("Correo a asistir", "Email account to manage")}>
                 <Input
                   type="email"
                   value={draft.asistenteCorreo}
@@ -663,7 +823,7 @@ function BotBuilder() {
                   placeholder="director@empresa.com"
                 />
               </Field>
-              <Field label="WhatsApp para alertas">
+              <Field label={text("WhatsApp para alertas", "WhatsApp for alerts")}>
                 <Input
                   value={draft.asistenteWhatsapp}
                   onChange={(event) =>
@@ -673,7 +833,7 @@ function BotBuilder() {
                 />
               </Field>
               <Field
-                label={`Exigencia para redactar — ${Math.round(draft.asistenteUmbral * 100)}%`}
+                label={`${text("Exigencia para redactar", "Drafting confidence threshold")} — ${Math.round(draft.asistenteUmbral * 100)}%`}
               >
                 <Input
                   type="range"
@@ -689,12 +849,13 @@ function BotBuilder() {
                   }
                 />
                 <p className="text-xs text-muted-foreground">
-                  Red de seguridad del envío automático: si no entendió el correo por encima de este
-                  nivel, no lo envía — lo deja como borrador para que lo revise el titular. Súbelo
-                  si notas que se envían respuestas flojas; bájalo si escala de más.
+                  {text(
+                    "Red de seguridad del envío automático: si no entendió el correo por encima de este nivel, no lo envía; lo deja como borrador para que lo revise el titular. Súbelo si notas que se envían respuestas flojas; bájalo si escala de más.",
+                    "Automatic-send safety threshold: if the assistant does not understand an email above this level, it will not send it and will leave a draft for the owner. Raise it if weak responses are being sent; lower it if too many messages are escalated.",
+                  )}
                 </p>
               </Field>
-              <Field label="Revisar la bandeja cada">
+              <Field label={text("Revisar la bandeja cada", "Check the inbox every")}>
                 <Select
                   value={String(draft.asistenteIntervalo)}
                   onValueChange={(value) =>
@@ -705,15 +866,17 @@ function BotBuilder() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="5">5 minutos</SelectItem>
-                    <SelectItem value="10">10 minutos — recomendado</SelectItem>
-                    <SelectItem value="15">15 minutos</SelectItem>
-                    <SelectItem value="30">30 minutos</SelectItem>
-                    <SelectItem value="60">1 hora</SelectItem>
+                    <SelectItem value="5">{text("5 minutos", "5 minutes")}</SelectItem>
+                    <SelectItem value="10">
+                      {text("10 minutos — recomendado", "10 minutes — recommended")}
+                    </SelectItem>
+                    <SelectItem value="15">{text("15 minutos", "15 minutes")}</SelectItem>
+                    <SelectItem value="30">{text("30 minutos", "30 minutes")}</SelectItem>
+                    <SelectItem value="60">{text("1 hora", "1 hour")}</SelectItem>
                   </SelectContent>
                 </Select>
               </Field>
-              <Field label="Hora del reporte de fin de día">
+              <Field label={text("Hora del reporte de fin de día", "End-of-day report time")}>
                 <Input
                   type="time"
                   value={draft.asistenteHoraReporte}
@@ -730,17 +893,23 @@ function BotBuilder() {
             <div className="mt-4 rounded-lg border border-border/60 bg-background/40 p-3">
               <div className="flex items-center justify-between gap-4">
                 <div>
-                  <Label>Enviar solo los correos rutinarios</Label>
+                  <Label>
+                    {text(
+                      "Enviar solo los correos rutinarios",
+                      "Automatically send routine emails",
+                    )}
+                  </Label>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Activado: responde y envía por su cuenta lo rutinario (consultas simples,
-                    acuses, agradecimientos, seguimiento), y esos correos salen de la bandeja sin
-                    que el titular los toque. Lo delicado y lo que no entienda nunca se envía: queda
-                    como borrador con aviso. Desactivado: no envía nada, todo queda en borradores.
+                    {text(
+                      "Activado: responde y envía por su cuenta lo rutinario (consultas simples, acuses, agradecimientos y seguimiento). Lo delicado y lo que no entienda nunca se envía: queda como borrador con aviso. Desactivado: no envía nada; todo queda en borradores.",
+                      "On: responds to and sends routine messages automatically (simple questions, acknowledgements, thanks, and follow-ups). Sensitive or unclear messages are never sent and remain as drafts with an alert. Off: nothing is sent; every response remains a draft.",
+                    )}
                   </p>
                   <p className="mt-2 text-xs text-amber-500/90">
-                    Recomendado dejarlo apagado al empezar: que el cliente revise unos días de
-                    borradores y lo encienda cuando la calidad le convenza. Un correo enviado a su
-                    nombre no se puede retirar.
+                    {text(
+                      "Recomendamos dejarlo apagado al empezar: el cliente debe revisar algunos días de borradores y activarlo cuando la calidad le convenza. Un correo enviado a su nombre no se puede retirar.",
+                      "We recommend leaving this off at first: the client should review drafts for a few days and enable it once the quality is satisfactory. An email sent in their name cannot be recalled.",
+                    )}
                   </p>
                 </div>
                 <Switch
@@ -755,10 +924,14 @@ function BotBuilder() {
             <div className="mt-4 rounded-lg border border-border/60 bg-background/40 p-3">
               <div className="flex items-center justify-between gap-4">
                 <div>
-                  <Label>Escribir con el nombre del titular</Label>
+                  <Label>
+                    {text("Escribir con el nombre del titular", "Write in the owner's name")}
+                  </Label>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Activado: redacta en primera persona como el titular, sin mencionar que hay un
-                    asistente. Desactivado: se presenta como asistente que escribe en su nombre.
+                    {text(
+                      "Activado: redacta en primera persona como el titular, sin mencionar que hay un asistente. Desactivado: se presenta como asistente que escribe en su nombre.",
+                      "On: writes in the first person as the owner without mentioning an assistant. Off: identifies itself as an assistant writing on the owner's behalf.",
+                    )}
                   </p>
                 </div>
                 <Switch
@@ -771,7 +944,7 @@ function BotBuilder() {
 
               {draft.asistenteActuaComoTitular && (
                 <div className="mt-3 space-y-2">
-                  <Field label="Nombre con el que firma">
+                  <Field label={text("Nombre con el que firma", "Signature name")}>
                     <Input
                       value={draft.asistenteNombreTitular}
                       onChange={(event) =>
@@ -781,13 +954,16 @@ function BotBuilder() {
                         }))
                       }
                       placeholder={
-                        selectedClient?.company_name ?? "Nombre del titular o de la empresa"
+                        selectedClient?.company_name ??
+                        text("Nombre del titular o de la empresa", "Owner or company name")
                       }
                     />
                   </Field>
                   <p className="text-xs text-muted-foreground">
-                    Con el envío automático activo, estos correos salen a nombre del titular sin que
-                    él los lea antes. Lo delicado sigue quedando como borrador para su revisión.
+                    {text(
+                      "Con el envío automático activo, estos correos salen a nombre del titular sin que él los lea antes. Lo delicado sigue quedando como borrador para su revisión.",
+                      "When automatic sending is enabled, these emails are sent in the owner's name without prior review. Sensitive messages still remain as drafts for review.",
+                    )}
                   </p>
                 </div>
               )}
@@ -799,15 +975,19 @@ function BotBuilder() {
           <div className="flex items-center gap-2">
             <Sparkles className="h-4 w-4 text-primary" />
             <h3 className="text-sm font-semibold">
-              {draft.botType === "assistant" ? "4" : "3"}. Información y personalización
+              {draft.botType === "assistant" ? "4" : "3"}.{" "}
+              {text("Información y personalización", "Information and customization")}
             </h3>
           </div>
           <p className="mt-1 text-xs text-muted-foreground">
-            La identidad técnica, URL, modelo y vínculo con el cliente se generan automáticamente.
+            {text(
+              "La identidad técnica, la URL, el modelo y el vínculo con el cliente se generan automáticamente.",
+              "The technical identity, URL, model, and client relationship are generated automatically.",
+            )}
           </p>
           <div className="mt-4 grid gap-4 md:grid-cols-2">
             {muestra("moneda") && (
-              <Field label="Currency">
+              <Field label={text("Moneda", "Currency")}>
                 <Input
                   value={draft.moneda}
                   onChange={(event) =>
@@ -818,7 +998,7 @@ function BotBuilder() {
               </Field>
             )}
             {muestra("horario") && (
-              <Field label="Hours">
+              <Field label={text("Horario", "Hours")}>
                 <Input
                   value={draft.horario}
                   onChange={(event) =>
@@ -829,7 +1009,7 @@ function BotBuilder() {
             )}
             {/* La zona horaria aplica a todos: agenda, recordatorios y la hora
                   del reporte diario dependen de ella. */}
-            <Field label="Timezone">
+            <Field label={text("Zona horaria", "Timezone")}>
               <Input
                 value={draft.zonaHoraria}
                 onChange={(event) =>
@@ -838,7 +1018,7 @@ function BotBuilder() {
               />
             </Field>
             {muestra("direccion") && (
-              <Field label="Address">
+              <Field label={text("Dirección", "Address")}>
                 <Input
                   value={draft.direccion}
                   onChange={(event) =>
@@ -848,7 +1028,7 @@ function BotBuilder() {
               </Field>
             )}
             {muestra("contacto") && (
-              <Field label="Contact">
+              <Field label={text("Contacto", "Contact")}>
                 <Input
                   value={draft.contacto}
                   onChange={(event) =>
@@ -862,9 +1042,12 @@ function BotBuilder() {
             <div className="mt-4">
               <div className="flex items-center justify-between rounded-lg border border-border/60 p-3">
                 <div>
-                  <Label>Can quote by chat</Label>
+                  <Label>{text("Puede cotizar por chat", "Can quote by chat")}</Label>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Turn off for businesses that quote only after inspection.
+                    {text(
+                      "Desactívalo para negocios que solo cotizan después de una inspección.",
+                      "Turn this off for businesses that quote only after an inspection.",
+                    )}
                   </p>
                 </div>
                 <Switch
@@ -877,35 +1060,46 @@ function BotBuilder() {
             </div>
           )}
           <div className="mt-4 space-y-2">
-            <Label>{contexto.label}</Label>
+            <Label>{text(...contexto.label)}</Label>
             <Textarea
               rows={5}
               value={draft.companyInfo}
               onChange={(event) =>
                 setDraft((current) => ({ ...current, companyInfo: event.target.value }))
               }
-              placeholder={contexto.placeholder}
+              placeholder={text(...contexto.placeholder)}
             />
           </div>
           <div className="mt-4 space-y-2">
-            <Label>Personalización: restricciones y comportamiento</Label>
+            <Label>
+              {text(
+                "Personalización: restricciones y comportamiento",
+                "Customization: restrictions and behavior",
+              )}
+            </Label>
             <Textarea
               rows={4}
               value={draft.extraPrompt}
               onChange={(event) =>
                 setDraft((current) => ({ ...current, extraPrompt: event.target.value }))
               }
-              placeholder="Ej.: qué debe escalar, tono preferido, excepciones autorizadas y límites particulares. Las reglas de seguridad base no se pueden eliminar."
+              placeholder={text(
+                "Ej.: qué debe escalar, tono preferido, excepciones autorizadas y límites particulares. Las reglas de seguridad base no se pueden eliminar.",
+                "Example: what to escalate, preferred tone, authorized exceptions, and client-specific limits. Base safety rules cannot be removed.",
+              )}
             />
             <p className="text-xs text-muted-foreground">
-              Este campo complementa la función predeterminada; no sustituye las políticas internas
-              de seguridad.
+              {text(
+                "Este campo complementa la función predeterminada; no sustituye las políticas internas de seguridad.",
+                "This field supplements the default function; it does not replace internal safety policies.",
+              )}
             </p>
           </div>
           <div className="mt-4 rounded-lg border border-primary/20 bg-primary/5 p-3 text-xs text-muted-foreground">
-            Siguiente paso: se guarda un borrador y se abre el Centro de Calidad. Allí probarás
-            respuestas, decisiones, herramientas e infraestructura antes de habilitar “Crear y
-            publicar bot”.
+            {text(
+              "Siguiente paso: se guarda un borrador y se abre el Centro de Calidad. Allí probarás respuestas, decisiones, herramientas e infraestructura antes de habilitar “Crear y publicar bot”.",
+              "Next step: a draft is saved and the Quality Center opens. There you will test responses, decisions, tools, and infrastructure before enabling “Create and publish bot.”",
+            )}
           </div>
         </Card>
 
@@ -914,7 +1108,9 @@ function BotBuilder() {
             <div className="flex items-center gap-2 text-success">
               <Check className="h-4 w-4" />
               <h3 className="text-sm font-semibold">
-                {result.job?.state === "complete" ? "Bot desplegado" : "Desplegando bot"}
+                {result.job?.state === "complete"
+                  ? text("Bot desplegado", "Bot deployed")
+                  : text("Desplegando bot", "Deploying bot")}
               </h3>
             </div>
             <div className="mt-4 space-y-3 text-sm">
@@ -926,29 +1122,39 @@ function BotBuilder() {
                   </div>
                   <Progress className="mt-3 h-2" value={result.job.progress} />
                   <p className="mt-2 text-xs text-muted-foreground">
-                    Fly app: {result.job.appName}
+                    {text("Aplicación de Fly", "Fly app")}: {result.job.appName}
                   </p>
                   {result.job.error && (
                     <p className="mt-2 text-xs text-destructive">{result.job.error}</p>
                   )}
                 </div>
               )}
-              <ResultLine label="Tenant file" value={result.tenantPath} />
+              <ResultLine
+                label={text("Archivo del cliente", "Tenant file")}
+                value={result.tenantPath}
+              />
               <ResultLine label="Bot URL" value={result.botStatusUrl} />
               {result.job?.state === "complete" && (
                 <p className="rounded-md border border-warning/40 bg-warning/5 p-3 text-xs text-muted-foreground">
-                  Falta crear el usuario del cliente en Client Manager → Access → Administrar
-                  usuarios, y luego conectar WhatsApp desde el QR.
+                  {text(
+                    "Falta crear el usuario del cliente en Gestión de clientes → Acceso → Administrar usuarios, y luego conectar WhatsApp desde el QR.",
+                    "Create the client's user in Client Manager → Access → Manage users, then connect WhatsApp using the QR code.",
+                  )}
                 </p>
               )}
               {result.job?.microsoftRedirectUri && (
                 <div className="rounded-md border border-warning/40 bg-warning/5 p-3 text-xs">
                   <p className="font-medium text-foreground">
-                    Antes de que el cliente conecte Outlook: registra este URI en Entra ID
+                    {text(
+                      "Antes de que el cliente conecte Outlook: registra este URI en Entra ID",
+                      "Before the client connects Outlook: register this URI in Entra ID",
+                    )}
                   </p>
                   <p className="mt-1 text-muted-foreground">
-                    Azure → App registrations → Stage AI Labs Asistente → Authentication → Add URI.
-                    Lleva el nombre de la app de este cliente, así que es distinto para cada uno.
+                    {text(
+                      "Azure → Registros de aplicaciones → Stage AI Labs Asistente → Autenticación → Agregar URI. Incluye el nombre de la aplicación de este cliente, por lo que es distinto para cada uno.",
+                      "Azure → App registrations → Stage AI Labs Assistant → Authentication → Add URI. It includes this client's app name, so it is different for every client.",
+                    )}
                   </p>
                   <code className="mt-2 block break-all rounded bg-background/60 p-2 text-[11px] text-foreground">
                     {result.job.microsoftRedirectUri}
@@ -962,7 +1168,7 @@ function BotBuilder() {
                   rel="noreferrer"
                   className="block rounded-md border border-border/60 px-3 py-2 text-center text-xs font-medium text-primary underline-offset-4 hover:underline"
                 >
-                  Open client dashboard
+                  {text("Abrir panel del cliente", "Open client dashboard")}
                 </a>
               )}
               {result.commitUrl && (
@@ -972,7 +1178,7 @@ function BotBuilder() {
                   rel="noreferrer"
                   className="block text-xs text-primary underline-offset-4 hover:underline"
                 >
-                  Open GitHub commit
+                  {text("Abrir cambio en GitHub", "Open GitHub commit")}
                 </a>
               )}
             </div>
