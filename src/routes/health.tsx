@@ -21,6 +21,7 @@ import { KpiCard } from "@/components/kpi-card";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
   TableBody,
@@ -436,15 +437,15 @@ function HealthPage() {
 
       {selectedBot && (
         <Card className="overflow-hidden">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 px-5 py-4">
+          <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border/60 px-5 py-4">
             <div>
               <h3 className="flex items-center gap-2 text-sm font-semibold">
                 <Bot className="h-4 w-4 text-primary" /> Control de producción
               </h3>
-              <p className="mt-1 text-xs text-muted-foreground">Modo sombra, pruebas reales, consumo, intervención y recuperación.</p>
+              <p className="mt-1 text-xs text-muted-foreground">Elige un bot y administra una tarea a la vez.</p>
             </div>
             <select
-              className="h-9 rounded-md border border-border bg-background px-3 text-sm"
+              className="h-10 min-w-[280px] rounded-md border border-border bg-background px-3 text-sm"
               value={selectedBot.slug}
               onChange={(event) => setSelectedSlug(event.target.value)}
             >
@@ -452,13 +453,30 @@ function HealthPage() {
             </select>
           </div>
 
-          <div className="grid gap-4 p-5 lg:grid-cols-3">
-            <div className="space-y-4 rounded-lg border border-border/60 p-4">
-              <div>
-                <p className="text-sm font-medium">Envío automático</p>
-                <p className="text-xs text-muted-foreground">Sombra redacta sin enviar; gradual libera un porcentaje estable.</p>
+          <div className="p-5">
+            <div className="mb-5 flex flex-col gap-4 rounded-xl border border-primary/20 bg-primary/[0.04] p-4 lg:flex-row lg:items-center lg:justify-between">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="font-semibold">{selectedBot.name}</p>
+                  <Badge variant="outline" className={cn(
+                    selectedBot.runtime?.mode === "live" && "border-success/30 bg-success/10 text-success",
+                    selectedBot.runtime?.mode === "shadow" && "border-primary/30 bg-primary/10 text-primary",
+                    selectedBot.runtime?.mode === "paused" && "border-destructive/30 bg-destructive/10 text-destructive",
+                  )}>
+                    {selectedBot.runtime?.mode === "live" ? "En vivo" : selectedBot.runtime?.mode === "limited" ? "Gradual" : selectedBot.runtime?.mode === "paused" ? "Pausado" : "Sombra"}
+                  </Badge>
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {selectedBot.runtime?.mode === "live"
+                    ? "Responde automáticamente a todos los mensajes autorizados."
+                    : selectedBot.runtime?.mode === "limited"
+                      ? `Responde automáticamente al ${selectedBot.runtime?.autoSendPercentage ?? 0}% de las conversaciones.`
+                      : selectedBot.runtime?.mode === "paused"
+                        ? "No procesa respuestas automáticas hasta que lo reactives."
+                        : "Recibe y redacta respuestas para revisar, pero no las envía."}
+                </p>
               </div>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid shrink-0 grid-cols-2 gap-2 sm:grid-cols-4">
                 {(["shadow", "limited", "live", "paused"] as const).map((mode) => (
                   <Button
                     key={mode}
@@ -471,53 +489,34 @@ function HealthPage() {
                   </Button>
                 ))}
               </div>
-              <div className="rounded-md bg-muted/40 p-3 text-xs">
-                <p><strong>{selectedBot.runtime?.autoSendPercentage ?? 0}%</strong> de envío automático</p>
-                <p className="mt-1 text-muted-foreground">Límites: {selectedBot.runtime?.monthlyMessages ?? 0} mensajes · {selectedBot.runtime?.monthlyEmails ?? 0} correos · ${selectedBot.runtime?.monthlyCostUsd ?? 0}/mes</p>
-              </div>
-              <div className="space-y-1 text-xs text-muted-foreground">
-                {selectedBot.usage.map((usage) => (
-                  <p key={usage.channel}>{usage.channel}: {usage.messages || usage.emails} operaciones · {(usage.input_tokens + usage.output_tokens).toLocaleString()} tokens · ${Number(usage.estimated_cost_usd).toFixed(4)}</p>
-                ))}
-                {!selectedBot.usage.length && <p>Sin consumo registrado este mes.</p>}
-              </div>
             </div>
 
-            <div className="space-y-4 rounded-lg border border-border/60 p-4">
-              <div>
-                <p className="flex items-center gap-2 text-sm font-medium"><FlaskConical className="h-4 w-4 text-primary" /> Pruebas reales de canal</p>
-                <p className="text-xs text-muted-foreground">Se envía un reto real; la prueba termina cuando el canal recibe y responde el código.</p>
-              </div>
-              <div className="space-y-2">
-                <input className="h-9 w-full rounded-md border border-border bg-background px-3 text-sm" placeholder="Correo de prueba" value={emailTestDestination} onChange={(e) => setEmailTestDestination(e.target.value)} />
-                <Button size="sm" className="w-full" variant="outline" disabled={!emailTestDestination || actionLoading === "channelTest"} onClick={() => void runAction("channelTest", { channel: "email", payload: { destination: emailTestDestination } })}>Probar Gmail real</Button>
-              </div>
-              <div className="space-y-2">
-                <input className="h-9 w-full rounded-md border border-border bg-background px-3 text-sm" placeholder="WhatsApp +1809…" value={whatsappTestDestination} onChange={(e) => setWhatsappTestDestination(e.target.value)} />
-                <Button size="sm" className="w-full" variant="outline" disabled={!whatsappTestDestination || actionLoading === "channelTest"} onClick={() => void runAction("channelTest", { channel: "whatsapp", payload: { destination: whatsappTestDestination } })}>Probar WhatsApp real</Button>
-              </div>
-              <div className="max-h-28 space-y-1 overflow-auto text-xs">
-                {selectedBot.channelTests.slice(0, 5).map((run) => <p key={run.id}><Badge variant={run.status === "passed" ? "secondary" : run.status === "failed" ? "destructive" : "outline"}>{run.status}</Badge> <span className="ml-1 text-muted-foreground">{run.channel} · {run.destination}</span></p>)}
-              </div>
-            </div>
+            <Tabs defaultValue="conversations" className="space-y-4">
+              <TabsList className="grid h-auto w-full grid-cols-2 bg-muted/50 p-1 md:grid-cols-4">
+                <TabsTrigger value="conversations">Conversaciones</TabsTrigger>
+                <TabsTrigger value="tests">Pruebas de canal</TabsTrigger>
+                <TabsTrigger value="usage">Consumo y límites</TabsTrigger>
+                <TabsTrigger value="recovery">Respaldo</TabsTrigger>
+              </TabsList>
 
-            <div className="space-y-4 rounded-lg border border-border/60 p-4">
-              <div>
-                <p className="flex items-center gap-2 text-sm font-medium"><UserRound className="h-4 w-4 text-primary" /> Intervención humana</p>
-                <p className="text-xs text-muted-foreground">Mientras esté tomada, el bot conserva mensajes pero no responde.</p>
-              </div>
-              <div className="max-h-28 space-y-2 overflow-auto">
-                {selectedBot.handoffs.map((item) => (
-                  <div key={`${item.channel}:${item.conversation_id}`} className="flex items-center justify-between gap-2 rounded-md bg-muted/40 p-2 text-xs">
-                    <span className="truncate">{item.channel} · {item.conversation_id}</span>
-                    <Button size="sm" variant="ghost" onClick={() => void runAction("return", { channel: item.channel, conversationId: item.conversation_id })}>Devolver al bot</Button>
+              <TabsContent value="conversations" className="mt-0 grid gap-4 lg:grid-cols-2">
+                <div className="rounded-lg border border-border/60 p-4">
+                  <p className="flex items-center gap-2 text-sm font-medium"><UserRound className="h-4 w-4 text-primary" /> Intervención humana</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Toma una conversación para que el bot deje de responder temporalmente.</p>
+                  <div className="mt-4 max-h-56 space-y-2 overflow-auto">
+                    {selectedBot.handoffs.map((item) => (
+                      <div key={`${item.channel}:${item.conversation_id}`} className="flex items-center justify-between gap-2 rounded-md bg-muted/40 p-2 text-xs">
+                        <span className="truncate">{item.channel} · {item.conversation_id}</span>
+                        <Button size="sm" variant="ghost" onClick={() => void runAction("return", { channel: item.channel, conversationId: item.conversation_id })}>Devolver al bot</Button>
+                      </div>
+                    ))}
+                    {!selectedBot.handoffs.length && <p className="rounded-md border border-dashed p-6 text-center text-xs text-muted-foreground">Ninguna conversación está bajo control humano.</p>}
                   </div>
-                ))}
-                {!selectedBot.handoffs.length && <p className="text-xs text-muted-foreground">Ninguna conversación tomada.</p>}
-              </div>
-              <div className="border-t border-border/60 pt-3">
-                <p className="mb-2 text-xs font-medium">Conversaciones recientes</p>
-                <div className="max-h-32 space-y-2 overflow-auto">
+                </div>
+                <div className="rounded-lg border border-border/60 p-4">
+                  <p className="text-sm font-medium">Conversaciones recientes</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Selecciona “Tomar” solamente cuando necesites intervenir.</p>
+                  <div className="mt-4 max-h-56 space-y-2 overflow-auto">
                   {selectedBot.conversations
                     .filter((conversation, index, all) => all.findIndex((item) => item.channel === conversation.channel && item.id === conversation.id) === index)
                     .filter((conversation) => !selectedBot.handoffs.some((handoff) => handoff.channel === conversation.channel && handoff.conversation_id === conversation.id))
@@ -528,24 +527,49 @@ function HealthPage() {
                         <Button size="sm" variant="ghost" className="shrink-0" onClick={() => void runAction("take", { channel: conversation.channel, conversationId: conversation.id, payload: { reason: "Tomada desde Owner Console" } })}>Tomar</Button>
                       </div>
                     ))}
+                  </div>
                 </div>
-              </div>
-              <div className="border-t border-border/60 pt-3">
-                <p className="text-xs font-medium">Respuestas en sombra pendientes: {selectedBot.shadows.filter((item) => !item.reviewed).length}</p>
-                <div className="mt-2 max-h-28 space-y-2 overflow-auto">
+                <div className="rounded-lg border border-border/60 p-4 lg:col-span-2">
+                  <p className="text-sm font-medium">Respuestas en sombra <span className="text-muted-foreground">({selectedBot.shadows.filter((item) => !item.reviewed).length} pendientes)</span></p>
+                  <div className="mt-3 grid max-h-48 gap-2 overflow-auto md:grid-cols-2">
                   {selectedBot.shadows.filter((item) => !item.reviewed).slice(0, 5).map((item) => (
                     <div key={item.id} className="rounded-md bg-muted/40 p-2 text-xs">
                       <p className="line-clamp-2 text-muted-foreground">{item.proposed_response}</p>
                       <Button size="sm" variant="ghost" className="mt-1 h-7" onClick={() => void runAction("reviewShadow", { id: item.id, payload: {} })}>Marcar revisada</Button>
                     </div>
                   ))}
+                  {!selectedBot.shadows.some((item) => !item.reviewed) && <p className="text-xs text-muted-foreground">No hay respuestas pendientes de revisión.</p>}
+                  </div>
                 </div>
-              </div>
-              <div className="grid grid-cols-2 gap-2 border-t border-border/60 pt-3">
-                <Button size="sm" variant="outline" disabled={actionLoading === "recoveryDrill"} onClick={() => void runAction("recoveryDrill")}><DatabaseBackup className="mr-2 h-3.5 w-3.5" /> Simulacro</Button>
-                <Button size="sm" variant="outline" disabled={actionLoading === "export"} onClick={() => void exportBot()}><Download className="mr-2 h-3.5 w-3.5" /> Exportar</Button>
-              </div>
-            </div>
+              </TabsContent>
+
+              <TabsContent value="tests" className="mt-0 grid gap-4 lg:grid-cols-[1fr_1fr]">
+                <div className="rounded-lg border border-border/60 p-4">
+                  <p className="flex items-center gap-2 text-sm font-medium"><FlaskConical className="h-4 w-4 text-primary" /> Ejecutar prueba real</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Stage envía un código y confirma que el canal puede recibirlo y responderlo.</p>
+                  <div className="mt-4 grid gap-4 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+                    <div className="space-y-2"><input className="h-9 w-full rounded-md border border-border bg-background px-3 text-sm" placeholder="Correo de prueba" value={emailTestDestination} onChange={(e) => setEmailTestDestination(e.target.value)} /><Button size="sm" className="w-full" variant="outline" disabled={!emailTestDestination || actionLoading === "channelTest"} onClick={() => void runAction("channelTest", { channel: "email", payload: { destination: emailTestDestination } })}>Probar Gmail</Button></div>
+                    <div className="space-y-2"><input className="h-9 w-full rounded-md border border-border bg-background px-3 text-sm" placeholder="WhatsApp +1809…" value={whatsappTestDestination} onChange={(e) => setWhatsappTestDestination(e.target.value)} /><Button size="sm" className="w-full" variant="outline" disabled={!whatsappTestDestination || actionLoading === "channelTest"} onClick={() => void runAction("channelTest", { channel: "whatsapp", payload: { destination: whatsappTestDestination } })}>Probar WhatsApp</Button></div>
+                  </div>
+                </div>
+                <div className="rounded-lg border border-border/60 p-4">
+                  <p className="text-sm font-medium">Resultados recientes</p>
+                  <div className="mt-4 max-h-48 space-y-2 overflow-auto text-xs">
+                    {selectedBot.channelTests.slice(0, 8).map((run) => <div key={run.id} className="flex items-center justify-between rounded-md bg-muted/40 p-2"><span>{run.channel} · {run.destination}</span><Badge variant={run.status === "passed" ? "secondary" : run.status === "failed" ? "destructive" : "outline"}>{run.status}</Badge></div>)}
+                    {!selectedBot.channelTests.length && <p className="rounded-md border border-dashed p-6 text-center text-muted-foreground">Todavía no hay pruebas de canal.</p>}
+                  </div>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="usage" className="mt-0 grid gap-4 lg:grid-cols-2">
+                <div className="rounded-lg border border-border/60 p-4"><p className="text-sm font-medium">Límites mensuales</p><div className="mt-4 grid grid-cols-2 gap-3 text-sm"><div className="rounded-md bg-muted/40 p-3"><p className="text-xs text-muted-foreground">Mensajes</p><p className="mt-1 font-semibold">{selectedBot.runtime?.monthlyMessages?.toLocaleString() ?? 0}</p></div><div className="rounded-md bg-muted/40 p-3"><p className="text-xs text-muted-foreground">Correos</p><p className="mt-1 font-semibold">{selectedBot.runtime?.monthlyEmails?.toLocaleString() ?? 0}</p></div><div className="rounded-md bg-muted/40 p-3"><p className="text-xs text-muted-foreground">Tokens</p><p className="mt-1 font-semibold">{selectedBot.runtime?.monthlyTokens?.toLocaleString() ?? 0}</p></div><div className="rounded-md bg-muted/40 p-3"><p className="text-xs text-muted-foreground">Presupuesto</p><p className="mt-1 font-semibold">${selectedBot.runtime?.monthlyCostUsd ?? 0}</p></div></div></div>
+                <div className="rounded-lg border border-border/60 p-4"><p className="text-sm font-medium">Consumo actual</p><div className="mt-4 space-y-2 text-xs text-muted-foreground">{selectedBot.usage.map((usage) => <div key={usage.channel} className="rounded-md bg-muted/40 p-3"><p className="font-medium capitalize text-foreground">{usage.channel}</p><p className="mt-1">{usage.messages || usage.emails} operaciones · {(usage.input_tokens + usage.output_tokens).toLocaleString()} tokens · ${Number(usage.estimated_cost_usd).toFixed(4)}</p></div>)}{!selectedBot.usage.length && <p className="rounded-md border border-dashed p-6 text-center">Sin consumo registrado este mes.</p>}</div></div>
+              </TabsContent>
+
+              <TabsContent value="recovery" className="mt-0">
+                <div className="rounded-lg border border-border/60 p-4"><p className="text-sm font-medium">Recuperación y exportación</p><p className="mt-1 text-xs text-muted-foreground">Estas acciones no cambian el modo de respuesta del bot.</p><div className="mt-4 flex flex-wrap gap-2"><Button variant="outline" disabled={actionLoading === "recoveryDrill"} onClick={() => void runAction("recoveryDrill")}><DatabaseBackup className="mr-2 h-4 w-4" /> Ejecutar simulacro</Button><Button variant="outline" disabled={actionLoading === "export"} onClick={() => void exportBot()}><Download className="mr-2 h-4 w-4" /> Exportar configuración</Button></div></div>
+              </TabsContent>
+            </Tabs>
           </div>
         </Card>
       )}

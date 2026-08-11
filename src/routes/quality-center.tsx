@@ -26,6 +26,7 @@ import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 
@@ -396,7 +397,9 @@ function QualityCenterPage() {
                 </Button>
               </div>
               {record.groqKeyMode === "dedicated" ? (
-                <div className="mt-4 rounded-lg border border-primary/25 bg-primary/5 p-4">
+                <details className="mt-4 rounded-lg border border-primary/20 bg-primary/[0.03]">
+                  <summary className="cursor-pointer list-none px-4 py-3 text-sm font-medium">Configuración avanzada para publicar</summary>
+                  <div className="border-t border-border/60 p-4">
                   <div className="flex items-start gap-3">
                     <KeyRound className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                     <div className="w-full max-w-xl space-y-2">
@@ -415,10 +418,13 @@ function QualityCenterPage() {
                       </p>
                     </div>
                   </div>
-                </div>
+                  </div>
+                </details>
               ) : null}
               {record.tenantConfig?.whatsapp?.provider === "meta_cloud" ? (
-                <div className="mt-4 rounded-lg border border-primary/25 bg-primary/5 p-4">
+                <details className="mt-4 rounded-lg border border-primary/20 bg-primary/[0.03]">
+                  <summary className="cursor-pointer list-none px-4 py-3 text-sm font-medium">Credenciales avanzadas de WhatsApp</summary>
+                  <div className="border-t border-border/60 p-4">
                   <div className="flex items-start gap-3">
                     <KeyRound className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                     <div className="w-full space-y-3">
@@ -434,7 +440,8 @@ function QualityCenterPage() {
                       <p className="text-xs text-muted-foreground">Webhook: https://stage-{record.slug}-{record.botType}.fly.dev/api/{record.slug}/whatsapp/meta-webhook</p>
                     </div>
                   </div>
-                </div>
+                  </div>
+                </details>
               ) : null}
               <div className="mt-4 grid gap-3 sm:grid-cols-3">
                 <GateStep
@@ -484,7 +491,14 @@ function QualityCenterPage() {
               )}
             </Card>
 
-            <div className="grid gap-6 xl:grid-cols-2">
+            <Tabs defaultValue="manual" className="space-y-4">
+              <TabsList className="grid h-auto w-full grid-cols-3 bg-muted/50 p-1">
+                <TabsTrigger value="manual">1. Prueba manual</TabsTrigger>
+                <TabsTrigger value="automatic">2. Validación automática</TabsTrigger>
+                <TabsTrigger value="history">Versiones y respaldo</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="manual" className="mt-0">
               <Card className="p-5">
                 <div className="flex items-center gap-2">
                   <FlaskConical className="h-4 w-4 text-primary" />
@@ -539,7 +553,9 @@ function QualityCenterPage() {
                   )}
                 </div>
               </Card>
+              </TabsContent>
 
+              <TabsContent value="automatic" className="mt-0">
               <Card className="p-5">
                 <div className="flex items-center justify-between gap-3">
                   <div>
@@ -608,9 +624,10 @@ function QualityCenterPage() {
                   )}
                 </div>
               </Card>
-            </div>
+              </TabsContent>
 
-            <div className="grid gap-6 xl:grid-cols-2">
+              <TabsContent value="history" className="mt-0">
+              <div className="grid gap-6 xl:grid-cols-2">
               <Card className="p-5">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -698,7 +715,9 @@ function QualityCenterPage() {
                   )}
                 </div>
               </Card>
-            </div>
+              </div>
+              </TabsContent>
+            </Tabs>
           </div>
         )}
       </div>
