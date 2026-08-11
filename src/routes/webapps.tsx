@@ -70,6 +70,7 @@ interface WebDeployment {
   id: string; client_id: string; template_id: string; state: string; progress: number; phase: string;
   config: { companyName?: string }; public_url: string | null; error: string | null; previous_release: string | null;
 }
+interface FactoryPlatform { ready: boolean; plan: string | null; projectCount: number; projectLimit: number | null; capacityAvailable: boolean; tokenExpiresAt: string | null; }
 
 const emptyFactory = {
   clientId: "", templateId: "workshop-management", companyName: "", legalName: "", phone: "", email: "",
@@ -109,6 +110,7 @@ function WebApps() {
   const [deployments, setDeployments] = useState<WebDeployment[]>([]);
   const [factory, setFactory] = useState({ ...emptyFactory });
   const [factorySaving, setFactorySaving] = useState(false);
+  const [factoryPlatform, setFactoryPlatform] = useState<FactoryPlatform | null>(null);
 
   const factoryFetch = async (init?: RequestInit) => {
     const { data } = await supabase.auth.getSession();
@@ -136,6 +138,7 @@ function WebApps() {
     else setClients((clientsRes.data ?? []) as Client[]);
     setTemplates((factoryRes.templates ?? []) as WebTemplate[]);
     setDeployments((factoryRes.deployments ?? []) as WebDeployment[]);
+    setFactoryPlatform((factoryRes.platform ?? null) as FactoryPlatform | null);
     setLoading(false);
   };
 
@@ -236,7 +239,7 @@ function WebApps() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-xs uppercase tracking-widest text-muted-foreground">
-            Custom Projects
+            Proyectos personalizados
           </p>
           <h2 className="mt-1 text-2xl font-semibold tracking-tight">
             Aplicaciones web
@@ -250,6 +253,13 @@ function WebApps() {
           <Button className="gap-2" onClick={openFactory}><Copy className="h-4 w-4" /> Replicar para nuevo cliente</Button>
         </div>
       </div>
+
+      {factoryPlatform && !factoryPlatform.capacityAvailable && (
+        <Card className="border-warning/35 bg-warning/5 p-4 text-sm">
+          <p className="font-medium text-warning">Publicación de nuevas réplicas pausada</p>
+          <p className="mt-1 text-muted-foreground">Supabase {factoryPlatform.plan || ""} utiliza {factoryPlatform.projectCount} de {factoryPlatform.projectLimit ?? "—"} proyectos. Puedes diseñar y probar plantillas; Stage no creará recursos hasta que exista capacidad.</p>
+        </Card>
+      )}
 
       {deployments.length > 0 && (
         <div className="grid gap-3 md:grid-cols-2">

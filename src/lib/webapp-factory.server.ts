@@ -60,6 +60,27 @@ export async function listWebAppDeployments() {
   return data ?? [];
 }
 
+export async function getWebAppFactoryStatus() {
+  const token = process.env.STAGE_SUPABASE_MANAGEMENT_TOKEN?.trim();
+  const organizationId = process.env.STAGE_SUPABASE_ORGANIZATION_ID?.trim();
+  const tokenExpiresAt = process.env.STAGE_SUPABASE_TOKEN_EXPIRES_AT || null;
+  if (!token || !organizationId) return { ready: false, plan: null, projectCount: 0, projectLimit: null, capacityAvailable: false, tokenExpiresAt };
+  try {
+    const [organizationResponse, projectsResponse] = await Promise.all([
+      fetch(`https://api.supabase.com/v1/organizations/${organizationId}`, { headers: { authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(10_000) }),
+      fetch("https://api.supabase.com/v1/projects", { headers: { authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(10_000) }),
+    ]);
+    if (!organizationResponse.ok || !projectsResponse.ok) throw new Error("Supabase no respondió.");
+    const organization = await organizationResponse.json();
+    const projects = await projectsResponse.json();
+    const projectCount = Array.isArray(projects) ? projects.filter((project: any) => project.organization_id === organizationId).length : 0;
+    const projectLimit = organization?.plan === "free" ? 2 : null;
+    return { ready: true, plan: organization?.plan || "unknown", projectCount, projectLimit, capacityAvailable: projectLimit === null || projectCount < projectLimit, tokenExpiresAt };
+  } catch {
+    return { ready: false, plan: null, projectCount: 0, projectLimit: null, capacityAvailable: false, tokenExpiresAt };
+  }
+}
+
 export async function startWebAppProvision(input: WebAppFactoryInput) {
   validateInput(input);
   await preflightWebAppFactory(input);

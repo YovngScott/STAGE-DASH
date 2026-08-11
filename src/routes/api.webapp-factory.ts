@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   listWebAppDeployments,
   listWebAppTemplates,
+  getWebAppFactoryStatus,
   rollbackWebAppDeployment,
   startWebAppProvision,
   type WebAppFactoryInput,
@@ -25,8 +26,8 @@ export const Route = createFileRoute("/api/webapp-factory")({
       GET: async ({ request }) => {
         if (!(await owner(request))) return Response.json({ error: "No autorizado." }, { status: 401 });
         try {
-          const [templates, deployments] = await Promise.all([listWebAppTemplates(), listWebAppDeployments()]);
-          return Response.json({ templates, deployments });
+          const [templates, deployments, platform] = await Promise.all([listWebAppTemplates(), listWebAppDeployments(), getWebAppFactoryStatus()]);
+          return Response.json({ templates, deployments, platform });
         } catch (error) {
           return Response.json({ error: error instanceof Error ? error.message : String(error) }, { status: 500 });
         }
