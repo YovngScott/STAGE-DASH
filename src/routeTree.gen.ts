@@ -21,6 +21,7 @@ import { Route as ClientsRouteImport } from './routes/clients'
 import { Route as BotBuilderRouteImport } from './routes/bot-builder'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiWebappFactoryRouteImport } from './routes/api.webapp-factory'
 import { Route as ApiQualityCenterRouteImport } from './routes/api.quality-center'
 import { Route as ApiProvisionStatusRouteImport } from './routes/api.provision-status'
 import { Route as ApiClientAdminUserRouteImport } from './routes/api.client-admin-user'
@@ -90,6 +91,11 @@ const AuthRoute = AuthRouteImport.update({
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiWebappFactoryRoute = ApiWebappFactoryRouteImport.update({
+  id: '/api/webapp-factory',
+  path: '/api/webapp-factory',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiQualityCenterRoute = ApiQualityCenterRouteImport.update({
@@ -166,6 +172,7 @@ export interface FileRoutesByFullPath {
   '/api/client-admin-user': typeof ApiClientAdminUserRoute
   '/api/provision-status': typeof ApiProvisionStatusRoute
   '/api/quality-center': typeof ApiQualityCenterRoute
+  '/api/webapp-factory': typeof ApiWebappFactoryRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -190,6 +197,7 @@ export interface FileRoutesByTo {
   '/api/client-admin-user': typeof ApiClientAdminUserRoute
   '/api/provision-status': typeof ApiProvisionStatusRoute
   '/api/quality-center': typeof ApiQualityCenterRoute
+  '/api/webapp-factory': typeof ApiWebappFactoryRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -215,6 +223,7 @@ export interface FileRoutesById {
   '/api/client-admin-user': typeof ApiClientAdminUserRoute
   '/api/provision-status': typeof ApiProvisionStatusRoute
   '/api/quality-center': typeof ApiQualityCenterRoute
+  '/api/webapp-factory': typeof ApiWebappFactoryRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -241,6 +250,7 @@ export interface FileRouteTypes {
     | '/api/client-admin-user'
     | '/api/provision-status'
     | '/api/quality-center'
+    | '/api/webapp-factory'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -265,6 +275,7 @@ export interface FileRouteTypes {
     | '/api/client-admin-user'
     | '/api/provision-status'
     | '/api/quality-center'
+    | '/api/webapp-factory'
   id:
     | '__root__'
     | '/'
@@ -289,6 +300,7 @@ export interface FileRouteTypes {
     | '/api/client-admin-user'
     | '/api/provision-status'
     | '/api/quality-center'
+    | '/api/webapp-factory'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -314,6 +326,7 @@ export interface RootRouteChildren {
   ApiClientAdminUserRoute: typeof ApiClientAdminUserRoute
   ApiProvisionStatusRoute: typeof ApiProvisionStatusRoute
   ApiQualityCenterRoute: typeof ApiQualityCenterRoute
+  ApiWebappFactoryRoute: typeof ApiWebappFactoryRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -400,6 +413,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/webapp-factory': {
+      id: '/api/webapp-factory'
+      path: '/api/webapp-factory'
+      fullPath: '/api/webapp-factory'
+      preLoaderRoute: typeof ApiWebappFactoryRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/quality-center': {
@@ -498,6 +518,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiClientAdminUserRoute: ApiClientAdminUserRoute,
   ApiProvisionStatusRoute: ApiProvisionStatusRoute,
   ApiQualityCenterRoute: ApiQualityCenterRoute,
+  ApiWebappFactoryRoute: ApiWebappFactoryRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

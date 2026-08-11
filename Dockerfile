@@ -13,7 +13,7 @@ FROM node:24-slim AS runtime
 
 ARG FLYCTL_VERSION=0.4.79
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends ca-certificates curl tar \
+  && apt-get install -y --no-install-recommends ca-certificates curl tar postgresql-client \
   && curl -fsSL "https://github.com/superfly/flyctl/releases/download/v${FLYCTL_VERSION}/flyctl_${FLYCTL_VERSION}_Linux_x86_64.tar.gz" \
     | tar -xz -C /usr/local/bin flyctl \
   && ln -s /usr/local/bin/flyctl /usr/local/bin/fly \
