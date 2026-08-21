@@ -78,11 +78,12 @@ export const Route = createFileRoute("/api/impersonate")({
           }
 
           // 5. Generar enlace de ingreso de un solo uso (magiclink)
+          // Usamos "http://localhost:3000" para que Supabase acepte la redirección por defecto y no falle
           const { data: linkData, error: linkError } = await messagingAdmin.auth.admin.generateLink({
             type: "magiclink",
             email,
             options: {
-              redirectTo: finalRedirectTo,
+              redirectTo: "http://localhost:3000",
             },
           });
 
@@ -90,14 +91,27 @@ export const Route = createFileRoute("/api/impersonate")({
             throw new Error(linkError?.message || "No se pudo generar el enlace de impersonación.");
           }
 
-          // Si por alguna razón el enlace contiene el redirect_to fallback (ej. localhost:3000),
-          // lo reemplazamos manualmente en la query string antes de devolverlo para garantizar que
-          // el navegador del usuario se redirija a producción.
-          let finalLink = linkData.properties.action_link;
-          if (finalLink.includes("redirect_to=http%3A%2F%2Flocalhost%3A3000") || finalLink.includes("redirect_to=http://localhost:3000")) {
-            const urlObj = new URL(finalLink);
-            urlObj.searchParams.set("redirect_to", finalRedirectTo);
-            finalLink = urlObj.toString();
+          const actionLink = linkData.properties.action_link;
+
+          // 6. Hacer petición GET al actionLink con redirección manual para capturar los tokens
+          let finalLink = "";
+          try {
+            const verifyRes = await fetch(actionLink, {
+              method: "GET",
+              redirect: "manual",
+            });
+
+            const locationHeader = verifyRes.headers.get("location");
+            if (locationHeader && locationHeader.includes("#")) {
+              const hashIndex = locationHeader.indexOf("#");
+              const hashFragment = locationHeader.substring(hashIndex);
+              finalLink = `${finalRedirectTo}${hashFragment}`;
+            } else {
+              throw new Error("No se recibió la cabecera de redirección con el token de acceso.");
+            }
+          } catch (verifyErr) {
+            console.error("[Impersonate] Fallo en la verificación en servidor:", verifyErr);
+            throw new Error(`Error en el intercambio de tokens de sesión: ${verifyErr instanceof Error ? verifyErr.message : "Desconocido"}`);
           }
 
           return Response.json({ ok: true, url: finalLink });
