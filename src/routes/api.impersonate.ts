@@ -32,8 +32,8 @@ export const Route = createFileRoute("/api/impersonate")({
         }
 
         try {
-          // 1. Validar que el cliente sea dueño de este tenant
-          await assertClientOwnsTenant(clientId, tenantSlug);
+          // 1. Validar que el cliente sea dueño de este tenant y obtener las URLs
+          const { bot_status_url, dashboard_url } = await assertClientOwnsTenant(clientId, tenantSlug);
 
           // 2. Conectar a la base de mensajería
           const messagingAdmin = getMessagingAdmin();
@@ -66,12 +66,23 @@ export const Route = createFileRoute("/api/impersonate")({
 
           const email = userData.user.email;
 
+          // Construir la URL de redirección final de forma dinámica
+          let finalRedirectTo = redirectTo;
+          if (!finalRedirectTo) {
+            const host = bot_status_url
+              ? deriveHost(bot_status_url)
+              : dashboard_url
+                ? deriveHost(dashboard_url)
+                : "https://wiltech-bot.fly.dev";
+            finalRedirectTo = `${host}/?tenant=${tenantSlug}&api=${host}`;
+          }
+
           // 5. Generar enlace de ingreso de un solo uso (magiclink)
           const { data: linkData, error: linkError } = await messagingAdmin.auth.admin.generateLink({
             type: "magiclink",
             email,
             options: {
-              redirectTo: redirectTo || undefined,
+              redirectTo: finalRedirectTo,
             },
           });
 
@@ -79,7 +90,17 @@ export const Route = createFileRoute("/api/impersonate")({
             throw new Error(linkError?.message || "No se pudo generar el enlace de impersonación.");
           }
 
-          return Response.json({ ok: true, url: linkData.properties.action_link });
+          // Si por alguna razón el enlace contiene el redirect_to fallback (ej. localhost:3000),
+          // lo reemplazamos manualmente en la query string antes de devolverlo para garantizar que
+          // el navegador del usuario se redirija a producción.
+          let finalLink = linkData.properties.action_link;
+          if (finalLink.includes("redirect_to=http%3A%2F%2Flocalhost%3A3000") || finalLink.includes("redirect_to=http://localhost:3000")) {
+            const urlObj = new URL(finalLink);
+            urlObj.searchParams.set("redirect_to", finalRedirectTo);
+            finalLink = urlObj.toString();
+          }
+
+          return Response.json({ ok: true, url: finalLink });
         } catch (error) {
           return Response.json(
             { error: error instanceof Error ? error.message : "Error durante la impersonación." },
@@ -107,24 +128,37 @@ function getMessagingAdmin(): MessagingAdmin {
   return createClient(MESSAGING_SUPABASE_URL, key, { auth: { persistSession: false, autoRefreshToken: false } });
 }
 
+function deriveHost(url: string | null): string {
+  if (!url) return "https://wiltech-bot.fly.dev";
+  try {
+    const parsed = new URL(url);
+    return parsed.origin;
+  } catch {
+    return "https://wiltech-bot.fly.dev";
+  }
+}
+
 async function resolveTenantId(messagingAdmin: MessagingAdmin, tenantSlug: string) {
   const { data, error } = await messagingAdmin.from("tenants").select("id").eq("slug", tenantSlug).maybeSingle();
   if (error || !data?.id) throw new Error(`No existe el tenant ${tenantSlug}.`);
   return data.id as string;
 }
 
-async function assertClientOwnsTenant(clientId: string, tenantSlug: string) {
+async function assertClientOwnsTenant(
+  clientId: string,
+  tenantSlug: string
+): Promise<{ bot_status_url?: string | null; dashboard_url?: string | null }> {
   const [{ data: bot, error: botError }, { data: dashboard, error: dashboardError }] = await Promise.all([
     supabaseAdmin
       .from("client_bots")
-      .select("id")
+      .select("id, bot_status_url")
       .eq("client_id", clientId)
       .eq("slug", tenantSlug)
       .limit(1)
       .maybeSingle(),
     supabaseAdmin
       .from("client_dashboards")
-      .select("id")
+      .select("id, url")
       .eq("client_id", clientId)
       .eq("slug", tenantSlug)
       .limit(1)
@@ -135,4 +169,8 @@ async function assertClientOwnsTenant(clientId: string, tenantSlug: string) {
   if (!bot && !dashboard) {
     throw new Error("El tenant seleccionado no pertenece a este cliente.");
   }
+  return {
+    bot_status_url: bot?.bot_status_url,
+    dashboard_url: dashboard?.url,
+  };
 }

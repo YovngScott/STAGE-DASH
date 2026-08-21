@@ -203,6 +203,10 @@ function Dashboard() {
       const {
         data: { session },
       } = await supabase.auth.getSession();
+      const bot = bots.find((b) => b.slug === slug);
+      const host = bot?.host || "https://wiltech-bot.fly.dev";
+      const dashboardUrl = `${host}/?tenant=${slug}&api=${host}`;
+
       const res = await fetch("/api/impersonate", {
         method: "POST",
         headers: {
@@ -212,6 +216,7 @@ function Dashboard() {
         body: JSON.stringify({
           clientId,
           tenantSlug: slug,
+          redirectTo: dashboardUrl,
         }),
       });
       const data = await res.json().catch(() => null);
