@@ -149,15 +149,7 @@ export const Route = createFileRoute("/api/bot-builder")({
 
         const behavior = normalizeBotBehavior(body.tenant.behavior);
         const botType: BotType = body.botType ?? "messaging";
-        if (botType === "voice") {
-          return Response.json(
-            {
-              error:
-                "El bot de llamadas todavía está en desarrollo y no se puede publicar como si estuviera listo.",
-            },
-            { status: 409 },
-          );
-        }
+
 
         // El asistente se valida en el servidor además del formulario: sin
         // correo no hay bandeja que triar y el bot quedaría inerte.
