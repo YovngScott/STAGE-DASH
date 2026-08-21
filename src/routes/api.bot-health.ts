@@ -22,6 +22,7 @@ interface BotRow {
 
 interface BotHealth {
   botId: string;
+  clientId: string | null;
   name: string;
   slug: string;
   kind: string;
@@ -98,6 +99,7 @@ export const Route = createFileRoute("/api/bot-health")({
           else if (command.action === "replyFollowup") path = `/api/${slug}/operations/email-followups/${encodeURIComponent(command.id)}/reply`;
           else if (command.action === "resolveFollowup") path = `/api/${slug}/operations/email-followups/${encodeURIComponent(command.id)}/resolve`;
           else if (command.action === "recoveryDrill") path = `/api/${slug}/operations/recovery-drill`;
+          else if (command.action === "reconnect-whatsapp") path = `/api/${slug}/config/reconnect-whatsapp`;
           else if (command.action === "export") { path = `/api/${slug}/operations/export`; method = "GET"; }
           else return Response.json({ error: "Acción desconocida." }, { status: 400 });
           const upstream = await fetch(`${host}${path}`, {
@@ -189,6 +191,7 @@ async function checkBot(
 
   const base: BotHealth = {
     botId: bot.id,
+    clientId: bot.client_id,
     name: bot.name ?? slug ?? "Bot",
     slug,
     kind: bot.kind ?? "messaging",
@@ -344,6 +347,7 @@ async function reconcileAlert(r: BotHealth) {
       severity: problem === "down" ? "down" : "warn",
       message: correctedMessage,
     });
+    void sendTelegramNotification(`⚠️ Alerta: ${correctedMessage}`);
   } else if (openTypes.size) {
     // Se recuperó: cierra cualquier alerta abierta.
     await supabaseAdmin
@@ -351,6 +355,27 @@ async function reconcileAlert(r: BotHealth) {
       .update({ resolved_at: new Date().toISOString() })
       .eq("bot_id", r.botId)
       .is("resolved_at", null);
+    void sendTelegramNotification(`✅ Solucionado: El bot de ${r.clientName} (${r.slug}) ha vuelto a la normalidad.`);
+  }
+}
+
+async function sendTelegramNotification(text: string) {
+  const token = process.env.STAGE_TELEGRAM_TOKEN?.trim();
+  const chatId = process.env.STAGE_TELEGRAM_CHAT_ID?.trim();
+  if (!token || !chatId) return;
+  try {
+    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text: `<b>[Stage AI Labs]</b>\n${text}`,
+        parse_mode: "HTML",
+      }),
+      signal: AbortSignal.timeout(10_000),
+    });
+  } catch (error) {
+    console.error("[TelegramAlert] Failed to send telegram notification:", error);
   }
 }
 

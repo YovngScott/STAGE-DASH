@@ -24,6 +24,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiWebappFactoryRouteImport } from './routes/api.webapp-factory'
 import { Route as ApiQualityCenterRouteImport } from './routes/api.quality-center'
 import { Route as ApiProvisionStatusRouteImport } from './routes/api.provision-status'
+import { Route as ApiImpersonateRouteImport } from './routes/api.impersonate'
 import { Route as ApiClientAdminUserRouteImport } from './routes/api.client-admin-user'
 import { Route as ApiBotWhatsappRouteImport } from './routes/api.bot-whatsapp'
 import { Route as ApiBotToggleRouteImport } from './routes/api.bot-toggle'
@@ -108,6 +109,11 @@ const ApiProvisionStatusRoute = ApiProvisionStatusRouteImport.update({
   path: '/api/provision-status',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiImpersonateRoute = ApiImpersonateRouteImport.update({
+  id: '/api/impersonate',
+  path: '/api/impersonate',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiClientAdminUserRoute = ApiClientAdminUserRouteImport.update({
   id: '/api/client-admin-user',
   path: '/api/client-admin-user',
@@ -170,6 +176,7 @@ export interface FileRoutesByFullPath {
   '/api/bot-toggle': typeof ApiBotToggleRoute
   '/api/bot-whatsapp': typeof ApiBotWhatsappRoute
   '/api/client-admin-user': typeof ApiClientAdminUserRoute
+  '/api/impersonate': typeof ApiImpersonateRoute
   '/api/provision-status': typeof ApiProvisionStatusRoute
   '/api/quality-center': typeof ApiQualityCenterRoute
   '/api/webapp-factory': typeof ApiWebappFactoryRoute
@@ -195,6 +202,7 @@ export interface FileRoutesByTo {
   '/api/bot-toggle': typeof ApiBotToggleRoute
   '/api/bot-whatsapp': typeof ApiBotWhatsappRoute
   '/api/client-admin-user': typeof ApiClientAdminUserRoute
+  '/api/impersonate': typeof ApiImpersonateRoute
   '/api/provision-status': typeof ApiProvisionStatusRoute
   '/api/quality-center': typeof ApiQualityCenterRoute
   '/api/webapp-factory': typeof ApiWebappFactoryRoute
@@ -221,6 +229,7 @@ export interface FileRoutesById {
   '/api/bot-toggle': typeof ApiBotToggleRoute
   '/api/bot-whatsapp': typeof ApiBotWhatsappRoute
   '/api/client-admin-user': typeof ApiClientAdminUserRoute
+  '/api/impersonate': typeof ApiImpersonateRoute
   '/api/provision-status': typeof ApiProvisionStatusRoute
   '/api/quality-center': typeof ApiQualityCenterRoute
   '/api/webapp-factory': typeof ApiWebappFactoryRoute
@@ -248,6 +257,7 @@ export interface FileRouteTypes {
     | '/api/bot-toggle'
     | '/api/bot-whatsapp'
     | '/api/client-admin-user'
+    | '/api/impersonate'
     | '/api/provision-status'
     | '/api/quality-center'
     | '/api/webapp-factory'
@@ -273,6 +283,7 @@ export interface FileRouteTypes {
     | '/api/bot-toggle'
     | '/api/bot-whatsapp'
     | '/api/client-admin-user'
+    | '/api/impersonate'
     | '/api/provision-status'
     | '/api/quality-center'
     | '/api/webapp-factory'
@@ -298,6 +309,7 @@ export interface FileRouteTypes {
     | '/api/bot-toggle'
     | '/api/bot-whatsapp'
     | '/api/client-admin-user'
+    | '/api/impersonate'
     | '/api/provision-status'
     | '/api/quality-center'
     | '/api/webapp-factory'
@@ -324,6 +336,7 @@ export interface RootRouteChildren {
   ApiBotToggleRoute: typeof ApiBotToggleRoute
   ApiBotWhatsappRoute: typeof ApiBotWhatsappRoute
   ApiClientAdminUserRoute: typeof ApiClientAdminUserRoute
+  ApiImpersonateRoute: typeof ApiImpersonateRoute
   ApiProvisionStatusRoute: typeof ApiProvisionStatusRoute
   ApiQualityCenterRoute: typeof ApiQualityCenterRoute
   ApiWebappFactoryRoute: typeof ApiWebappFactoryRoute
@@ -436,6 +449,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiProvisionStatusRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/impersonate': {
+      id: '/api/impersonate'
+      path: '/api/impersonate'
+      fullPath: '/api/impersonate'
+      preLoaderRoute: typeof ApiImpersonateRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/client-admin-user': {
       id: '/api/client-admin-user'
       path: '/api/client-admin-user'
@@ -516,6 +536,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiBotToggleRoute: ApiBotToggleRoute,
   ApiBotWhatsappRoute: ApiBotWhatsappRoute,
   ApiClientAdminUserRoute: ApiClientAdminUserRoute,
+  ApiImpersonateRoute: ApiImpersonateRoute,
   ApiProvisionStatusRoute: ApiProvisionStatusRoute,
   ApiQualityCenterRoute: ApiQualityCenterRoute,
   ApiWebappFactoryRoute: ApiWebappFactoryRoute,

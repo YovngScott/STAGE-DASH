@@ -21,6 +21,7 @@ import {
   UsersRound,
   Send,
   FileEdit,
+  Eye,
 } from "lucide-react";
 import {
   Table,
@@ -1436,12 +1437,46 @@ function Clients() {
                             </p>
                           </div>
                           {dashboard.url && (
-                            <Button size="sm" variant="outline" className="shrink-0 gap-2" asChild>
-                              <a href={dashboard.url} target="_blank" rel="noreferrer">
-                                <ExternalLink className="h-4 w-4" />
-                                Abrir dashboard local
-                              </a>
-                            </Button>
+                            <div className="flex gap-2">
+                              <Button size="sm" variant="outline" className="shrink-0 gap-2" asChild>
+                                <a href={dashboard.url} target="_blank" rel="noreferrer">
+                                  <ExternalLink className="h-4 w-4" />
+                                  Abrir
+                                </a>
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="default"
+                                className="shrink-0 gap-1.5"
+                                onClick={async () => {
+                                  try {
+                                    const { data: { session } } = await supabase.auth.getSession();
+                                    const res = await fetch("/api/impersonate", {
+                                      method: "POST",
+                                      headers: {
+                                        Authorization: `Bearer ${session?.access_token ?? ""}`,
+                                        "content-type": "application/json",
+                                      },
+                                      body: JSON.stringify({
+                                        clientId: selectedClient.id,
+                                        tenantSlug: dashboard.slug,
+                                      }),
+                                    });
+                                    const data = await res.json().catch(() => null);
+                                    if (res.ok && data?.url) {
+                                      window.open(data.url, "_blank");
+                                    } else {
+                                      throw new Error(data?.error || "Fallo de impersonación.");
+                                    }
+                                  } catch (e) {
+                                    toast.error(e instanceof Error ? e.message : "Error");
+                                  }
+                                }}
+                              >
+                                <Eye className="h-4 w-4" />
+                                Impersonar
+                              </Button>
+                            </div>
                           )}
                         </div>
                       </ResourceCard>
