@@ -111,10 +111,10 @@ const botTypes: Record<
     productCategory: "virtual_assistant",
   },
   voice: {
-    label: ["Bot de voz · En desarrollo", "Voice bot · In development"],
+    label: ["Bot de voz (Vapi / Retell)", "Voice bot (Vapi / Retell)"],
     description: [
-      "No se publica todavía: primero completaremos llamadas, pruebas y controles de seguridad.",
-      "Not available for publishing yet: calls, testing, and safety controls must be completed first.",
+      "Asistente telefónico en vivo: atiende llamadas, consulta precios y agenda en Google Calendar.",
+      "Live phone assistant: handles calls, checks prices, and books in Google Calendar.",
     ],
     icon: Mic,
     productCategory: "voice",
@@ -688,15 +688,12 @@ function BotBuilder() {
                 <button
                   key={type}
                   type="button"
-                  disabled={type === "voice"}
                   onClick={() => selectBotType(type)}
                   className={
                     "rounded-lg border p-4 text-left transition-colors " +
-                    (type === "voice"
-                      ? "cursor-not-allowed border-border/40 bg-muted/20 text-muted-foreground opacity-60"
-                      : active
-                        ? "border-primary bg-primary/10 text-foreground"
-                        : "border-border/60 bg-card/40 text-muted-foreground hover:border-primary/40 hover:text-foreground")
+                    (active
+                      ? "border-primary bg-primary/10 text-foreground"
+                      : "border-border/60 bg-card/40 text-muted-foreground hover:border-primary/40 hover:text-foreground")
                   }
                 >
                   <div className="flex items-center gap-2">
