@@ -20,7 +20,7 @@ export const Route = createFileRoute("/api/provision-status")({
 
         const jobId = new URL(request.url).searchParams.get("jobId") ?? "";
         if (!jobId) return Response.json({ error: "Falta jobId." }, { status: 400 });
-        const job = getProvisionJob(jobId);
+        const job = await getProvisionJob(jobId);
         if (!job) {
           const slug = new URL(request.url).searchParams.get("slug")?.trim() ?? "";
           if (slug) {
@@ -31,34 +31,73 @@ export const Route = createFileRoute("/api/provision-status")({
               .maybeSingle();
             if (botError) return Response.json({ error: botError.message }, { status: 500 });
             if (bot?.status === "active") {
-              return Response.json({ job: {
-                id: jobId, slug, state: "complete", progress: 100,
-                message: "Bot publicado correctamente.", appName: bot.fly_app_name,
-                botStatusUrl: bot.fly_app_url, dashboardUrl: bot.dashboard_url,
-              } });
+              return Response.json({
+                job: {
+                  id: jobId,
+                  slug,
+                  state: "complete",
+                  progress: 100,
+                  message: "Bot publicado correctamente.",
+                  appName: bot.fly_app_name,
+                  botStatusUrl: bot.fly_app_url,
+                  dashboardUrl: bot.dashboard_url,
+                },
+              });
             }
             if (bot) {
-              return Response.json({ job: {
-                id: jobId, slug, state: "failed", progress: 100,
-                message: "La creación se interrumpió antes de terminar.",
-                error: bot.last_error || "Owner Console se reinició. Puedes pulsar Crear nuevamente: el proceso reutiliza de forma segura lo que ya exista.",
-                appName: bot.fly_app_name, botStatusUrl: bot.fly_app_url,
-                dashboardUrl: bot.dashboard_url,
-              } });
+              return Response.json({
+                job: {
+                  id: jobId,
+                  slug,
+                  state: "failed",
+                  progress: 100,
+                  message: "La creación se interrumpió antes de terminar.",
+                  error: bot.last_error || "Owner Console se reinició.",
+                  appName: bot.fly_app_name,
+                  botStatusUrl: bot.fly_app_url,
+                  dashboardUrl: bot.dashboard_url,
+                },
+              });
             }
           }
           return Response.json({ error: "No se encontró el trabajo de creación." }, { status: 404 });
         }
-        if (job.state === "complete" || job.state === "failed") {
-          const quality = await loadQualityRecord(job.slug).catch(() => null);
+
+        const isDone = job.status === "completed";
+        const isFailed = job.status === "failed";
+        const state = isDone ? "complete" : isFailed ? "failed" : job.status;
+        const progress = isDone ? 100 : isFailed ? 100 : job.status === "running" ? 60 : 15;
+        const lastLog = job.logs[job.logs.length - 1] || "";
+        const phase = lastLog ? lastLog.replace(/^\[[^\]]+\]\s*/, "") : "Procesando...";
+
+        const jobFormatted = {
+          id: job.id,
+          slug: job.tenant_slug,
+          state,
+          progress,
+          phase,
+          logs: job.logs,
+          appName: job.fly_app_name,
+          botStatusUrl: job.fly_app_name
+            ? `https://${job.fly_app_name}.fly.dev/api/${job.tenant_slug}/config/bot-activo`
+            : "",
+          dashboardUrl: job.fly_app_name
+            ? `https://${job.fly_app_name}.fly.dev/?tenant=${job.tenant_slug}&api=https://${job.fly_app_name}.fly.dev`
+            : "",
+          error: isFailed ? lastLog : null,
+        };
+
+        if (isDone || isFailed) {
+          const quality = await loadQualityRecord(job.tenant_slug).catch(() => null);
           if (quality && quality.provisionJobId === job.id) {
-            quality.state = job.state === "complete" ? "active" : "failed";
-            quality.lastError = job.error;
-            if (job.state === "complete") quality.publishedAt = new Date().toISOString();
-            await saveQualityRecord(quality, `Finalizar publicación de ${job.slug}`).catch(() => null);
+            quality.state = isDone ? "active" : "failed";
+            quality.lastError = isFailed ? lastLog : null;
+            if (isDone) quality.publishedAt = new Date().toISOString();
+            await saveQualityRecord(quality, `Finalizar publicación de ${job.tenant_slug}`).catch(() => null);
           }
         }
-        return Response.json({ job });
+
+        return Response.json({ job: jobFormatted });
       },
     },
   },

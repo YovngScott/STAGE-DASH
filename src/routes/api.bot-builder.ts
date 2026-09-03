@@ -3,7 +3,9 @@ import type {} from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import {
+  buildDashboardUrl,
   getActiveProvisionBySlug,
+  makeFlyAppName,
   preflightMetaWhatsApp,
   preflightProvision,
   startProvision,
@@ -271,8 +273,11 @@ export const Route = createFileRoute("/api/bot-builder")({
           return Response.json({ error: "La zona horaria no es válida." }, { status: 400 });
         }
 
-        const activo = getActiveProvisionBySlug(slug);
+        const activo = await getActiveProvisionBySlug(slug);
         if (activo) {
+          const appName = activo.fly_app_name || makeFlyAppName(slug, botType);
+          const botStatusUrl = `https://${appName}.fly.dev/api/${slug}/config/bot-activo`;
+          const dashboardUrl = buildDashboardUrl(slug, appName);
           return Response.json(
             {
               ok: true,
@@ -280,9 +285,16 @@ export const Route = createFileRoute("/api/bot-builder")({
               tenantPath: `backend/config/tenants/${slug}.json`,
               commitUrl: null,
               deployTriggered: false,
-              job: activo,
-              botStatusUrl: activo.botStatusUrl,
-              dashboardUrl: activo.dashboardUrl,
+              job: {
+                id: activo.id,
+                slug,
+                state: activo.status === "completed" ? "complete" : activo.status,
+                appName,
+                botStatusUrl,
+                dashboardUrl,
+              },
+              botStatusUrl,
+              dashboardUrl,
             },
             { status: 202 },
           );
@@ -470,7 +482,7 @@ export const Route = createFileRoute("/api/bot-builder")({
             .eq("id", clientId);
         }
 
-        const job = startProvision({
+        const jobId = await startProvision({
           clientId,
           clientName: client.company_name,
           slug,
@@ -490,8 +502,12 @@ export const Route = createFileRoute("/api/bot-builder")({
               : undefined,
         });
 
+        const appName = makeFlyAppName(slug, botType);
+        const botStatusUrl = `https://${appName}.fly.dev/api/${slug}/config/bot-activo`;
+        const dashboardUrl = buildDashboardUrl(slug, appName);
+
         quality.state = "publishing";
-        quality.provisionJobId = job.id;
+        quality.provisionJobId = jobId;
         quality.lastError = null;
         await saveQualityRecord(quality, `Iniciar publicación aprobada de ${slug}`);
 
@@ -501,12 +517,20 @@ export const Route = createFileRoute("/api/bot-builder")({
             slug,
             tenantPath,
             commitUrl: createdFile.commitUrl,
-            // El JSON queda versionado en GitHub. El job local crea y despliega
-            // su app dedicada; así un bot nuevo nunca reinicia una app ajena.
             deployTriggered: false,
-            job,
-            botStatusUrl: job.botStatusUrl,
-            dashboardUrl: job.dashboardUrl,
+            jobId,
+            job: {
+              id: jobId,
+              slug,
+              state: "queued",
+              progress: 5,
+              phase: "Iniciando aprovisionamiento en la nube...",
+              appName,
+              botStatusUrl,
+              dashboardUrl,
+            },
+            botStatusUrl,
+            dashboardUrl,
           },
           { status: 202 },
         );
