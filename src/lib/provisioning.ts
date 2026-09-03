@@ -130,7 +130,7 @@ export interface RedeployBotInput {
   tenantConfig: TenantConfigDraft;
 }
 
-const FLY_REGION = "mia";
+const FLY_REGION = "dfw";
 
 /**
  * Arranca el proceso de aprovisionamiento en la nube de forma persistente en Supabase.
