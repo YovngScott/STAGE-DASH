@@ -518,13 +518,17 @@ export function readInfrastructure(groqOverride?: string, proveedorCorreo?: Prov
   if (missing.length)
     throw new Error(`Faltan variables locales: ${missing.join(", ")}. Reinicia el Owner Console.`);
 
-  const flyToken =
-    process.env.FLY_API_TOKEN ||
+  let flyToken =
     process.env.STAGE_FLY_API_TOKEN ||
+    process.env.FLY_API_TOKEN ||
     process.env.FLY_ACCESS_TOKEN;
 
-  if (!flyToken) {
-    throw new Error("Falta FLY_API_TOKEN en process.env.");
+  if (!flyToken?.trim()) {
+    throw new Error("Falta STAGE_FLY_API_TOKEN o FLY_API_TOKEN en process.env.");
+  }
+  flyToken = flyToken.trim();
+  if (flyToken.startsWith('"') && flyToken.endsWith('"')) {
+    flyToken = flyToken.slice(1, -1);
   }
 
   return {

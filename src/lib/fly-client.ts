@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Cliente HTTP/REST puro para interactuar con la API de Fly Machines (v1).
  * Docs: https://api.machines.dev/v1
  */
@@ -141,17 +141,21 @@ export interface FlyMachine {
  * Obtiene el token de autenticación de Fly.io de las variables de entorno.
  */
 function getFlyToken(): string {
-  const token =
-    process.env.FLY_API_TOKEN ||
+  let token =
     process.env.STAGE_FLY_API_TOKEN ||
+    process.env.FLY_API_TOKEN ||
     process.env.FLY_ACCESS_TOKEN;
 
   if (!token?.trim()) {
     throw new Error(
-      "Falta el token de autenticación de Fly.io (FLY_API_TOKEN en process.env).",
+      "Falta el token de autenticación de Fly.io (STAGE_FLY_API_TOKEN o FLY_API_TOKEN en process.env).",
     );
   }
-  return token.trim();
+  token = token.trim();
+  if (token.startsWith('"') && token.endsWith('"')) {
+    token = token.slice(1, -1);
+  }
+  return token;
 }
 
 /**
