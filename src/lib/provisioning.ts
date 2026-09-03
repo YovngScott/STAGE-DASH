@@ -347,8 +347,8 @@ async function runProvision(jobId: string, input: ProvisionInput): Promise<void>
             autostop: false,
             autostart: true,
             ports: [
-              { port: 443, handlers: ["tls", "http"], force_https: true },
-              { port: 80, handlers: ["http"] },
+              { port: 443, handlers: ["tls", "http"] },
+              { port: 80, handlers: ["http"], force_https: true },
             ],
             checks: [
               {
