@@ -218,12 +218,18 @@ export function newQualityRecord(
 }
 
 export function mandatoryTestsPassed(record: QualityRecord) {
-  const required = new Set(requiredQualityTestIds(record));
-  return (
-    record.tests.every((test) => test.passed) &&
-    record.tests.every((test) => required.delete(test.id)) &&
-    required.size === 0
+  const requiredIds = requiredQualityTestIds(record);
+  if (!requiredIds.length) return false;
+  if (!record.tests || !record.tests.length) return false;
+
+  const passedIds = new Set(
+    record.tests.filter((test) => test.passed).map((test) => test.id),
   );
+
+  const allRequiredPassed = requiredIds.every((id) => passedIds.has(id));
+  const noneFailed = record.tests.every((test) => test.passed);
+
+  return allRequiredPassed && noneFailed;
 }
 
 export function requiredQualityTestIds(record: QualityRecord): QualityTestResult["id"][] {
