@@ -155,6 +155,28 @@ function QualityCenterPage() {
       setVersions(body.versions ?? []);
       setBackups(body.backups ?? []);
       setCanPublish(Boolean(body.canPublish));
+
+      if (body.record?.provisionJobId) {
+        try {
+          const statusRes = await authFetch(
+            `/api/provision-status?jobId=${encodeURIComponent(body.record.provisionJobId)}&slug=${encodeURIComponent(slug)}`,
+          );
+          if (statusRes?.job) {
+            setJob(statusRes.job);
+            if (statusRes.job.state === "complete" || statusRes.job.state === "failed") {
+              if (body.record.state === "publishing") {
+                const refreshed = await authFetch(`/api/quality-center?slug=${encodeURIComponent(slug)}`);
+                if (refreshed?.record) {
+                  setRecord(refreshed.record);
+                  setCanPublish(Boolean(refreshed.canPublish));
+                }
+              }
+            }
+          }
+        } catch {
+          // Ignorar error puntual de sincronización
+        }
+      }
     },
     [authFetch],
   );
@@ -184,10 +206,69 @@ function QualityCenterPage() {
     }
   }, [job?.logs]);
 
-  // Suscripción Realtime a Supabase (Zero polling)
+  // Suscripción Realtime a Supabase + Sincronización continua de estado (Zero bloqueo)
   useEffect(() => {
     const jobId = job?.id;
     if (!jobId) return;
+
+    let isMounted = true;
+
+    const applyJobUpdate = (data: {
+      id: string;
+      status: string;
+      logs?: string[];
+      fly_app_name?: string | null;
+      tenant_slug?: string;
+    }) => {
+      if (!isMounted) return;
+      const isDone = data.status === "completed" || data.status === "complete";
+      const isFailed = data.status === "failed";
+      const state = isDone ? "complete" : isFailed ? "failed" : data.status;
+      const progress = isDone ? 100 : isFailed ? 100 : data.status === "running" ? 60 : 15;
+      const logsArray = Array.isArray(data.logs) ? data.logs : [];
+      const lastLog = logsArray[logsArray.length - 1] || "";
+      const phase = lastLog ? lastLog.replace(/^\[[^\]]+\]\s*/, "") : "Procesando...";
+
+      setJob((current) => ({
+        id: data.id,
+        state,
+        progress,
+        phase,
+        logs: logsArray.length ? logsArray : (current?.logs || []),
+        appName: data.fly_app_name || current?.appName || "",
+        error: isFailed ? lastLog : undefined,
+        dashboardUrl: data.fly_app_name
+          ? `https://${data.fly_app_name}.fly.dev/?tenant=${data.tenant_slug || record?.slug}&api=https://${data.fly_app_name}.fly.dev`
+          : current?.dashboardUrl,
+      }));
+
+      if (isDone) {
+        toast.success("Bot publicado correctamente en Fly.io.");
+        void load();
+      }
+      if (isFailed) {
+        toast.error(lastLog || "La publicación en Fly.io falló.");
+      }
+    };
+
+    const syncStatus = async () => {
+      try {
+        const res = await authFetch(`/api/provision-status?jobId=${encodeURIComponent(jobId)}`);
+        if (res?.job && isMounted) {
+          applyJobUpdate({
+            id: res.job.id,
+            status: res.job.state,
+            logs: res.job.logs,
+            fly_app_name: res.job.appName,
+            tenant_slug: res.job.slug,
+          });
+        }
+      } catch {
+        // En caso de fallo transitorio en fetch, el canal o siguiente tick resolverán
+      }
+    };
+
+    void syncStatus();
 
     const channel = supabase
       .channel(`qc_job_${jobId}`)
@@ -201,44 +282,25 @@ function QualityCenterPage() {
         },
         (payload) => {
           const row = payload.new as any;
-          if (!row) return;
-
-          const isDone = row.status === "completed";
-          const isFailed = row.status === "failed";
-          const state = isDone ? "complete" : isFailed ? "failed" : row.status;
-          const progress = isDone ? 100 : isFailed ? 100 : row.status === "running" ? 60 : 15;
-          const logsArray = Array.isArray(row.logs) ? (row.logs as string[]) : [];
-          const lastLog = logsArray[logsArray.length - 1] || "";
-          const phase = lastLog ? lastLog.replace(/^\[[^\]]+\]\s*/, "") : "Procesando...";
-
-          setJob({
-            id: row.id,
-            state,
-            progress,
-            phase,
-            logs: logsArray,
-            appName: row.fly_app_name,
-            error: isFailed ? lastLog : undefined,
-            dashboardUrl: row.fly_app_name
-              ? `https://${row.fly_app_name}.fly.dev/?tenant=${row.tenant_slug}&api=https://${row.fly_app_name}.fly.dev`
-              : undefined,
-          });
-
-          if (isDone) {
-            toast.success("Bot publicado correctamente en Fly.io.");
-            void load();
-          }
-          if (isFailed) {
-            toast.error(lastLog || "La publicación en Fly.io falló.");
-          }
+          if (row) applyJobUpdate(row);
         },
       )
       .subscribe();
 
+    const interval = setInterval(() => {
+      if (job?.state === "complete" || job?.state === "failed") {
+        clearInterval(interval);
+        return;
+      }
+      void syncStatus();
+    }, 2500);
+
     return () => {
+      isMounted = false;
+      clearInterval(interval);
       void supabase.removeChannel(channel);
     };
-  }, [job?.id, load]);
+  }, [job?.id, load, authFetch, record?.slug, job?.state]);
 
   const action = async (name: string, extra: Record<string, unknown> = {}) => {
     if (!record) return;
