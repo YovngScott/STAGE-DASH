@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   ArchiveRestore,
@@ -88,6 +88,8 @@ type ProvisionJob = {
   phase: string;
   error?: string;
   dashboardUrl?: string;
+  logs?: string[];
+  appName?: string;
 };
 
 export const Route = createFileRoute("/quality-center")({
@@ -174,25 +176,69 @@ function QualityCenterPage() {
     void load();
   }, [load]);
 
+  const terminalLogsEndRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
-    if (!job || ["complete", "failed"].includes(job.state)) return;
-    const timer = setInterval(async () => {
-      try {
-        const body = await authFetch(
-          `/api/provision-status?jobId=${encodeURIComponent(job.id)}&slug=${encodeURIComponent(record?.slug ?? "")}`,
-        );
-        setJob(body.job);
-        if (body.job.state === "complete") {
-          toast.success("Bot publicado correctamente.");
-          await load();
-        }
-        if (body.job.state === "failed") toast.error(body.job.error || "La publicación falló.");
-      } catch {
-        /* el siguiente ciclo vuelve a comprobar */
-      }
-    }, 2500);
-    return () => clearInterval(timer);
-  }, [authFetch, job, load, record?.slug]);
+    if (job?.logs?.length) {
+      terminalLogsEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [job?.logs]);
+
+  // Suscripción Realtime a Supabase (Zero polling)
+  useEffect(() => {
+    const jobId = job?.id;
+    if (!jobId) return;
+
+    const channel = supabase
+      .channel(`qc_job_${jobId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "provision_jobs",
+          filter: `id=eq.${jobId}`,
+        },
+        (payload) => {
+          const row = payload.new as any;
+          if (!row) return;
+
+          const isDone = row.status === "completed";
+          const isFailed = row.status === "failed";
+          const state = isDone ? "complete" : isFailed ? "failed" : row.status;
+          const progress = isDone ? 100 : isFailed ? 100 : row.status === "running" ? 60 : 15;
+          const logsArray = Array.isArray(row.logs) ? (row.logs as string[]) : [];
+          const lastLog = logsArray[logsArray.length - 1] || "";
+          const phase = lastLog ? lastLog.replace(/^\[[^\]]+\]\s*/, "") : "Procesando...";
+
+          setJob({
+            id: row.id,
+            state,
+            progress,
+            phase,
+            logs: logsArray,
+            appName: row.fly_app_name,
+            error: isFailed ? lastLog : undefined,
+            dashboardUrl: row.fly_app_name
+              ? `https://${row.fly_app_name}.fly.dev/?tenant=${row.tenant_slug}&api=https://${row.fly_app_name}.fly.dev`
+              : undefined,
+          });
+
+          if (isDone) {
+            toast.success("Bot publicado correctamente en Fly.io.");
+            void load();
+          }
+          if (isFailed) {
+            toast.error(lastLog || "La publicación en Fly.io falló.");
+          }
+        },
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [job?.id, load]);
 
   const action = async (name: string, extra: Record<string, unknown> = {}) => {
     if (!record) return;
@@ -331,8 +377,8 @@ function QualityCenterPage() {
       )}
 
       <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
-        <Card className="h-fit overflow-hidden">
-          <div className="border-b border-border/60 px-4 py-3">
+        <Card className="h-fit overflow-hidden border border-zinc-800/60 bg-zinc-950/40 backdrop-blur-md">
+          <div className="border-b border-zinc-800/60 px-4 py-3">
             <p className="text-sm font-semibold">Bots y borradores</p>
             <p className="text-xs text-muted-foreground">{allBots.length} configuraciones</p>
           </div>
@@ -365,7 +411,7 @@ function QualityCenterPage() {
         </Card>
 
         {!record ? (
-          <Card className="flex min-h-[420px] items-center justify-center p-8 text-center">
+          <Card className="flex min-h-[420px] items-center justify-center border border-zinc-800/60 bg-zinc-950/40 p-8 text-center backdrop-blur-md">
             <div>
               <ShieldCheck className="mx-auto h-10 w-10 text-primary" />
               <h3 className="mt-4 font-semibold">Selecciona un bot</h3>
@@ -376,7 +422,7 @@ function QualityCenterPage() {
           </Card>
         ) : (
           <div className="space-y-6">
-            <Card className="p-5">
+            <Card className="border border-zinc-800/60 bg-zinc-950/40 p-6 shadow-sm backdrop-blur-md">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
                   <div className="flex items-center gap-2">
@@ -480,13 +526,89 @@ function QualityCenterPage() {
                 tres etapas.
               </p>
               {job && (
-                <div className="mt-4 rounded-lg border border-primary/20 bg-primary/5 p-4">
-                  <div className="flex justify-between text-xs">
-                    <span>{job.phase}</span>
-                    <span>{job.progress}%</span>
+                <div className="mt-5 overflow-hidden rounded-xl border border-zinc-800/80 bg-black/80 shadow-2xl backdrop-blur-xl">
+                  {/* Header de la Terminal */}
+                  <div className="flex items-center justify-between border-b border-zinc-800/80 bg-zinc-950/90 px-4 py-2.5">
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1.5">
+                        <span className="h-2.5 w-2.5 rounded-full bg-rose-500/80" />
+                        <span className="h-2.5 w-2.5 rounded-full bg-amber-500/80" />
+                        <span className="h-2.5 w-2.5 rounded-full bg-emerald-500/80" />
+                      </div>
+                      <span className="ml-2 font-mono text-[11px] font-medium tracking-wide text-zinc-400">
+                        fly-machines :: {job.appName || record.slug}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {job.state === "running" && (
+                        <span className="flex items-center gap-1.5 font-mono text-[11px] text-emerald-400">
+                          <span className="relative flex h-2 w-2">
+                            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                            <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+                          </span>
+                          desplegando
+                        </span>
+                      )}
+                      {job.state === "queued" && (
+                        <span className="flex items-center gap-1.5 font-mono text-[11px] text-amber-400">
+                          <span className="h-2 w-2 animate-pulse rounded-full bg-amber-400" />
+                          en cola
+                        </span>
+                      )}
+                      {job.state === "complete" && (
+                        <span className="flex items-center gap-1 font-mono text-[11px] text-emerald-400">
+                          <CheckCircle2 className="h-3.5 w-3.5" /> completado
+                        </span>
+                      )}
+                      {job.state === "failed" && (
+                        <span className="flex items-center gap-1 font-mono text-[11px] text-rose-400">
+                          <XCircle className="h-3.5 w-3.5" /> error
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <Progress value={job.progress} className="mt-2 h-2" />
-                  {job.error && <p className="mt-2 text-xs text-destructive">{job.error}</p>}
+
+                  {/* Barra de progreso */}
+                  <div className="border-b border-zinc-800/50 bg-zinc-900/20 px-4 py-2">
+                    <div className="flex items-center justify-between font-mono text-[11px] text-zinc-400">
+                      <span className="truncate">{job.phase}</span>
+                      <span className="font-semibold text-zinc-200">{job.progress}%</span>
+                    </div>
+                    <Progress value={job.progress} className="mt-1.5 h-1 bg-zinc-800/80" />
+                  </div>
+
+                  {/* Terminal Logs Viewport */}
+                  <div className="max-h-56 min-h-[110px] overflow-y-auto p-4 font-mono text-[11px] leading-relaxed">
+                    {(!job.logs || job.logs.length === 0) ? (
+                      <div className="flex items-center gap-2 text-zinc-500">
+                        <Loader2 className="h-3.5 w-3.5 animate-spin text-zinc-400" />
+                        <span>Conectando al stream de Supabase Realtime...</span>
+                      </div>
+                    ) : (
+                      job.logs.map((log, idx) => {
+                        const isErr = log.includes("ERROR");
+                        const isSuccess =
+                          log.includes("éxito") || log.includes("OK") || log.includes("completado");
+                        return (
+                          <div
+                            key={idx}
+                            className={cn(
+                              "flex items-start gap-2 py-0.5",
+                              isErr
+                                ? "text-rose-400 font-medium"
+                                : isSuccess
+                                  ? "text-emerald-300 font-medium"
+                                  : "text-zinc-300",
+                            )}
+                          >
+                            <span className="select-none text-zinc-600">›</span>
+                            <span className="break-all">{log}</span>
+                          </div>
+                        );
+                      })
+                    )}
+                    <div ref={terminalLogsEndRef} />
+                  </div>
                 </div>
               )}
             </Card>

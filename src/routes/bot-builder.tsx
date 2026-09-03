@@ -1,17 +1,20 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Bot,
   BrainCircuit,
   Check,
-  Loader2,
+  CheckCircle2,
   KeyRound,
-  MessageSquare,
+  Loader2,
   Mail,
+  MessageSquare,
   Mic,
   Rocket,
   Sparkles,
+  Terminal,
   UserRound,
+  XCircle,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -81,6 +84,7 @@ interface ProvisionJob {
   dashboardUrl: string;
   botId: string | null;
   microsoftRedirectUri: string | null;
+  logs?: string[];
 }
 
 const botTypes: Record<
@@ -368,63 +372,93 @@ function BotBuilder() {
     void load();
   }, []);
 
+  const terminalEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (result?.job?.logs?.length) {
+      terminalEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [result?.job?.logs]);
+
+  // Suscripción en tiempo real a Supabase Realtime (Cero polling)
   useEffect(() => {
     const jobId = result?.job?.id;
-    const jobState = result?.job?.state;
-    if (!jobId || jobState === "complete" || jobState === "failed") return;
+    if (!jobId) return;
 
-    let cancelled = false;
-    const refresh = async () => {
-      try {
-        const { data: sessionData } = await supabase.auth.getSession();
-        const token = sessionData.session?.access_token;
-        if (!token) return;
-        const response = await fetch(
-          `/api/provision-status?jobId=${encodeURIComponent(jobId)}&slug=${encodeURIComponent(result?.slug ?? "")}`,
-          { headers: { authorization: `Bearer ${token}` } },
-        );
-        const body = await response.json();
-        if (!response.ok)
-          throw new Error(
-            body?.error ??
-              text("No se pudo consultar el despliegue.", "Deployment status could not be loaded."),
-          );
-        if (!cancelled) {
-          setResult((current) =>
-            current
-              ? { ...current, job: body.job as ProvisionJob, botStatusUrl: body.job.botStatusUrl }
-              : current,
-          );
-          if (body.job.state === "complete")
+    const channel = supabase
+      .channel(`bot_builder_job_${jobId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "provision_jobs",
+          filter: `id=eq.${jobId}`,
+        },
+        (payload) => {
+          const row = payload.new as any;
+          if (!row) return;
+
+          const isDone = row.status === "completed";
+          const isFailed = row.status === "failed";
+          const state = isDone ? "complete" : isFailed ? "failed" : (row.status as any);
+          const progress = isDone ? 100 : isFailed ? 100 : row.status === "running" ? 60 : 15;
+          const logsArray = Array.isArray(row.logs) ? (row.logs as string[]) : [];
+          const lastLog = logsArray[logsArray.length - 1] || "";
+          const phase = lastLog ? lastLog.replace(/^\[[^\]]+\]\s*/, "") : "Procesando...";
+
+          setResult((current) => {
+            if (!current) return current;
+            const updatedJob: ProvisionJob = {
+              ...(current.job || {}),
+              id: row.id,
+              state,
+              progress,
+              phase,
+              error: isFailed ? lastLog : null,
+              appName: row.fly_app_name || current.job?.appName || "",
+              clientId: current.job?.clientId || "",
+              slug: row.tenant_slug,
+              botStatusUrl: row.fly_app_name
+                ? `https://${row.fly_app_name}.fly.dev/api/${row.tenant_slug}/config/bot-activo`
+                : current.botStatusUrl,
+              dashboardUrl: row.fly_app_name
+                ? `https://${row.fly_app_name}.fly.dev/?tenant=${row.tenant_slug}&api=https://${row.fly_app_name}.fly.dev`
+                : (current.dashboardUrl || ""),
+              botId: current.job?.botId || null,
+              microsoftRedirectUri: current.job?.microsoftRedirectUri || null,
+              logs: logsArray,
+            };
+
+            return {
+              ...current,
+              job: updatedJob,
+              botStatusUrl: updatedJob.botStatusUrl,
+              dashboardUrl: updatedJob.dashboardUrl,
+            };
+          });
+
+          if (isDone) {
             toast.success(
               text(
-                "Bot desplegado. Ya puedes abrir el QR desde Gestión de clientes.",
-                "Bot deployed. You can now open the QR code from Client Manager.",
+                "Bot desplegado con éxito en Fly.io.",
+                "Bot deployed successfully on Fly.io.",
               ),
             );
-          if (body.job.state === "failed")
-            toast.error(body.job.error ?? text("El despliegue falló.", "Deployment failed."));
-        }
-      } catch (error) {
-        if (!cancelled)
-          toast.error(
-            error instanceof Error
-              ? error.message
-              : text(
-                  "No se pudo consultar el despliegue.",
-                  "Deployment status could not be loaded.",
-                ),
-          );
-      }
-    };
+          }
+          if (isFailed) {
+            toast.error(
+              lastLog || text("El despliegue en Fly.io falló.", "Deployment on Fly.io failed."),
+            );
+          }
+        },
+      )
+      .subscribe();
 
-    void refresh();
-    const timer = window.setInterval(() => void refresh(), 3000);
     return () => {
-      cancelled = true;
-      window.clearInterval(timer);
+      void supabase.removeChannel(channel);
     };
-  }, [result?.job?.id, result?.job?.state, result?.slug, text]);
+  }, [result?.job?.id, text]);
 
   const selectedClient = clients.find((client) => client.id === draft.clientId);
   const selectedProduct = products.find((product) => product.id === draft.productId);
@@ -1252,85 +1286,150 @@ function BotBuilder() {
         </Card>
 
         {result && (
-          <Card className="border-success/40 bg-success/5 p-5">
-            <div className="flex items-center gap-2 text-success">
-              <Check className="h-4 w-4" />
-              <h3 className="text-sm font-semibold">
-                {result.job?.state === "complete"
-                  ? text("Bot desplegado", "Bot deployed")
-                  : text("Desplegando bot", "Deploying bot")}
-              </h3>
-            </div>
-            <div className="mt-4 space-y-3 text-sm">
-              {result.job && (
-                <div className="rounded-lg border border-border/60 bg-background/40 p-3">
-                  <div className="flex items-center justify-between gap-3 text-xs">
-                    <span className="font-medium">{result.job.phase}</span>
-                    <span className="text-muted-foreground">{result.job.progress}%</span>
+          <div className="space-y-4">
+            {/* Terminal de Logs en tiempo real (Supabase Realtime) */}
+            <div className="overflow-hidden rounded-xl border border-zinc-800/80 bg-black/80 shadow-2xl backdrop-blur-xl">
+              <div className="flex items-center justify-between border-b border-zinc-800/80 bg-zinc-950/90 px-4 py-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="flex items-center gap-1.5">
+                    <span className="h-2.5 w-2.5 rounded-full bg-rose-500/80" />
+                    <span className="h-2.5 w-2.5 rounded-full bg-amber-500/80" />
+                    <span className="h-2.5 w-2.5 rounded-full bg-emerald-500/80" />
                   </div>
-                  <Progress className="mt-3 h-2" value={result.job.progress} />
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    {text("Aplicación de Fly", "Fly app")}: {result.job.appName}
-                  </p>
-                  {result.job.error && (
-                    <p className="mt-2 text-xs text-destructive">{result.job.error}</p>
+                  <span className="ml-2 font-mono text-xs text-zinc-400">
+                    fly-machines :: {result.job?.appName || result.slug}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {result.job?.state === "running" && (
+                    <span className="flex items-center gap-1.5 font-mono text-[11px] text-emerald-400">
+                      <span className="relative flex h-2 w-2">
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                        <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+                      </span>
+                      {text("desplegando", "deploying")}
+                    </span>
+                  )}
+                  {result.job?.state === "queued" && (
+                    <span className="flex items-center gap-1.5 font-mono text-[11px] text-amber-400">
+                      <span className="h-2 w-2 animate-pulse rounded-full bg-amber-400" />
+                      {text("en cola", "queued")}
+                    </span>
+                  )}
+                  {result.job?.state === "complete" && (
+                    <span className="flex items-center gap-1 font-mono text-[11px] text-emerald-400">
+                      <CheckCircle2 className="h-3.5 w-3.5" /> {text("completado", "completed")}
+                    </span>
+                  )}
+                  {result.job?.state === "failed" && (
+                    <span className="flex items-center gap-1 font-mono text-[11px] text-rose-400">
+                      <XCircle className="h-3.5 w-3.5" /> {text("error", "error")}
+                    </span>
                   )}
                 </div>
+              </div>
+
+              {/* Barra de progreso */}
+              {result.job && (
+                <div className="border-b border-zinc-800/50 bg-zinc-900/20 px-4 py-2">
+                  <div className="flex items-center justify-between font-mono text-[11px] text-zinc-400">
+                    <span className="truncate">{result.job.phase}</span>
+                    <span className="font-semibold text-zinc-200">{result.job.progress}%</span>
+                  </div>
+                  <Progress className="mt-1.5 h-1 bg-zinc-800/80" value={result.job.progress} />
+                </div>
               )}
-              <ResultLine
-                label={text("Archivo del cliente", "Tenant file")}
-                value={result.tenantPath}
-              />
-              <ResultLine label="Bot URL" value={result.botStatusUrl} />
+
+              {/* Logs Viewport */}
+              <div className="max-h-64 min-h-[120px] overflow-y-auto p-4 font-mono text-[11px] leading-relaxed">
+                {(!result.job?.logs || result.job.logs.length === 0) ? (
+                  <div className="flex items-center gap-2 text-zinc-500">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin text-zinc-400" />
+                    <span>{text("Conectando al stream de Supabase Realtime...", "Connecting to Supabase Realtime stream...")}</span>
+                  </div>
+                ) : (
+                  result.job.logs.map((log, idx) => {
+                    const isErr = log.includes("ERROR");
+                    const isSuccess = log.includes("éxito") || log.includes("OK") || log.includes("completado");
+                    return (
+                      <div
+                        key={idx}
+                        className={
+                          "flex items-start gap-2 py-0.5 " +
+                          (isErr
+                            ? "text-rose-400 font-medium"
+                            : isSuccess
+                              ? "text-emerald-300 font-medium"
+                              : "text-zinc-300")
+                        }
+                      >
+                        <span className="select-none text-zinc-600">›</span>
+                        <span className="break-all">{log}</span>
+                      </div>
+                    );
+                  })
+                )}
+                <div ref={terminalEndRef} />
+              </div>
+            </div>
+
+            {/* Metadatos y Accesos */}
+            <Card className="border border-zinc-800/60 bg-zinc-950/40 p-5 backdrop-blur-md">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <ResultLine
+                  label={text("Archivo del cliente", "Tenant file")}
+                  value={result.tenantPath}
+                />
+                <ResultLine label="Bot URL" value={result.botStatusUrl} />
+              </div>
+
               {result.job?.state === "complete" && (
-                <p className="rounded-md border border-warning/40 bg-warning/5 p-3 text-xs text-muted-foreground">
+                <div className="mt-4 rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-amber-300/90">
                   {text(
                     "Falta crear el usuario del cliente en Gestión de clientes → Acceso → Administrar usuarios, y luego conectar WhatsApp desde el QR.",
                     "Create the client's user in Client Manager → Access → Manage users, then connect WhatsApp using the QR code.",
                   )}
-                </p>
+                </div>
               )}
+
               {result.job?.microsoftRedirectUri && (
-                <div className="rounded-md border border-warning/40 bg-warning/5 p-3 text-xs">
+                <div className="mt-4 rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 text-xs">
                   <p className="font-medium text-foreground">
                     {text(
                       "Antes de que el cliente conecte Outlook: registra este URI en Entra ID",
                       "Before the client connects Outlook: register this URI in Entra ID",
                     )}
                   </p>
-                  <p className="mt-1 text-muted-foreground">
-                    {text(
-                      "Azure → Registros de aplicaciones → Stage AI Labs Asistente → Autenticación → Agregar URI. Incluye el nombre de la aplicación de este cliente, por lo que es distinto para cada uno.",
-                      "Azure → App registrations → Stage AI Labs Assistant → Authentication → Add URI. It includes this client's app name, so it is different for every client.",
-                    )}
-                  </p>
-                  <code className="mt-2 block break-all rounded bg-background/60 p-2 text-[11px] text-foreground">
+                  <code className="mt-2 block break-all rounded bg-black/60 p-2 font-mono text-[11px] text-zinc-200">
                     {result.job.microsoftRedirectUri}
                   </code>
                 </div>
               )}
-              {result.dashboardUrl && (
-                <a
-                  href={result.dashboardUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="block rounded-md border border-border/60 px-3 py-2 text-center text-xs font-medium text-primary underline-offset-4 hover:underline"
-                >
-                  {text("Abrir panel del cliente", "Open client dashboard")}
-                </a>
-              )}
-              {result.commitUrl && (
-                <a
-                  href={result.commitUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="block text-xs text-primary underline-offset-4 hover:underline"
-                >
-                  {text("Abrir cambio en GitHub", "Open GitHub commit")}
-                </a>
-              )}
-            </div>
-          </Card>
+
+              <div className="mt-4 flex flex-wrap items-center gap-3">
+                {result.dashboardUrl && (
+                  <a
+                    href={result.dashboardUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center rounded-lg border border-zinc-700/60 bg-zinc-900/60 px-3.5 py-2 text-xs font-medium text-zinc-200 transition-colors hover:border-zinc-600 hover:bg-zinc-800"
+                  >
+                    {text("Abrir panel del cliente", "Open client dashboard")}
+                  </a>
+                )}
+                {result.commitUrl && (
+                  <a
+                    href={result.commitUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+                  >
+                    {text("Abrir cambio en GitHub", "Open GitHub commit")}
+                  </a>
+                )}
+              </div>
+            </Card>
+          </div>
         )}
       </div>
     </div>

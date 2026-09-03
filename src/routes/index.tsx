@@ -465,7 +465,7 @@ function Dashboard() {
                         <div className="flex items-center justify-center gap-2">
                           {bot.kind !== "voice" && (
                             <Button
-                              size="xs"
+                              size="sm"
                               variant="outline"
                               className="text-xs py-1 px-2 h-7"
                               onClick={() => void handleReconnect(bot)}
@@ -480,7 +480,7 @@ function Dashboard() {
                             </Button>
                           )}
                           <Button
-                            size="xs"
+                            size="sm"
                             variant="default"
                             className="text-xs py-1 px-2 h-7 gap-1"
                             onClick={() => {
@@ -565,7 +565,7 @@ function Dashboard() {
                       </TableCell>
                       <TableCell className="text-center">
                         <Button
-                          size="xs"
+                          size="sm"
                           variant="ghost"
                           className="h-7 w-7 p-0"
                           onClick={() => {
