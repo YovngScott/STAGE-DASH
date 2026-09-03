@@ -1,4 +1,4 @@
-﻿import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import type { BotBehavior } from "@/lib/bot-prompts";
 import {
   createApp,
@@ -130,7 +130,7 @@ export interface RedeployBotInput {
   tenantConfig: TenantConfigDraft;
 }
 
-const FLY_REGION = "ewr";
+const FLY_REGION = "mia";
 
 /**
  * Arranca el proceso de aprovisionamiento en la nube de forma persistente en Supabase.
@@ -322,6 +322,7 @@ async function runProvision(jobId: string, input: ProvisionInput): Promise<void>
     await appendProvisionJobLog(jobId, `Aprovisionando Fly Machine con imagen [${dockerImage}]...`);
 
     const machine = await createMachine(appName, {
+      region: FLY_REGION,
       config: {
         image: dockerImage,
         env,
