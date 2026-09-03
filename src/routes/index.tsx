@@ -283,24 +283,31 @@ function Dashboard() {
   }
 
   return (
-    <div className="mx-auto max-w-[1400px] p-6 md:p-8 space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
+    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8 space-y-8">
+      {/* Header Estilo Vercel/Apple */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between border-b border-white/5 pb-6">
         <div>
-          <p className="text-xs uppercase tracking-widest text-muted-foreground">
+          <div className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-medium uppercase tracking-widest text-zinc-300 backdrop-blur-md">
+            <Activity className="h-3 w-3 text-primary" />
             {text("Consola de Dueño", "Owner Console")}
-          </p>
-          <h2 className="mt-1 text-2xl font-semibold tracking-tight">
+          </div>
+          <h2 className="mt-3 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
             {text("Resumen de Stage AI Labs", "Stage AI Labs Overview")}
           </h2>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <p className="mt-2 max-w-2xl text-sm text-zinc-400 sm:text-base leading-relaxed">
             {text(
               "Monitoreo financiero global, métricas de consumo API y salud en vivo de bots.",
               "Global financial monitoring, API consumption metrics, and live bot health status.",
             )}
           </p>
         </div>
-        <Button variant="outline" className="gap-2" onClick={() => void loadData(true)} disabled={refreshing}>
-          <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+        <Button
+          variant="outline"
+          className="h-10 rounded-xl border-white/10 bg-zinc-900/60 px-4 text-xs font-medium text-zinc-200 hover:bg-zinc-800 hover:text-white backdrop-blur-md gap-2 shrink-0 transition-all shadow-md"
+          onClick={() => void loadData(true)}
+          disabled={refreshing}
+        >
+          <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
           {text("Sincronizar", "Sync")}
         </Button>
       </div>
@@ -351,35 +358,35 @@ function Dashboard() {
       </div>
 
       {/* SALUD DE BOTS GRID */}
-      <Card className="border-border/60 p-6" style={{ background: "var(--gradient-card)" }}>
-        <div className="flex items-center justify-between pb-4 border-b border-border/60">
+      <Card className="overflow-hidden rounded-2xl border border-white/10 bg-zinc-900/40 backdrop-blur-xl shadow-2xl shadow-black/40 p-6">
+        <div className="flex items-center justify-between pb-4 border-b border-white/10">
           <div>
-            <h3 className="text-sm font-semibold tracking-tight flex items-center gap-2">
+            <h3 className="text-sm font-semibold tracking-tight text-zinc-100 flex items-center gap-2">
               <Activity className="h-4 w-4 text-primary" />
               {text("Tablero de Salud de Bots", "Bot Connection & Health Grid")}
             </h3>
-            <p className="text-xs text-muted-foreground mt-0.5">
+            <p className="text-xs text-zinc-400 mt-0.5">
               {text("Comandos rápidos y estado de conexión de mensajería y voz", "Live connectivity and rapid command controls")}
             </p>
           </div>
         </div>
         <div className="mt-4 overflow-x-auto">
           {bots.length === 0 ? (
-            <div className="py-8 text-center text-xs text-muted-foreground">
+            <div className="py-10 text-center text-xs text-zinc-400">
               {text("No se encontraron bots activos.", "No active bots found.")}
             </div>
           ) : (
             <Table>
               <TableHeader>
-                <TableRow>
-                  <TableHead>{text("Cliente", "Client")}</TableHead>
-                  <TableHead>{text("Tipo", "Type")}</TableHead>
-                  <TableHead>{text("Estado Servidor", "Server Health")}</TableHead>
-                  <TableHead>{text("WhatsApp", "WhatsApp")}</TableHead>
-                  <TableHead>{text("Correo", "Email")}</TableHead>
-                  <TableHead className="text-right">{text("Operaciones Pendientes", "Pending Ops")}</TableHead>
-                  <TableHead className="text-right">{text("Costo API (Mes)", "API Cost (Mo)")}</TableHead>
-                  <TableHead className="text-center">{text("Comandos", "Actions")}</TableHead>
+                <TableRow className="border-b border-white/10 hover:bg-transparent">
+                  <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400 py-3.5">{text("Cliente", "Client")}</TableHead>
+                  <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400 py-3.5">{text("Tipo", "Type")}</TableHead>
+                  <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400 py-3.5">{text("Estado Servidor", "Server Health")}</TableHead>
+                  <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400 py-3.5">{text("WhatsApp", "WhatsApp")}</TableHead>
+                  <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400 py-3.5">{text("Correo", "Email")}</TableHead>
+                  <TableHead className="text-right text-[11px] font-semibold uppercase tracking-wider text-zinc-400 py-3.5">{text("Operaciones Pendientes", "Pending Ops")}</TableHead>
+                  <TableHead className="text-right text-[11px] font-semibold uppercase tracking-wider text-zinc-400 py-3.5">{text("Costo API (Mes)", "API Cost (Mo)")}</TableHead>
+                  <TableHead className="text-center text-[11px] font-semibold uppercase tracking-wider text-zinc-400 py-3.5">{text("Comandos", "Actions")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -389,10 +396,10 @@ function Dashboard() {
                   const isEmailConnected = bot.email === "connected";
 
                   return (
-                    <TableRow key={bot.botId}>
-                      <TableCell className="font-medium">{bot.clientName}</TableCell>
+                    <TableRow key={bot.botId} className="border-b border-white/5 transition-colors hover:bg-white/[0.02]">
+                      <TableCell className="font-medium text-white">{bot.clientName}</TableCell>
                       <TableCell>
-                        <Badge variant="outline" className="capitalize text-xs font-normal">
+                        <Badge variant="outline" className="capitalize text-[11px] font-normal border-white/10 bg-white/5 text-zinc-300">
                           {bot.kind}
                         </Badge>
                       </TableCell>
@@ -400,13 +407,13 @@ function Dashboard() {
                         <span className="flex items-center gap-1.5 text-xs">
                           {isServerReachable ? (
                             <>
-                              <span className="h-2 w-2 rounded-full bg-success" />
-                              <span className="text-muted-foreground">{text("Activo", "Online")}</span>
+                              <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                              <span className="text-zinc-300">{text("Activo", "Online")}</span>
                             </>
                           ) : (
                             <>
-                              <span className="h-2 w-2 rounded-full bg-destructive animate-pulse" />
-                              <span className="text-destructive font-medium">{text("Caído", "Offline")}</span>
+                              <span className="h-2 w-2 rounded-full bg-rose-400 animate-pulse" />
+                              <span className="text-rose-400 font-medium">{text("Caído", "Offline")}</span>
                             </>
                           )}
                         </span>
@@ -414,16 +421,16 @@ function Dashboard() {
                       <TableCell>
                         <span className="flex items-center gap-1.5 text-xs">
                           {bot.kind === "voice" ? (
-                            <span className="text-muted-foreground">—</span>
+                            <span className="text-zinc-500 font-mono">—</span>
                           ) : isWhatsAppConnected ? (
                             <>
-                              <span className="h-2 w-2 rounded-full bg-success" />
-                              <span className="text-muted-foreground">{text("Conectado", "Connected")}</span>
+                              <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                              <span className="text-zinc-300">{text("Conectado", "Connected")}</span>
                             </>
                           ) : (
                             <>
-                              <span className="h-2 w-2 rounded-full bg-destructive" />
-                              <span className="text-muted-foreground font-medium text-destructive">
+                              <span className="h-2 w-2 rounded-full bg-zinc-500" />
+                              <span className="text-zinc-400">
                                 {text("Desconectado", "Disconnected")}
                               </span>
                             </>
@@ -433,16 +440,16 @@ function Dashboard() {
                       <TableCell>
                         <span className="flex items-center gap-1.5 text-xs">
                           {bot.email === "not_applicable" ? (
-                            <span className="text-muted-foreground">—</span>
+                            <span className="text-zinc-500 font-mono">—</span>
                           ) : isEmailConnected ? (
                             <>
-                              <span className="h-2 w-2 rounded-full bg-success" />
-                              <span className="text-muted-foreground">{text("Conectado", "Connected")}</span>
+                              <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                              <span className="text-zinc-300">{text("Conectado", "Connected")}</span>
                             </>
                           ) : (
                             <>
-                              <span className="h-2 w-2 rounded-full bg-warning" />
-                              <span className="text-muted-foreground font-medium text-warning">
+                              <span className="h-2 w-2 rounded-full bg-amber-400" />
+                              <span className="text-amber-300">
                                 {text("Desconectado", "Disconnected")}
                               </span>
                             </>
@@ -451,14 +458,14 @@ function Dashboard() {
                       </TableCell>
                       <TableCell className="text-right">
                         {bot.pendingFailures > 0 ? (
-                          <Badge variant="outline" className="border-warning/30 bg-warning/10 text-warning">
+                          <Badge variant="outline" className="border-amber-500/30 bg-amber-500/10 text-amber-300 text-[11px]">
                             {bot.pendingFailures} {text("Fallas", "Failures")}
                           </Badge>
                         ) : (
-                          <span className="text-muted-foreground text-xs">0</span>
+                          <span className="text-zinc-500 font-mono text-xs">0</span>
                         )}
                       </TableCell>
-                      <TableCell className="text-right font-medium">
+                      <TableCell className="text-right font-medium font-mono text-zinc-200">
                         ${(bot.runtime?.monthlyCostUsd ?? 0).toFixed(2)}
                       </TableCell>
                       <TableCell className="text-center">
@@ -467,7 +474,7 @@ function Dashboard() {
                             <Button
                               size="sm"
                               variant="outline"
-                              className="text-xs py-1 px-2 h-7"
+                              className="h-8 rounded-lg border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10 text-xs px-2.5 transition-all"
                               onClick={() => void handleReconnect(bot)}
                               disabled={reconnecting === bot.botId}
                             >
@@ -481,8 +488,7 @@ function Dashboard() {
                           )}
                           <Button
                             size="sm"
-                            variant="default"
-                            className="text-xs py-1 px-2 h-7 gap-1"
+                            className="h-8 rounded-lg text-xs px-3 gap-1.5 shadow-sm transition-all"
                             onClick={() => {
                               const client = clients.find(c => c.company_name === bot.clientName);
                               if (client) void handleImpersonate(client.id, bot.slug);
@@ -493,7 +499,7 @@ function Dashboard() {
                             {impersonating === clients.find(c => c.company_name === bot.clientName)?.id ? (
                               <Loader2 className="h-3 w-3 animate-spin" />
                             ) : (
-                              <Eye className="h-3 w-3" />
+                              <Eye className="h-3.5 w-3.5" />
                             )}
                             {text("Entrar", "Login")}
                           </Button>
@@ -509,14 +515,14 @@ function Dashboard() {
       </Card>
 
       {/* DETALLE FINANCIERO Y MARGENES POR CLIENTE */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-2 border-border/60 p-6">
-          <div className="flex items-center justify-between pb-4 border-b border-border/60">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <Card className="lg:col-span-2 overflow-hidden rounded-2xl border border-white/10 bg-zinc-900/40 backdrop-blur-xl shadow-2xl shadow-black/40 p-6">
+          <div className="flex items-center justify-between pb-4 border-b border-white/10">
             <div>
-              <h3 className="text-sm font-semibold tracking-tight">
+              <h3 className="text-sm font-semibold tracking-tight text-zinc-100">
                 {text("Desglose Financiero por Cliente", "Client MRR & Margins Breakdown")}
               </h3>
-              <p className="text-xs text-muted-foreground mt-0.5">
+              <p className="text-xs text-zinc-400 mt-0.5">
                 {text("Ingresos de suscripción versus costo de consumo de infraestructura", "Client subscription revenue versus live API usage costs")}
               </p>
             </div>
@@ -524,14 +530,14 @@ function Dashboard() {
           <div className="mt-4 overflow-x-auto">
             <Table>
               <TableHeader>
-                <TableRow>
-                  <TableHead>{text("Empresa", "Company")}</TableHead>
-                  <TableHead>{text("Servicios", "Services")}</TableHead>
-                  <TableHead className="text-right">{text("MRR Cobrado", "MRR Billed")}</TableHead>
-                  <TableHead className="text-right">{text("Costo API (Bot)", "API cost")}</TableHead>
-                  <TableHead className="text-right">{text("Margen Neto", "Net profit")}</TableHead>
-                  <TableHead className="text-center">{text("Estado Pago", "Status")}</TableHead>
-                  <TableHead className="text-center">{text("Panel", "Console")}</TableHead>
+                <TableRow className="border-b border-white/10 hover:bg-transparent">
+                  <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400 py-3.5">{text("Empresa", "Company")}</TableHead>
+                  <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400 py-3.5">{text("Servicios", "Services")}</TableHead>
+                  <TableHead className="text-right text-[11px] font-semibold uppercase tracking-wider text-zinc-400 py-3.5">{text("MRR Cobrado", "MRR Billed")}</TableHead>
+                  <TableHead className="text-right text-[11px] font-semibold uppercase tracking-wider text-zinc-400 py-3.5">{text("Costo API (Bot)", "API cost")}</TableHead>
+                  <TableHead className="text-right text-[11px] font-semibold uppercase tracking-wider text-zinc-400 py-3.5">{text("Margen Neto", "Net profit")}</TableHead>
+                  <TableHead className="text-center text-[11px] font-semibold uppercase tracking-wider text-zinc-400 py-3.5">{text("Estado Pago", "Status")}</TableHead>
+                  <TableHead className="text-center text-[11px] font-semibold uppercase tracking-wider text-zinc-400 py-3.5">{text("Panel", "Console")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -542,24 +548,24 @@ function Dashboard() {
                   const clientMargin = Number(client.mrr) > 0 ? ((clientProfit / Number(client.mrr)) * 100).toFixed(1) : "0.0";
 
                   return (
-                    <TableRow key={client.id}>
-                      <TableCell className="font-medium">{client.company_name}</TableCell>
+                    <TableRow key={client.id} className="border-b border-white/5 transition-colors hover:bg-white/[0.02]">
+                      <TableCell className="font-medium text-white">{client.company_name}</TableCell>
                       <TableCell>
                         <div className="flex flex-wrap gap-1 max-w-[200px]">
                           {(client.services ?? []).map((s, idx) => (
-                            <Badge key={idx} variant="outline" className="text-[10px] py-0 px-1 font-normal">
+                            <Badge key={idx} variant="outline" className="text-[10px] py-0 px-1 font-normal border-white/10 bg-white/5 text-zinc-300">
                               {s}
                             </Badge>
                           ))}
                         </div>
                       </TableCell>
-                      <TableCell className="text-right font-medium">${Number(client.mrr).toLocaleString()}</TableCell>
-                      <TableCell className="text-right text-muted-foreground">${botApiCost.toFixed(2)}</TableCell>
-                      <TableCell className="text-right font-medium text-success">
+                      <TableCell className="text-right font-medium text-zinc-200 font-mono">${Number(client.mrr).toLocaleString()}</TableCell>
+                      <TableCell className="text-right text-zinc-400 font-mono text-xs">${botApiCost.toFixed(2)}</TableCell>
+                      <TableCell className="text-right font-medium text-emerald-400 font-mono">
                         ${clientProfit.toLocaleString()} ({clientMargin}%)
                       </TableCell>
                       <TableCell className="text-center">
-                        <Badge variant="outline" className="border-success/30 bg-success/10 text-success text-[10px] font-normal">
+                        <Badge variant="outline" className="border-emerald-500/30 bg-emerald-500/10 text-emerald-400 text-[10px] font-medium rounded-full">
                           {text("Al día", "Cleared")}
                         </Badge>
                       </TableCell>
@@ -567,7 +573,7 @@ function Dashboard() {
                         <Button
                           size="sm"
                           variant="ghost"
-                          className="h-7 w-7 p-0"
+                          className="h-7 w-7 p-0 text-zinc-400 hover:text-white rounded-lg transition-colors"
                           onClick={() => {
                             const slug = bot?.slug || client.company_name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
                             void handleImpersonate(client.id, slug);
@@ -586,11 +592,11 @@ function Dashboard() {
         </Card>
 
         {/* GASTOS POR CATEGORIA */}
-        <Card className="border-border/60 p-6">
-          <h3 className="text-sm font-semibold tracking-tight">
+        <Card className="overflow-hidden rounded-2xl border border-white/10 bg-zinc-900/40 backdrop-blur-xl shadow-2xl shadow-black/40 p-6">
+          <h3 className="text-sm font-semibold tracking-tight text-zinc-100">
             {text("Gastos por categoría", "Expenses by Category")}
           </h3>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-zinc-400 mt-0.5">
             {text("Distribución de los gastos operativos", "Where operational spend goes")}
           </p>
           <div className="mt-4 h-[200px]">
@@ -602,7 +608,7 @@ function Dashboard() {
               <ChartContainer config={categoryChartConfig} className="h-full w-full">
                 <ResponsiveContainer>
                   <BarChart data={categorySeries} margin={{ left: 0, right: 8, top: 4 }}>
-                    <CartesianGrid strokeDasharray="3 6" stroke="var(--border)" vertical={false} />
+                    <CartesianGrid strokeDasharray="3 6" stroke="rgba(255,255,255,0.06)" vertical={false} />
                     <XAxis
                       dataKey="category"
                       tickLine={false}
@@ -612,7 +618,7 @@ function Dashboard() {
                     />
                     <ChartTooltip
                       content={<ChartTooltipContent />}
-                      cursor={{ fill: "var(--muted)", opacity: 0.15 }}
+                      cursor={{ fill: "rgba(255,255,255,0.05)" }}
                     />
                     <Bar dataKey="amount" fill="var(--chart-3)" radius={[6, 6, 0, 0]} />
                   </BarChart>
@@ -620,7 +626,7 @@ function Dashboard() {
               </ChartContainer>
             )}
           </div>
-          <div className="mt-4 space-y-2 border-t border-border/60 pt-4">
+          <div className="mt-4 space-y-2 border-t border-white/10 pt-4">
             <RunwayLine
               label={text("Meses de caja", "Cash Runway")}
               value={
