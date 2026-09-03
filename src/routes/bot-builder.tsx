@@ -661,41 +661,58 @@ function BotBuilder() {
   };
 
   return (
-    <div className="mx-auto max-w-[1400px] p-6 md:p-8 space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
+    <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6 lg:px-8 space-y-8">
+      {/* Header Estilo Vercel/Apple */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between border-b border-white/5 pb-6">
         <div>
-          <p className="text-xs uppercase tracking-widest text-muted-foreground">
+          <div className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-medium uppercase tracking-widest text-zinc-300 backdrop-blur-md">
+            <Bot className="h-3 w-3 text-primary" />
             {text("Fábrica de bots", "Bot Factory")}
-          </p>
-          <h2 className="mt-1 text-2xl font-semibold tracking-tight">
+          </div>
+          <h2 className="mt-3 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
             {text("Crear bot para cliente", "Create Client Bot")}
           </h2>
-          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+          <p className="mt-2 max-w-2xl text-sm text-zinc-400 sm:text-base leading-relaxed">
             {text(
               "Elige la función y añade únicamente la información del negocio. Las políticas de seguridad se aplican en el backend; primero se prueba en borrador y no se crea ninguna máquina hasta que tú lo apruebes.",
               "Choose the function and add only the business information. Safety policies are enforced by the backend; the bot is tested as a draft first, and no machine is created until you approve it.",
             )}
           </p>
         </div>
-        <Button className="gap-2" disabled={saving || loading} onClick={commitBot}>
+        <Button
+          className="h-11 rounded-xl px-6 font-medium shadow-lg shadow-primary/20 transition-all duration-200 hover:shadow-primary/30 gap-2 shrink-0"
+          disabled={saving || loading}
+          onClick={commitBot}
+        >
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Rocket className="h-4 w-4" />}
           {text("Guardar y probar bot", "Save and test bot")}
         </Button>
       </div>
 
-      <div className="space-y-4">
-        <Card className="border-border/60 p-5">
-          <div className="flex items-center gap-2">
-            <Bot className="h-4 w-4 text-primary" />
-            <h3 className="text-sm font-semibold">
-              {text("1. Cliente y tipo de bot", "1. Client and bot type")}
-            </h3>
+      <div className="space-y-6">
+        {/* Sección 1: Cliente y tipo de bot (Glassmorphic Card) */}
+        <Card className="rounded-2xl border border-white/10 bg-zinc-900/40 p-6 sm:p-8 backdrop-blur-xl shadow-2xl shadow-black/40 transition-all hover:border-white/15">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-primary">
+              <Bot className="h-5 w-5" />
+            </div>
+            <div>
+              <h3 className="text-base font-semibold tracking-tight text-zinc-100">
+                {text("1. Cliente y tipo de bot", "1. Client and bot type")}
+              </h3>
+              <p className="text-xs text-zinc-400">
+                {text("Vincula el bot al cliente y define su canal principal.", "Link the bot to the client and define its primary channel.")}
+              </p>
+            </div>
           </div>
-          <div className="mt-4">
+
+          <div className="mt-6">
             <div className="space-y-2 md:max-w-md">
-              <Label>{text("Cliente existente", "Existing client")}</Label>
+              <Label className="text-xs font-medium text-zinc-300">
+                {text("Cliente existente", "Existing client")}
+              </Label>
               <Select value={draft.clientId} onValueChange={selectClient}>
-                <SelectTrigger>
+                <SelectTrigger className="h-11 rounded-xl border-white/10 bg-black/40 text-zinc-100 backdrop-blur-md focus:border-white/20 focus:ring-white/10">
                   <SelectValue
                     placeholder={
                       loading
@@ -704,7 +721,7 @@ function BotBuilder() {
                     }
                   />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="border-white/10 bg-zinc-950/95 backdrop-blur-xl text-zinc-100">
                   {clients.map((client) => (
                     <SelectItem key={client.id} value={client.id}>
                       {client.company_name}
@@ -714,7 +731,8 @@ function BotBuilder() {
               </Select>
             </div>
           </div>
-          <div className="mt-4 grid gap-3 md:grid-cols-3">
+
+          <div className="mt-6 grid gap-4 md:grid-cols-3">
             {(Object.keys(botTypes) as BotType[]).map((type) => {
               const Icon = botTypes[type].icon;
               const active = draft.botType === type;
@@ -724,37 +742,45 @@ function BotBuilder() {
                   type="button"
                   onClick={() => selectBotType(type)}
                   className={
-                    "rounded-lg border p-4 text-left transition-colors " +
+                    "rounded-xl border p-5 text-left transition-all duration-200 " +
                     (active
-                      ? "border-primary bg-primary/10 text-foreground"
-                      : "border-border/60 bg-card/40 text-muted-foreground hover:border-primary/40 hover:text-foreground")
+                      ? "border-primary/60 bg-primary/10 text-white shadow-lg shadow-primary/10 ring-1 ring-primary/40"
+                      : "border-white/5 bg-zinc-950/40 text-zinc-400 hover:border-white/15 hover:bg-zinc-900/50 hover:text-zinc-200")
                   }
                 >
-                  <div className="flex items-center gap-2">
-                    <Icon className="h-4 w-4" />
-                    <span className="text-sm font-medium">{text(...botTypes[type].label)}</span>
+                  <div className="flex items-center gap-2.5">
+                    <div className={"flex h-7 w-7 items-center justify-center rounded-lg " + (active ? "bg-primary/20 text-primary" : "bg-white/5 text-zinc-400")}>
+                      <Icon className="h-4 w-4" />
+                    </div>
+                    <span className="text-sm font-semibold tracking-tight">{text(...botTypes[type].label)}</span>
                   </div>
-                  <p className="mt-2 text-xs leading-5">{text(...botTypes[type].description)}</p>
+                  <p className="mt-2.5 text-xs leading-relaxed opacity-85">{text(...botTypes[type].description)}</p>
                 </button>
               );
             })}
           </div>
         </Card>
 
-        <Card className="border-border/60 p-5">
-          <div className="flex items-center gap-2">
-            <BrainCircuit className="h-4 w-4 text-primary" />
-            <h3 className="text-sm font-semibold">
-              {text("2. Función del bot", "2. Bot function")}
-            </h3>
+        {/* Sección 2: Función del bot (Glassmorphic Card) */}
+        <Card className="rounded-2xl border border-white/10 bg-zinc-900/40 p-6 sm:p-8 backdrop-blur-xl shadow-2xl shadow-black/40 transition-all hover:border-white/15">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-primary">
+              <BrainCircuit className="h-5 w-5" />
+            </div>
+            <div>
+              <h3 className="text-base font-semibold tracking-tight text-zinc-100">
+                {text("2. Función del bot", "2. Bot function")}
+              </h3>
+              <p className="text-xs text-zinc-400">
+                {text(
+                  "Cada función incluye comportamiento, límites, herramientas autorizadas y reglas de escalamiento predeterminadas.",
+                  "Each function includes default behavior, limits, authorized tools, and escalation rules.",
+                )}
+              </p>
+            </div>
           </div>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {text(
-              "Cada función incluye comportamiento, límites, herramientas autorizadas y reglas de escalamiento predeterminadas.",
-              "Each function includes default behavior, limits, authorized tools, and escalation rules.",
-            )}
-          </p>
-          <div className="mt-4 grid gap-3 md:grid-cols-2">
+
+          <div className="mt-6 grid gap-4 md:grid-cols-2">
             {availableBehaviors.map((behavior) => {
               const Icon = botBehaviors[behavior].icon;
               const active = draft.behavior === behavior;
@@ -764,79 +790,96 @@ function BotBuilder() {
                   type="button"
                   onClick={() => setDraft((current) => ({ ...current, behavior }))}
                   className={
-                    "rounded-lg border p-4 text-left transition-colors " +
+                    "rounded-xl border p-5 text-left transition-all duration-200 " +
                     (active
-                      ? "border-primary bg-primary/10 text-foreground"
-                      : "border-border/60 bg-card/40 text-muted-foreground hover:border-primary/40 hover:text-foreground")
+                      ? "border-primary/60 bg-primary/10 text-white shadow-lg shadow-primary/10 ring-1 ring-primary/40"
+                      : "border-white/5 bg-zinc-950/40 text-zinc-400 hover:border-white/15 hover:bg-zinc-900/50 hover:text-zinc-200")
                   }
                 >
-                  <div className="flex items-center gap-2">
-                    <Icon className="h-4 w-4" />
-                    <span className="text-sm font-medium">
+                  <div className="flex items-center gap-2.5">
+                    <div className={"flex h-7 w-7 items-center justify-center rounded-lg " + (active ? "bg-primary/20 text-primary" : "bg-white/5 text-zinc-400")}>
+                      <Icon className="h-4 w-4" />
+                    </div>
+                    <span className="text-sm font-semibold tracking-tight">
                       {text(...botBehaviors[behavior].label)}
                     </span>
                   </div>
-                  <p className="mt-2 text-xs leading-5">
+                  <p className="mt-2.5 text-xs leading-relaxed opacity-85">
                     {text(...botBehaviors[behavior].description)}
                   </p>
                 </button>
               );
             })}
           </div>
-          <div className="mt-4 rounded-lg border border-success/20 bg-success/5 p-3 text-xs text-muted-foreground">
+
+          <div className="mt-5 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 text-xs text-emerald-300/90 leading-relaxed">
             {text(
               "Incluido automáticamente: protección del prompt y datos privados, bloqueo fuera del negocio, precios solo desde catálogo, acciones delicadas con aprobación humana y validación de herramientas.",
               "Included automatically: prompt and private-data protection, out-of-scope blocking, catalog-only pricing, human approval for sensitive actions, and tool validation.",
             )}
           </div>
-          <div className="mt-4 rounded-lg border border-border/60 bg-background/30 p-4">
-            <h4 className="text-sm font-medium">{text("Conexión de WhatsApp", "WhatsApp connection")}</h4>
-            <p className="mt-1 text-xs text-muted-foreground">
+
+          {/* WhatsApp Connection */}
+          <div className="mt-6 rounded-xl border border-white/10 bg-black/40 p-5 backdrop-blur-md">
+            <h4 className="text-sm font-medium text-zinc-200">{text("Conexión de WhatsApp", "WhatsApp connection")}</h4>
+            <p className="mt-1 text-xs text-zinc-400">
               {text("Elige QR para pilotos o Meta Cloud para clientes críticos. Los secretos se pedirán solo al publicar.", "Choose QR for pilots or Meta Cloud for critical clients. Secrets are requested only when publishing.")}
             </p>
-            <div className="mt-3 grid gap-3 md:grid-cols-2">
-              <button type="button" onClick={() => setDraft((current) => ({ ...current, whatsappProvider: "baileys" }))} className={`rounded-lg border p-3 text-left ${draft.whatsappProvider === "baileys" ? "border-primary bg-primary/10" : "border-border/60"}`}>
-                <span className="text-sm font-medium">{text("QR · piloto", "QR · pilot")}</span>
-                <p className="mt-1 text-xs text-muted-foreground">{text("Conexión rápida mediante WhatsApp Web.", "Fast connection through WhatsApp Web.")}</p>
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => setDraft((current) => ({ ...current, whatsappProvider: "baileys" }))}
+                className={`rounded-xl border p-4 text-left transition-all ${draft.whatsappProvider === "baileys" ? "border-primary/60 bg-primary/10 ring-1 ring-primary/40 text-white" : "border-white/5 bg-zinc-950/40 text-zinc-400 hover:border-white/15"}`}
+              >
+                <span className="text-sm font-medium text-zinc-200">{text("QR · piloto", "QR · pilot")}</span>
+                <p className="mt-1 text-xs text-zinc-400">{text("Conexión rápida mediante WhatsApp Web.", "Fast connection through WhatsApp Web.")}</p>
               </button>
-              <button type="button" onClick={() => setDraft((current) => ({ ...current, whatsappProvider: "meta_cloud" }))} className={`rounded-lg border p-3 text-left ${draft.whatsappProvider === "meta_cloud" ? "border-primary bg-primary/10" : "border-border/60"}`}>
-                <span className="text-sm font-medium">Meta WhatsApp Cloud API</span>
-                <p className="mt-1 text-xs text-muted-foreground">{text("Canal oficial para operación crítica y mayor estabilidad.", "Official channel for critical, higher-stability operations.")}</p>
+              <button
+                type="button"
+                onClick={() => setDraft((current) => ({ ...current, whatsappProvider: "meta_cloud" }))}
+                className={`rounded-xl border p-4 text-left transition-all ${draft.whatsappProvider === "meta_cloud" ? "border-primary/60 bg-primary/10 ring-1 ring-primary/40 text-white" : "border-white/5 bg-zinc-950/40 text-zinc-400 hover:border-white/15"}`}
+              >
+                <span className="text-sm font-medium text-zinc-200">Meta WhatsApp Cloud API</span>
+                <p className="mt-1 text-xs text-zinc-400">{text("Canal oficial para operación crítica y mayor estabilidad.", "Official channel for critical, higher-stability operations.")}</p>
               </button>
             </div>
             {draft.whatsappProvider === "meta_cloud" && (
-              <div className="mt-3 grid gap-3 md:grid-cols-3">
-                <div className="space-y-2"><Label>Phone number ID</Label><Input value={draft.metaPhoneNumberId} onChange={(event) => setDraft((current) => ({ ...current, metaPhoneNumberId: event.target.value.replace(/\D/g, "") }))} /></div>
-                <div className="space-y-2"><Label>WhatsApp Business Account ID</Label><Input value={draft.metaBusinessAccountId} onChange={(event) => setDraft((current) => ({ ...current, metaBusinessAccountId: event.target.value.replace(/\D/g, "") }))} /></div>
-                <div className="space-y-2"><Label>Graph API version</Label><Input value={draft.metaApiVersion} onChange={(event) => setDraft((current) => ({ ...current, metaApiVersion: event.target.value }))} placeholder="v23.0" /></div>
+              <div className="mt-4 grid gap-3 md:grid-cols-3">
+                <div className="space-y-2"><Label className="text-xs font-medium text-zinc-300">Phone number ID</Label><Input className="h-10 rounded-xl border-white/10 bg-black/50 text-zinc-100" value={draft.metaPhoneNumberId} onChange={(event) => setDraft((current) => ({ ...current, metaPhoneNumberId: event.target.value.replace(/\D/g, "") }))} /></div>
+                <div className="space-y-2"><Label className="text-xs font-medium text-zinc-300">WhatsApp Business Account ID</Label><Input className="h-10 rounded-xl border-white/10 bg-black/50 text-zinc-100" value={draft.metaBusinessAccountId} onChange={(event) => setDraft((current) => ({ ...current, metaBusinessAccountId: event.target.value.replace(/\D/g, "") }))} /></div>
+                <div className="space-y-2"><Label className="text-xs font-medium text-zinc-300">Graph API version</Label><Input className="h-10 rounded-xl border-white/10 bg-black/50 text-zinc-100" value={draft.metaApiVersion} onChange={(event) => setDraft((current) => ({ ...current, metaApiVersion: event.target.value }))} placeholder="v23.0" /></div>
               </div>
             )}
           </div>
-          <div className="mt-4 rounded-lg border border-border/60 bg-background/30 p-4">
+
+          {/* AI Key Mode */}
+          <div className="mt-5 rounded-xl border border-white/10 bg-black/40 p-5 backdrop-blur-md">
             <div className="flex items-start gap-3">
-              <KeyRound className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-primary">
+                <KeyRound className="h-4 w-4" />
+              </div>
               <div className="min-w-0 flex-1">
-                <h4 className="text-sm font-medium">
+                <h4 className="text-sm font-medium text-zinc-200">
                   {text("Clave y modelo de inteligencia artificial", "AI key and model")}
                 </h4>
-                <p className="mt-1 text-xs text-muted-foreground">
+                <p className="mt-1 text-xs text-zinc-400">
                   {text(
                     "GPT-OSS 120B se selecciona automáticamente por precisión, razonamiento y uso fiable de herramientas.",
                     "GPT-OSS 120B is selected automatically for accuracy, reasoning, and reliable tool use.",
                   )}
                 </p>
-                <div className="mt-3 grid gap-3 md:grid-cols-2">
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
                   <button
                     type="button"
                     onClick={() =>
                       setDraft((current) => ({ ...current, groqKeyMode: "automatic" }))
                     }
-                    className={`rounded-lg border p-3 text-left transition-colors ${draft.groqKeyMode === "automatic" ? "border-primary bg-primary/10" : "border-border/60 hover:border-primary/40"}`}
+                    className={`rounded-xl border p-4 text-left transition-all ${draft.groqKeyMode === "automatic" ? "border-primary/60 bg-primary/10 ring-1 ring-primary/40 text-white" : "border-white/5 bg-zinc-950/40 text-zinc-400 hover:border-white/15"}`}
                   >
-                    <span className="text-sm font-medium">
+                    <span className="text-sm font-medium text-zinc-200">
                       {text("Automática · recomendada", "Automatic · recommended")}
                     </span>
-                    <p className="mt-1 text-xs text-muted-foreground">
+                    <p className="mt-1 text-xs text-zinc-400 leading-relaxed">
                       {text(
                         "Usa la clave general de Stage. Es la opción correcta para la mayoría de los clientes.",
                         "Uses the general Stage key. This is the right option for most clients.",
@@ -848,12 +891,12 @@ function BotBuilder() {
                     onClick={() =>
                       setDraft((current) => ({ ...current, groqKeyMode: "dedicated" }))
                     }
-                    className={`rounded-lg border p-3 text-left transition-colors ${draft.groqKeyMode === "dedicated" ? "border-primary bg-primary/10" : "border-border/60 hover:border-primary/40"}`}
+                    className={`rounded-xl border p-4 text-left transition-all ${draft.groqKeyMode === "dedicated" ? "border-primary/60 bg-primary/10 ring-1 ring-primary/40 text-white" : "border-white/5 bg-zinc-950/40 text-zinc-400 hover:border-white/15"}`}
                   >
-                    <span className="text-sm font-medium">
+                    <span className="text-sm font-medium text-zinc-200">
                       {text("Clave dedicada", "Dedicated key")}
                     </span>
-                    <p className="mt-1 text-xs text-muted-foreground">
+                    <p className="mt-1 text-xs text-zinc-400 leading-relaxed">
                       {text(
                         "Para clientes grandes que necesitan límites y consumo independientes. La clave se solicita al publicar.",
                         "For large clients that need independent limits and usage. The key is requested when publishing.",
@@ -867,20 +910,29 @@ function BotBuilder() {
         </Card>
 
         {draft.botType === "assistant" && (
-          <Card className="border-primary/40 bg-primary/5 p-5">
-            <div className="flex items-center gap-2">
-              <Mail className="h-4 w-4 text-primary" />
-              <h3 className="text-sm font-semibold">
-                {text("3. Correo y operación", "3. Email and operation")}
-              </h3>
+          <Card className="rounded-2xl border border-white/10 bg-zinc-900/40 p-6 sm:p-8 backdrop-blur-xl shadow-2xl shadow-black/40 transition-all hover:border-white/15">
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-primary">
+                <Mail className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-semibold tracking-tight text-zinc-100">
+                  {text("3. Correo y operación", "3. Email and operation")}
+                </h3>
+                <p className="text-xs text-zinc-400">
+                  {text("Configuración del asistente ejecutivo para bandeja de entrada.", "Executive assistant inbox configuration.")}
+                </p>
+              </div>
             </div>
-            <p className="mt-1 text-xs text-muted-foreground">
+
+            <p className="mt-4 text-xs sm:text-sm text-zinc-400 leading-relaxed">
               {text(
                 "El asistente revisa este correo, descarta lo automatizado (no-reply, boletines y correo masivo) y responde el resto por su cuenta. Lo que debe decidir el titular en persona —temas legales, dinero comprometido, seguridad o conflictos delicados— nunca se envía: deja el borrador escrito y avisa por WhatsApp para que solo tenga que revisarlo y enviarlo. El ejecutivo autoriza su cuenta con un clic desde su panel.",
                 "The assistant checks this inbox, discards automated messages (no-reply, newsletters, and bulk mail), and handles the rest. Matters requiring the owner's personal judgment—legal issues, financial commitments, security, or sensitive conflicts—are never sent automatically: a draft is prepared and the owner is notified through WhatsApp to review and send it. The executive authorizes the account with one click from their dashboard.",
               )}
             </p>
-            <div className="mt-4 grid gap-3 md:grid-cols-3">
+
+            <div className="mt-6 grid gap-4 md:grid-cols-3">
               {(Object.keys(proveedoresCorreo) as ProveedorCorreo[]).map((p) => {
                 const activo = draft.asistenteProveedor === p;
                 return (
@@ -889,30 +941,32 @@ function BotBuilder() {
                     type="button"
                     onClick={() => setDraft((current) => ({ ...current, asistenteProveedor: p }))}
                     className={
-                      "rounded-lg border p-3 text-left transition-colors " +
+                      "rounded-xl border p-5 text-left transition-all duration-200 " +
                       (activo
-                        ? "border-primary bg-primary/10 text-foreground"
-                        : "border-border/60 bg-card/40 text-muted-foreground hover:border-primary/40 hover:text-foreground")
+                        ? "border-primary/60 bg-primary/10 text-white shadow-lg shadow-primary/10 ring-1 ring-primary/40"
+                        : "border-white/5 bg-zinc-950/40 text-zinc-400 hover:border-white/15 hover:bg-zinc-900/50 hover:text-zinc-200")
                     }
                   >
-                    <span className="text-sm font-medium">
+                    <span className="text-sm font-semibold tracking-tight text-zinc-200">
                       {text(...proveedoresCorreo[p].label)}
                     </span>
-                    <p className="mt-1 text-xs leading-5">
+                    <p className="mt-2 text-xs leading-relaxed opacity-85">
                       {text(...proveedoresCorreo[p].description)}
                     </p>
                   </button>
                 );
               })}
             </div>
-            <p className="mt-2 text-xs text-muted-foreground">
+
+            <p className="mt-3 text-xs text-zinc-400">
               {text(...proveedoresCorreo[draft.asistenteProveedor].comoConecta)}
             </p>
 
-            <div className="mt-4 grid gap-4 md:grid-cols-2">
+            <div className="mt-6 grid gap-5 md:grid-cols-2">
               <Field label={text("Correo a asistir", "Email account to manage")}>
                 <Input
                   type="email"
+                  className="h-11 rounded-xl border-white/10 bg-black/40 text-zinc-100 placeholder:text-zinc-500"
                   value={draft.asistenteCorreo}
                   onChange={(event) =>
                     setDraft((current) => ({ ...current, asistenteCorreo: event.target.value }))
@@ -922,6 +976,7 @@ function BotBuilder() {
               </Field>
               <Field label={text("WhatsApp para alertas", "WhatsApp for alerts")}>
                 <Input
+                  className="h-11 rounded-xl border-white/10 bg-black/40 text-zinc-100 placeholder:text-zinc-500"
                   value={draft.asistenteWhatsapp}
                   onChange={(event) =>
                     setDraft((current) => ({ ...current, asistenteWhatsapp: event.target.value }))
@@ -929,29 +984,31 @@ function BotBuilder() {
                   placeholder="18091234567"
                 />
               </Field>
-              <Field
-                label={`${text("Exigencia para redactar", "Drafting confidence threshold")} — ${Math.round(draft.asistenteUmbral * 100)}%`}
-              >
-                <Input
-                  type="range"
-                  min={0.2}
-                  max={0.8}
-                  step={0.05}
-                  value={draft.asistenteUmbral}
-                  onChange={(event) =>
-                    setDraft((current) => ({
-                      ...current,
-                      asistenteUmbral: Number(event.target.value),
-                    }))
-                  }
-                />
-                <p className="text-xs text-muted-foreground">
-                  {text(
-                    "Red de seguridad del envío automático: si no entendió el correo por encima de este nivel, no lo envía; lo deja como borrador para que lo revise el titular. Súbelo si notas que se envían respuestas flojas; bájalo si escala de más.",
-                    "Automatic-send safety threshold: if the assistant does not understand an email above this level, it will not send it and will leave a draft for the owner. Raise it if weak responses are being sent; lower it if too many messages are escalated.",
-                  )}
-                </p>
-              </Field>
+              <div className="space-y-2 md:col-span-2">
+                <Field
+                  label={`${text("Exigencia para redactar", "Drafting confidence threshold")} — ${Math.round(draft.asistenteUmbral * 100)}%`}
+                >
+                  <Input
+                    type="range"
+                    min={0.2}
+                    max={0.8}
+                    step={0.05}
+                    value={draft.asistenteUmbral}
+                    onChange={(event) =>
+                      setDraft((current) => ({
+                        ...current,
+                        asistenteUmbral: Number(event.target.value),
+                      }))
+                    }
+                  />
+                  <p className="text-xs text-zinc-400 leading-relaxed">
+                    {text(
+                      "Red de seguridad del envío automático: si no entendió el correo por encima de este nivel, no lo envía; lo deja como borrador para que lo revise el titular. Súbelo si notas que se envían respuestas flojas; bájalo si escala de más.",
+                      "Automatic-send safety threshold: if the assistant does not understand an email above this level, it will not send it and will leave a draft for the owner. Raise it if weak responses are being sent; lower it if too many messages are escalated.",
+                    )}
+                  </p>
+                </Field>
+              </div>
               <Field label={text("Revisar la bandeja cada", "Check the inbox every")}>
                 <Select
                   value={String(draft.asistenteIntervalo)}
@@ -959,10 +1016,10 @@ function BotBuilder() {
                     setDraft((current) => ({ ...current, asistenteIntervalo: Number(value) }))
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="h-11 rounded-xl border-white/10 bg-black/40 text-zinc-100">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="border-white/10 bg-zinc-950/95 backdrop-blur-xl text-zinc-100">
                     <SelectItem value="5">{text("5 minutos", "5 minutes")}</SelectItem>
                     <SelectItem value="10">
                       {text("10 minutos — recomendado", "10 minutes — recommended")}
@@ -976,6 +1033,7 @@ function BotBuilder() {
               <Field label={text("Hora del reporte de fin de día", "End-of-day report time")}>
                 <Input
                   type="time"
+                  className="h-11 rounded-xl border-white/10 bg-black/40 text-zinc-100"
                   value={draft.asistenteHoraReporte}
                   onChange={(event) =>
                     setDraft((current) => ({
@@ -987,22 +1045,22 @@ function BotBuilder() {
               </Field>
             </div>
 
-            <div className="mt-4 rounded-lg border border-border/60 bg-background/40 p-3">
+            <div className="mt-5 rounded-xl border border-white/10 bg-black/40 p-5 backdrop-blur-md">
               <div className="flex items-center justify-between gap-4">
                 <div>
-                  <Label>
+                  <Label className="text-sm font-medium text-zinc-200">
                     {text(
                       "Enviar solo los correos rutinarios",
                       "Automatically send routine emails",
                     )}
                   </Label>
-                  <p className="mt-1 text-xs text-muted-foreground">
+                  <p className="mt-1 text-xs text-zinc-400 leading-relaxed">
                     {text(
                       "Activado: responde y envía por su cuenta lo rutinario (consultas simples, acuses, agradecimientos y seguimiento). Lo delicado y lo que no entienda nunca se envía: queda como borrador con aviso. Desactivado: no envía nada; todo queda en borradores.",
                       "On: responds to and sends routine messages automatically (simple questions, acknowledgements, thanks, and follow-ups). Sensitive or unclear messages are never sent and remain as drafts with an alert. Off: nothing is sent; every response remains a draft.",
                     )}
                   </p>
-                  <p className="mt-2 text-xs text-amber-500/90">
+                  <p className="mt-2 text-xs text-amber-400/90 font-medium">
                     {text(
                       "Recomendamos dejarlo apagado al empezar: el cliente debe revisar algunos días de borradores y activarlo cuando la calidad le convenza. Un correo enviado a su nombre no se puede retirar.",
                       "We recommend leaving this off at first: the client should review drafts for a few days and enable it once the quality is satisfactory. An email sent in their name cannot be recalled.",
@@ -1018,13 +1076,13 @@ function BotBuilder() {
               </div>
             </div>
 
-            <div className="mt-4 rounded-lg border border-border/60 bg-background/40 p-3">
+            <div className="mt-5 rounded-xl border border-white/10 bg-black/40 p-5 backdrop-blur-md">
               <div className="flex items-center justify-between gap-4">
                 <div>
-                  <Label>
+                  <Label className="text-sm font-medium text-zinc-200">
                     {text("Escribir con el nombre del titular", "Write in the owner's name")}
                   </Label>
-                  <p className="mt-1 text-xs text-muted-foreground">
+                  <p className="mt-1 text-xs text-zinc-400 leading-relaxed">
                     {text(
                       "Activado: redacta en primera persona como el titular, sin mencionar que hay un asistente. Desactivado: se presenta como asistente que escribe en su nombre.",
                       "On: writes in the first person as the owner without mentioning an assistant. Off: identifies itself as an assistant writing on the owner's behalf.",
@@ -1040,9 +1098,10 @@ function BotBuilder() {
               </div>
 
               {draft.asistenteActuaComoTitular && (
-                <div className="mt-3 space-y-2">
+                <div className="mt-4 space-y-2 border-t border-white/5 pt-4">
                   <Field label={text("Nombre con el que firma", "Signature name")}>
                     <Input
+                      className="h-11 rounded-xl border-white/10 bg-black/40 text-zinc-100"
                       value={draft.asistenteNombreTitular}
                       onChange={(event) =>
                         setDraft((current) => ({
@@ -1056,7 +1115,7 @@ function BotBuilder() {
                       }
                     />
                   </Field>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-xs text-zinc-400">
                     {text(
                       "Con el envío automático activo, estos correos salen a nombre del titular sin que él los lea antes. Lo delicado sigue quedando como borrador para su revisión.",
                       "When automatic sending is enabled, these emails are sent in the owner's name without prior review. Sensitive messages still remain as drafts for review.",
@@ -1068,24 +1127,31 @@ function BotBuilder() {
           </Card>
         )}
 
-        <Card className="border-border/60 p-5">
-          <div className="flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-primary" />
-            <h3 className="text-sm font-semibold">
-              {draft.botType === "assistant" ? "4" : "3"}.{" "}
-              {text("Información y personalización", "Information and customization")}
-            </h3>
+        {/* Sección 3 / 4: Información y personalización (Glassmorphic Card) */}
+        <Card className="rounded-2xl border border-white/10 bg-zinc-900/40 p-6 sm:p-8 backdrop-blur-xl shadow-2xl shadow-black/40 transition-all hover:border-white/15">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-primary">
+              <Sparkles className="h-5 w-5" />
+            </div>
+            <div>
+              <h3 className="text-base font-semibold tracking-tight text-zinc-100">
+                {draft.botType === "assistant" ? "4" : "3"}.{" "}
+                {text("Información y personalización", "Information and customization")}
+              </h3>
+              <p className="text-xs text-zinc-400">
+                {text(
+                  "La identidad técnica, la URL, el modelo y el vínculo con el cliente se generan automáticamente.",
+                  "The technical identity, URL, model, and client relationship are generated automatically.",
+                )}
+              </p>
+            </div>
           </div>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {text(
-              "La identidad técnica, la URL, el modelo y el vínculo con el cliente se generan automáticamente.",
-              "The technical identity, URL, model, and client relationship are generated automatically.",
-            )}
-          </p>
-          <div className="mt-4 grid gap-4 md:grid-cols-2">
+
+          <div className="mt-6 grid gap-5 md:grid-cols-2">
             {muestra("moneda") && (
               <Field label={text("Moneda", "Currency")}>
                 <Input
+                  className="h-11 rounded-xl border-white/10 bg-black/40 text-zinc-100"
                   value={draft.moneda}
                   onChange={(event) =>
                     setDraft((current) => ({ ...current, moneda: event.target.value }))
@@ -1097,6 +1163,7 @@ function BotBuilder() {
             {muestra("horario") && (
               <Field label={text("Horario", "Hours")}>
                 <Input
+                  className="h-11 rounded-xl border-white/10 bg-black/40 text-zinc-100"
                   value={draft.horario}
                   onChange={(event) =>
                     setDraft((current) => ({ ...current, horario: event.target.value }))
@@ -1104,28 +1171,30 @@ function BotBuilder() {
                 />
               </Field>
             )}
-            {/* La zona horaria aplica a todos: agenda, recordatorios y la hora
-                  del reporte diario dependen de ella. */}
             <Field label={text("Zona horaria", "Timezone")}>
               <Input
+                className="h-11 rounded-xl border-white/10 bg-black/40 text-zinc-100"
                 value={draft.zonaHoraria}
                 onChange={(event) =>
                   setDraft((current) => ({ ...current, zonaHoraria: event.target.value }))
                 }
               />
             </Field>
-            <div className="space-y-4 rounded-lg border border-border/60 p-4 md:col-span-2">
+
+            {/* Calendario Operativo */}
+            <div className="space-y-4 rounded-xl border border-white/10 bg-black/40 p-5 sm:p-6 backdrop-blur-md md:col-span-2">
               <div>
-                <Label>{text("Calendario operativo", "Operating calendar")}</Label>
-                <p className="mt-1 text-xs text-muted-foreground">
+                <Label className="text-sm font-medium text-zinc-200">{text("Calendario operativo", "Operating calendar")}</Label>
+                <p className="mt-1 text-xs text-zinc-400">
                   {text(
                     "Controla reportes, recordatorios y mensajes proactivos. Las consultas entrantes siguen siendo atendidas.",
                     "Controls reports, reminders, and proactive messages. Incoming questions are still handled.",
                   )}
                 </p>
               </div>
+
               <div className="space-y-2">
-                <Label>{text("Días laborables", "Business days")}</Label>
+                <Label className="text-xs font-medium text-zinc-300">{text("Días laborables", "Business days")}</Label>
                 <div className="flex flex-wrap gap-2">
                   {scheduleDays.map((day) => {
                     const selected = draft.businessDays.includes(day.value);
@@ -1135,6 +1204,7 @@ function BotBuilder() {
                         type="button"
                         size="sm"
                         variant={selected ? "default" : "outline"}
+                        className={selected ? "rounded-xl shadow-md" : "rounded-xl border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10"}
                         onClick={() =>
                           setDraft((current) => ({
                             ...current,
@@ -1150,35 +1220,38 @@ function BotBuilder() {
                   })}
                 </div>
               </div>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 <Field label={text("Abre", "Opens")}>
-                  <Input type="time" value={draft.businessStart} onChange={(event) => setDraft((current) => ({ ...current, businessStart: event.target.value }))} />
+                  <Input className="h-10 rounded-xl border-white/10 bg-black/50 text-zinc-100" type="time" value={draft.businessStart} onChange={(event) => setDraft((current) => ({ ...current, businessStart: event.target.value }))} />
                 </Field>
                 <Field label={text("Cierra", "Closes")}>
-                  <Input type="time" value={draft.businessEnd} onChange={(event) => setDraft((current) => ({ ...current, businessEnd: event.target.value }))} />
+                  <Input className="h-10 rounded-xl border-white/10 bg-black/50 text-zinc-100" type="time" value={draft.businessEnd} onChange={(event) => setDraft((current) => ({ ...current, businessEnd: event.target.value }))} />
                 </Field>
                 <Field label={text("Silencio desde", "Quiet from")}>
-                  <Input type="time" value={draft.quietStart} onChange={(event) => setDraft((current) => ({ ...current, quietStart: event.target.value }))} />
+                  <Input className="h-10 rounded-xl border-white/10 bg-black/50 text-zinc-100" type="time" value={draft.quietStart} onChange={(event) => setDraft((current) => ({ ...current, quietStart: event.target.value }))} />
                 </Field>
                 <Field label={text("Silencio hasta", "Quiet until")}>
-                  <Input type="time" value={draft.quietEnd} onChange={(event) => setDraft((current) => ({ ...current, quietEnd: event.target.value }))} />
+                  <Input className="h-10 rounded-xl border-white/10 bg-black/50 text-zinc-100" type="time" value={draft.quietEnd} onChange={(event) => setDraft((current) => ({ ...current, quietEnd: event.target.value }))} />
                 </Field>
                 <Field label={text("Recordar citas", "Appointment reminders")}>
-                  <Input type="time" value={draft.appointmentReminderTime} onChange={(event) => setDraft((current) => ({ ...current, appointmentReminderTime: event.target.value }))} />
+                  <Input className="h-10 rounded-xl border-white/10 bg-black/50 text-zinc-100" type="time" value={draft.appointmentReminderTime} onChange={(event) => setDraft((current) => ({ ...current, appointmentReminderTime: event.target.value }))} />
                 </Field>
                 {draft.botType !== "assistant" && (
                   <Field label={text("Reporte diario", "Daily report")}>
-                    <Input type="time" value={draft.dailyReportTime} onChange={(event) => setDraft((current) => ({ ...current, dailyReportTime: event.target.value }))} />
+                    <Input className="h-10 rounded-xl border-white/10 bg-black/50 text-zinc-100" type="time" value={draft.dailyReportTime} onChange={(event) => setDraft((current) => ({ ...current, dailyReportTime: event.target.value }))} />
                   </Field>
                 )}
               </div>
-              <div className="space-y-2">
-                <Label>{text("Feriados y cierres", "Holidays and closures")}</Label>
+
+              <div className="space-y-2 border-t border-white/5 pt-4">
+                <Label className="text-xs font-medium text-zinc-300">{text("Feriados y cierres", "Holidays and closures")}</Label>
                 <div className="flex flex-wrap gap-2">
-                  <Input type="date" className="w-48" value={holidayDraft} onChange={(event) => setHolidayDraft(event.target.value)} />
+                  <Input type="date" className="w-48 h-10 rounded-xl border-white/10 bg-black/50 text-zinc-100" value={holidayDraft} onChange={(event) => setHolidayDraft(event.target.value)} />
                   <Button
                     type="button"
                     variant="outline"
+                    className="h-10 rounded-xl border-white/10 bg-white/5 text-zinc-200 hover:bg-white/10"
                     disabled={!holidayDraft || draft.holidays.includes(holidayDraft)}
                     onClick={() => {
                       setDraft((current) => ({ ...current, holidays: [...current.holidays, holidayDraft].sort() }));
@@ -1189,9 +1262,9 @@ function BotBuilder() {
                   </Button>
                 </div>
                 {draft.holidays.length > 0 && (
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-2 pt-2">
                     {draft.holidays.map((date) => (
-                      <Button key={date} type="button" size="sm" variant="secondary" onClick={() => setDraft((current) => ({ ...current, holidays: current.holidays.filter((value) => value !== date) }))}>
+                      <Button key={date} type="button" size="sm" variant="secondary" className="rounded-xl border border-white/10 bg-white/5 text-zinc-300" onClick={() => setDraft((current) => ({ ...current, holidays: current.holidays.filter((value) => value !== date) }))}>
                         {date} ×
                       </Button>
                     ))}
@@ -1199,9 +1272,11 @@ function BotBuilder() {
                 )}
               </div>
             </div>
+
             {muestra("direccion") && (
               <Field label={text("Dirección", "Address")}>
                 <Input
+                  className="h-11 rounded-xl border-white/10 bg-black/40 text-zinc-100"
                   value={draft.direccion}
                   onChange={(event) =>
                     setDraft((current) => ({ ...current, direccion: event.target.value }))
@@ -1212,6 +1287,7 @@ function BotBuilder() {
             {muestra("contacto") && (
               <Field label={text("Contacto", "Contact")}>
                 <Input
+                  className="h-11 rounded-xl border-white/10 bg-black/40 text-zinc-100"
                   value={draft.contacto}
                   onChange={(event) =>
                     setDraft((current) => ({ ...current, contacto: event.target.value }))
@@ -1220,12 +1296,13 @@ function BotBuilder() {
               </Field>
             )}
           </div>
+
           {muestra("cotizaPorChat") && (
-            <div className="mt-4">
-              <div className="flex items-center justify-between rounded-lg border border-border/60 p-3">
+            <div className="mt-5">
+              <div className="flex items-center justify-between rounded-xl border border-white/10 bg-black/40 p-4 backdrop-blur-md">
                 <div>
-                  <Label>{text("Puede cotizar por chat", "Can quote by chat")}</Label>
-                  <p className="mt-1 text-xs text-muted-foreground">
+                  <Label className="text-sm font-medium text-zinc-200">{text("Puede cotizar por chat", "Can quote by chat")}</Label>
+                  <p className="mt-1 text-xs text-zinc-400">
                     {text(
                       "Desactívalo para negocios que solo cotizan después de una inspección.",
                       "Turn this off for businesses that quote only after an inspection.",
@@ -1241,10 +1318,12 @@ function BotBuilder() {
               </div>
             </div>
           )}
-          <div className="mt-4 space-y-2">
-            <Label>{text(...contexto.label)}</Label>
+
+          <div className="mt-6 space-y-2">
+            <Label className="text-xs font-medium text-zinc-300">{text(...contexto.label)}</Label>
             <Textarea
               rows={5}
+              className="rounded-xl border-white/10 bg-black/40 text-zinc-100 placeholder:text-zinc-500 backdrop-blur-sm focus:border-white/20"
               value={draft.companyInfo}
               onChange={(event) =>
                 setDraft((current) => ({ ...current, companyInfo: event.target.value }))
@@ -1252,8 +1331,9 @@ function BotBuilder() {
               placeholder={text(...contexto.placeholder)}
             />
           </div>
-          <div className="mt-4 space-y-2">
-            <Label>
+
+          <div className="mt-6 space-y-2">
+            <Label className="text-xs font-medium text-zinc-300">
               {text(
                 "Personalización: restricciones y comportamiento",
                 "Customization: restrictions and behavior",
@@ -1261,6 +1341,7 @@ function BotBuilder() {
             </Label>
             <Textarea
               rows={4}
+              className="rounded-xl border-white/10 bg-black/40 text-zinc-100 placeholder:text-zinc-500 backdrop-blur-sm focus:border-white/20"
               value={draft.extraPrompt}
               onChange={(event) =>
                 setDraft((current) => ({ ...current, extraPrompt: event.target.value }))
@@ -1270,14 +1351,15 @@ function BotBuilder() {
                 "Example: what to escalate, preferred tone, authorized exceptions, and client-specific limits. Base safety rules cannot be removed.",
               )}
             />
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-zinc-400">
               {text(
                 "Este campo complementa la función predeterminada; no sustituye las políticas internas de seguridad.",
                 "This field supplements the default function; it does not replace internal safety policies.",
               )}
             </p>
           </div>
-          <div className="mt-4 rounded-lg border border-primary/20 bg-primary/5 p-3 text-xs text-muted-foreground">
+
+          <div className="mt-6 rounded-xl border border-primary/20 bg-primary/5 p-4 text-xs text-zinc-300 backdrop-blur-md">
             {text(
               "Siguiente paso: se guarda un borrador y se abre el Centro de Calidad. Allí probarás respuestas, decisiones, herramientas e infraestructura antes de habilitar “Crear y publicar bot”.",
               "Next step: a draft is saved and the Quality Center opens. There you will test responses, decisions, tools, and infrastructure before enabling “Create and publish bot.”",
@@ -1439,7 +1521,7 @@ function BotBuilder() {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="space-y-2">
-      <Label>{label}</Label>
+      <Label className="text-xs font-medium text-zinc-300">{label}</Label>
       {children}
     </div>
   );
@@ -1448,8 +1530,8 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 function ResultLine({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</p>
-      <p className="mt-1 break-all font-mono text-xs">{value}</p>
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">{label}</p>
+      <p className="mt-1 break-all font-mono text-xs text-zinc-200">{value}</p>
     </div>
   );
 }
