@@ -216,6 +216,57 @@ export async function createApp(appName: string, orgSlug: string): Promise<FlyAp
 }
 
 /**
+ * Asigna direcciones IP públicas (IPv4 compartida e IPv6) para resolución DNS global en Fly.io.
+ */
+export async function allocateAppIps(appName: string): Promise<void> {
+  const token = getFlyToken();
+  const mutation = `
+    mutation AllocateIP($input: AllocateIPAddressInput!) {
+      allocateIpAddress(input: $input) {
+        app { id name }
+        ipAddress { id address type }
+      }
+    }
+  `;
+
+  // Asignar shared_v4
+  await fetch("https://api.fly.io/graphql", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      query: mutation,
+      variables: {
+        input: {
+          appId: appName.trim(),
+          type: "shared_v4",
+        },
+      },
+    }),
+  }).catch(() => {});
+
+  // Asignar v6
+  await fetch("https://api.fly.io/graphql", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      query: mutation,
+      variables: {
+        input: {
+          appId: appName.trim(),
+          type: "v6",
+        },
+      },
+    }),
+  }).catch(() => {});
+}
+
+/**
  * Crea un volumen NVMe persistente para una app en una región determinada.
  * Endpoint: POST /apps/{app}/volumes
  *

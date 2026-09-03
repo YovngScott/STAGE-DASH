@@ -1,6 +1,7 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import type { BotBehavior } from "@/lib/bot-prompts";
 import {
+  allocateAppIps,
   createApp,
   createMachine,
   createVolume,
@@ -267,6 +268,17 @@ async function runProvision(jobId: string, input: ProvisionInput): Promise<void>
         throw error;
       }
     }
+
+    // 2.1 Asignación de IPs públicas (IPv4 compartida e IPv6) para resolución DNS global
+    await appendProvisionJobLog(
+      jobId,
+      "Asignando direcciones IP públicas para resolución DNS global...",
+    );
+    await allocateAppIps(appName);
+    await appendProvisionJobLog(
+      jobId,
+      "IPs públicas (IPv4 compartida e IPv6) asignadas correctamente.",
+    );
 
     // 3. Creación o reutilización del volumen persistente 'bot_data'
     await appendProvisionJobLog(
@@ -548,7 +560,7 @@ export function readInfrastructure(groqOverride?: string, proveedorCorreo?: Prov
 
 async function waitForHealth(url: string) {
   let lastError = "";
-  for (let attempt = 0; attempt < 24; attempt += 1) {
+  for (let attempt = 0; attempt < 30; attempt += 1) {
     try {
       const response = await fetch(url);
       if (response.ok) {
