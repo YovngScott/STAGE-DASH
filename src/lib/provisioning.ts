@@ -318,7 +318,7 @@ async function runProvision(jobId: string, input: ProvisionInput): Promise<void>
 
     // 5. Creación de la Machine (Contenedor Docker)
     const dockerImage =
-      process.env.STAGE_BOT_DOCKER_IMAGE || "ghcr.io/yovngscott/stage-bot-template:latest";
+      process.env.STAGE_BOT_DOCKER_IMAGE || "docker.io/stagelabs/stage-bot-template:latest";
     await appendProvisionJobLog(jobId, `Aprovisionando Fly Machine con imagen [${dockerImage}]...`);
 
     const machine = await createMachine(appName, {
