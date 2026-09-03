@@ -202,79 +202,98 @@ async function runModelGemini(
 ): Promise<ModelResult & { reason: string }> {
   const started = Date.now();
   const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({
-    model: "gemini-1.5-flash",
-    systemInstruction: {
-      role: "system",
-      parts: [{ text: systemPrompt(record) }],
-    },
-    generationConfig: {
-      temperature: 0,
-      responseMimeType: "application/json",
-      maxOutputTokens: 800,
-    },
-  });
+
+  const modelsToTry = [
+    process.env.STAGE_GEMINI_MODEL,
+    "gemini-3.5-flash",
+    "gemini-3.5-flash-lite",
+    "gemini-1.5-flash",
+  ].filter(Boolean) as string[];
 
   const maxRetries = 3;
   let lastError: any = null;
 
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      const result = await model.generateContent({
-        contents: [
-          {
-            role: "user",
-            parts: [{ text: question }],
-          },
-        ],
-      });
+  for (const modelName of modelsToTry) {
+    const model = genAI.getGenerativeModel({
+      model: modelName,
+      systemInstruction: {
+        role: "system",
+        parts: [{ text: systemPrompt(record) }],
+      },
+      generationConfig: {
+        temperature: 0,
+        responseMimeType: "application/json",
+        maxOutputTokens: 800,
+      },
+    });
 
-      const response = await result.response;
-      const raw = response.text()?.trim() || "";
-      if (!raw) {
-        throw new Error("El modelo no devolvió una respuesta comprobable.");
-      }
-
-      let parsed: any;
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        parsed = JSON.parse(extractJsonObject(raw));
-      } catch {
-        throw new Error("El modelo devolvió un formato inválido durante la prueba.");
-      }
+        const result = await model.generateContent({
+          contents: [
+            {
+              role: "user",
+              parts: [{ text: question }],
+            },
+          ],
+        });
 
-      return {
-        response: String(parsed.response || "").trim(),
-        decision: ["answer", "redirect", "human_review"].includes(parsed.decision)
-          ? parsed.decision
-          : "human_review",
-        tools: Array.isArray(parsed.tools) ? parsed.tools.map(String).slice(0, 6) : [],
-        reason: String(parsed.reason || "Decisión sin explicación.").trim(),
-        latencyMs: Date.now() - started,
-      };
-    } catch (err: any) {
-      lastError = err;
-      const status = err?.status || err?.code;
-      const msg = String(err?.message || "").toLowerCase();
-      const isRateLimit =
-        status === 429 ||
-        msg.includes("rate limit") ||
-        msg.includes("resource exhausted") ||
-        msg.includes("quota");
-      const isTransient = isRateLimit || status === 500 || status === 503;
+        const response = await result.response;
+        const raw = response.text()?.trim() || "";
+        if (!raw) {
+          throw new Error("El modelo no devolvió una respuesta comprobable.");
+        }
 
-      if (attempt < maxRetries && isTransient) {
-        const delayMs = Math.min(2000 * Math.pow(1.5, attempt - 1), 5000);
-        console.warn(
-          `[quality-engine:gemini] Reintento ${attempt}/${maxRetries} tras fallo temporal (${err?.message}). Esperando ${delayMs}ms...`,
-        );
-        await new Promise((resolve) => setTimeout(resolve, delayMs));
-      } else {
-        break;
+        let parsed: any;
+        try {
+          parsed = JSON.parse(extractJsonObject(raw));
+        } catch {
+          throw new Error("El modelo devolvió un formato inválido durante la prueba.");
+        }
+
+        return {
+          response: String(parsed.response || "").trim(),
+          decision: ["answer", "redirect", "human_review"].includes(parsed.decision)
+            ? parsed.decision
+            : "human_review",
+          tools: Array.isArray(parsed.tools) ? parsed.tools.map(String).slice(0, 6) : [],
+          reason: String(parsed.reason || "Decisión sin explicación.").trim(),
+          latencyMs: Date.now() - started,
+        };
+      } catch (err: any) {
+        lastError = err;
+        const status = err?.status || err?.code;
+        const msg = String(err?.message || "").toLowerCase();
+
+        // Si el modelo retorna 404 (retirado o no disponible en este tier), probar siguiente modelo de la lista
+        if (status === 404 || msg.includes("not found") || msg.includes("no longer available")) {
+          console.warn(
+            `[quality-engine:gemini] Modelo ${modelName} no disponible (404), probando siguiente modelo...`,
+          );
+          break;
+        }
+
+        const isRateLimit =
+          status === 429 ||
+          msg.includes("rate limit") ||
+          msg.includes("resource exhausted") ||
+          msg.includes("quota");
+        const isTransient = isRateLimit || status === 500 || status === 503;
+
+        if (attempt < maxRetries && isTransient) {
+          const delayMs = Math.min(2000 * Math.pow(1.5, attempt - 1), 5000);
+          console.warn(
+            `[quality-engine:gemini] Reintento ${attempt}/${maxRetries} en ${modelName} tras fallo temporal (${err?.message}). Esperando ${delayMs}ms...`,
+          );
+          await new Promise((resolve) => setTimeout(resolve, delayMs));
+        } else {
+          break;
+        }
       }
     }
   }
 
-  throw new Error(lastError?.message || "Error ejecutando prueba en Gemini 1.5 Flash.");
+  throw new Error(lastError?.message || "Error ejecutando prueba en Gemini.");
 }
 
 /**
