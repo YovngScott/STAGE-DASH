@@ -1,4 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
+import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { destroyApp, getApp } from "@/lib/fly-client";
+import { makeFlyAppName, type BotKind } from "@/lib/provisioning";
 import type { TenantConfigDraft } from "@/lib/provisioning";
 import type { ProvisionPreflightCheck } from "@/lib/provisioning";
 
@@ -145,6 +148,110 @@ async function putJson(path: string, value: unknown, message: string) {
   if (!response.ok)
     throw new Error(body?.message || `GitHub no pudo guardar ${path} (${response.status}).`);
   return body?.commit?.html_url ?? null;
+}
+
+async function deleteJson(path: string, message: string): Promise<boolean> {
+  const cfg = githubConfig();
+  const base = `https://api.github.com/repos/${cfg.owner}/${cfg.repo}/contents/${path}`;
+  const existing = await fetch(`${base}?ref=${encodeURIComponent(cfg.branch)}`, {
+    headers: headers(cfg.token),
+  });
+  if (existing.status === 404) return false;
+  if (!existing.ok)
+    throw new Error(`GitHub no pudo revisar ${path} (${existing.status}).`);
+  const sha = (await existing.json())?.sha;
+  if (!sha) return false;
+
+  const response = await fetch(base, {
+    method: "DELETE",
+    headers: headers(cfg.token),
+    body: JSON.stringify({
+      message,
+      branch: cfg.branch,
+      sha,
+    }),
+  });
+  if (!response.ok && response.status !== 404) {
+    const body = await response.json().catch(() => null);
+    throw new Error(body?.message || `GitHub no pudo eliminar ${path} (${response.status}).`);
+  }
+  return true;
+}
+
+export async function deleteQualityRecord(slug: string) {
+  await deleteJson(`${QUALITY_ROOT}/${slug}.json`, `Eliminar control de calidad de ${slug}`).catch(() => {});
+  await deleteJson(`backend/config/tenants/${slug}.json`, `Eliminar tenant ${slug}`).catch(() => {});
+}
+
+export interface DeleteBotResult {
+  deletedSlug: string;
+  destroyedApps: string[];
+  wasActive: boolean;
+}
+
+export async function deleteBotAndCleanup(slug: string): Promise<DeleteBotResult> {
+  const cleanSlug = slug.trim().toLowerCase();
+
+  // 1. Obtener información previa del bot si existe en Supabase o en Quality
+  const [record, { data: bot }] = await Promise.all([
+    loadQualityRecord(cleanSlug).catch(() => null),
+    supabaseAdmin
+      .from("client_bots")
+      .select("id,kind,status,client_id,fly_app_name,bot_status_url")
+      .eq("slug", cleanSlug)
+      .maybeSingle(),
+  ]);
+
+  const kind = (bot?.kind || record?.botType || "messaging") as BotKind;
+  const appNamesToDestroy = new Set<string>();
+
+  if (bot?.fly_app_name) appNamesToDestroy.add(bot.fly_app_name);
+  appNamesToDestroy.add(makeFlyAppName(cleanSlug, kind));
+  appNamesToDestroy.add(`stage-${cleanSlug}-messaging`);
+  appNamesToDestroy.add(`stage-${cleanSlug}-assistant`);
+
+  // 2. Destruir aplicaciones asociadas en Fly.io
+  const destroyedApps: string[] = [];
+  for (const app of appNamesToDestroy) {
+    try {
+      const existing = await getApp(app);
+      if (existing) {
+        await destroyApp(app);
+        destroyedApps.push(app);
+      }
+    } catch {
+      // Ignorar si la app no existía en Fly.io
+    }
+  }
+
+  // 3. Eliminar archivos de configuración en GitHub
+  await deleteQualityRecord(cleanSlug);
+
+  // 4. Limpieza de base de datos en Supabase
+  await Promise.all([
+    supabaseAdmin.from("client_bots").delete().eq("slug", cleanSlug),
+    supabaseAdmin.from("client_dashboards").delete().eq("slug", cleanSlug),
+    supabaseAdmin.from("provision_jobs").delete().eq("tenant_slug", cleanSlug),
+  ]);
+
+  // 5. Actualizar clientes vinculados si apuntaban a este bot
+  if (bot?.client_id) {
+    await supabaseAdmin
+      .from("clients")
+      .update({ bot_activo: false, bot_status_url: null, bot_secret: null })
+      .eq("id", bot.client_id);
+  } else {
+    await supabaseAdmin
+      .from("clients")
+      .update({ bot_activo: false, bot_status_url: null, bot_secret: null })
+      .like("bot_status_url", `%/${cleanSlug}/%`);
+  }
+
+  return {
+    deletedSlug: cleanSlug,
+    destroyedApps,
+    wasActive: bot?.status === "active" || record?.state === "active",
+  };
 }
 
 async function listJson<T>(path: string): Promise<Array<{ name: string; value: T }>> {

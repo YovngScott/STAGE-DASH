@@ -17,6 +17,7 @@ import {
   saveQualityRecord,
   validateSnapshot,
   writePublishedTenant,
+  deleteBotAndCleanup,
 } from "@/lib/quality-center.server";
 import { runMandatoryQualityTests, runManualQualityTest } from "@/lib/quality-engine.server";
 
@@ -29,7 +30,8 @@ type ActionBody = {
     | "backup"
     | "restore_drill"
     | "rollback"
-    | "restore_backup";
+    | "restore_backup"
+    | "delete_bot";
   slug?: string;
   question?: string;
   snapshotId?: string;
@@ -106,6 +108,11 @@ export const Route = createFileRoute("/api/quality-center")({
           return Response.json({ error: "Solicitud de calidad inválida." }, { status: 400 });
         }
         try {
+          if (body.action === "delete_bot") {
+            const result = await deleteBotAndCleanup(slug);
+            return Response.json({ ok: true, ...result });
+          }
+
           const record = await loadQualityRecord(slug);
           if (!record) return Response.json({ error: "Borrador no encontrado." }, { status: 404 });
 
@@ -251,6 +258,21 @@ export const Route = createFileRoute("/api/quality-center")({
           record.state = bot?.status === "active" ? "active" : "draft";
           await saveQualityRecord(record, `Registrar restauración de ${slug}`);
           return Response.json({ ok: true, record });
+        } catch (error) {
+          return Response.json({ error: message(error) }, { status: 502 });
+        }
+      },
+
+      DELETE: async ({ request }) => {
+        const denied = await authorizeOwner(request);
+        if (denied) return denied;
+        const slug = new URL(request.url).searchParams.get("slug")?.trim() ?? "";
+        if (!slug || !/^[a-z0-9][a-z0-9-]{0,63}$/.test(slug)) {
+          return Response.json({ error: "Slug de bot inválido." }, { status: 400 });
+        }
+        try {
+          const result = await deleteBotAndCleanup(slug);
+          return Response.json({ ok: true, ...result });
         } catch (error) {
           return Response.json({ error: message(error) }, { status: 502 });
         }

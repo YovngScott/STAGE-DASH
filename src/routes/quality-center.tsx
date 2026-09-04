@@ -15,6 +15,7 @@ import {
   RefreshCw,
   Rocket,
   ShieldCheck,
+  Trash2,
   Wrench,
   XCircle,
 } from "lucide-react";
@@ -27,6 +28,16 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 
@@ -117,6 +128,12 @@ function QualityCenterPage() {
   const [metaAccessToken, setMetaAccessToken] = useState("");
   const [metaAppSecret, setMetaAppSecret] = useState("");
   const [metaVerifyToken, setMetaVerifyToken] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<{
+    slug: string;
+    name: string;
+    state?: string;
+  } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     setDedicatedKey("");
@@ -391,6 +408,35 @@ function QualityCenterPage() {
     }
   };
 
+  const handleDeleteBot = async () => {
+    if (!deleteTarget) return;
+    setIsDeleting(true);
+    try {
+      const res = await authFetch("/api/quality-center", {
+        method: "POST",
+        body: JSON.stringify({
+          action: "delete_bot",
+          slug: deleteTarget.slug,
+        }),
+      });
+      toast.success(
+        res.wasActive
+          ? `Bot "${deleteTarget.name}" y sus recursos en Fly.io fueron eliminados con éxito.`
+          : `Borrador "${deleteTarget.name}" eliminado correctamente.`,
+      );
+      if (search.slug === deleteTarget.slug) {
+        setRecord(null);
+        void navigate({ search: { slug: undefined } });
+      }
+      setDeleteTarget(null);
+      await loadList();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "No se pudo eliminar el bot.");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const allBots = useMemo(() => {
     const map = new Map<string, { slug: string; name: string; state: string; kind: string }>();
     for (const bot of bots)
@@ -416,19 +462,22 @@ function QualityCenterPage() {
     <div className="mx-auto max-w-[1500px] space-y-6 p-6 md:p-8">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-xs uppercase tracking-widest text-muted-foreground">
-            Bot Factory / Safety Gate
-          </p>
-          <h2 className="mt-1 text-2xl font-semibold tracking-tight">Centro de Calidad</h2>
-          <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
-            Prueba en borrador, revisa decisiones y publica únicamente configuraciones aprobadas.
-            Sin crear máquinas durante las pruebas.
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold tracking-tight">Centro de Calidad de Bots</h1>
+            <Badge variant="outline" className="border-primary/30 text-primary">
+              Etapa 3
+            </Badge>
+          </div>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Auditoría de seguridad, pruebas automatizadas, aprobación manual y despliegue sin
+            fricción.
           </p>
         </div>
-        <Button variant="outline" onClick={() => void load()} disabled={loading} className="gap-2">
-          <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
-          Actualizar
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading}>
+            <RefreshCw className={cn("mr-2 h-4 w-4", loading && "animate-spin")} /> Recargar
+          </Button>
+        </div>
       </div>
 
       {error && (
@@ -446,23 +495,39 @@ function QualityCenterPage() {
           </div>
           <div className="max-h-[68vh] space-y-1 overflow-y-auto p-2">
             {allBots.map((item) => (
-              <button
+              <div
                 key={item.slug}
-                onClick={() => void navigate({ search: { slug: item.slug } })}
                 className={cn(
-                  "flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left transition-colors hover:bg-muted/70",
+                  "group flex w-full items-center justify-between rounded-lg transition-colors hover:bg-muted/70",
                   search.slug === item.slug && "bg-primary/10 ring-1 ring-primary/20",
                 )}
               >
-                <Bot className="h-4 w-4 shrink-0 text-primary" />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-medium">{item.name}</span>
-                  <span className="block truncate text-[11px] text-muted-foreground">
-                    {item.slug} · {item.kind}
+                <button
+                  onClick={() => void navigate({ search: { slug: item.slug } })}
+                  className="flex min-w-0 flex-1 items-center gap-3 px-3 py-3 text-left"
+                >
+                  <Bot className="h-4 w-4 shrink-0 text-primary" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium">{item.name}</span>
+                    <span className="block truncate text-[11px] text-muted-foreground">
+                      {item.slug} · {item.kind}
+                    </span>
                   </span>
-                </span>
-                <StateBadge state={item.state} />
-              </button>
+                  <StateBadge state={item.state} />
+                </button>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="mr-1.5 h-7 w-7 text-muted-foreground opacity-0 transition-opacity hover:bg-rose-500/10 hover:text-rose-400 group-hover:opacity-100"
+                  title={`Eliminar ${item.name}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setDeleteTarget({ slug: item.slug, name: item.name, state: item.state });
+                  }}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </div>
             ))}
             {!allBots.length && (
               <p className="px-3 py-8 text-center text-xs text-muted-foreground">
@@ -495,14 +560,31 @@ function QualityCenterPage() {
                     {record.slug} · {record.botType} · actualizado {formatDate(record.updatedAt)}
                   </p>
                 </div>
-                <Button
-                  onClick={() => void publish()}
-                  disabled={!canPublish || busy !== null || record.state === "publishing"}
-                  className="gap-2"
-                >
-                  <Rocket className="h-4 w-4" />
-                  {record.state === "active" ? "Publicar nueva versión" : "Crear y publicar bot"}
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    className="gap-1.5 border-rose-500/30 text-rose-400 hover:bg-rose-500/10 hover:text-rose-300"
+                    onClick={() =>
+                      setDeleteTarget({
+                        slug: record.slug,
+                        name: record.clientName || record.slug,
+                        state: record.state,
+                      })
+                    }
+                    disabled={busy !== null || isDeleting}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    {record.state === "active" ? "Eliminar bot" : "Eliminar borrador"}
+                  </Button>
+                  <Button
+                    onClick={() => void publish()}
+                    disabled={!canPublish || busy !== null || record.state === "publishing"}
+                    className="gap-2"
+                  >
+                    <Rocket className="h-4 w-4" />
+                    {record.state === "active" ? "Publicar nueva versión" : "Crear y publicar bot"}
+                  </Button>
+                </div>
               </div>
               {record.groqKeyMode === "dedicated" ? (
                 <details className="mt-4 rounded-lg border border-primary/20 bg-primary/[0.03]">
@@ -905,6 +987,58 @@ function QualityCenterPage() {
           </div>
         )}
       </div>
+
+      <AlertDialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(open) => !open && !isDeleting && setDeleteTarget(null)}
+      >
+        <AlertDialogContent className="border-border/60 bg-zinc-950/90 backdrop-blur-xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-rose-400">
+              <AlertTriangle className="h-5 w-5" />
+              ¿Eliminar {deleteTarget?.state === "active" ? "bot activo" : "borrador"}{" "}
+              &quot;{deleteTarget?.name}&quot;?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-zinc-300">
+              {deleteTarget?.state === "active" ? (
+                <span>
+                  Esta acción es <strong>permanente e irreversible</strong>. Se destruirá la aplicación
+                  en Fly.io liberando las máquinas, volúmenes e IPs reservadas, y se eliminará la
+                  configuración del bot en GitHub y la base de datos.
+                </span>
+              ) : (
+                <span>
+                  Esta acción eliminará el borrador, sus pruebas de calidad y la configuración asociada.
+                  Esta acción no se puede deshacer.
+                </span>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              disabled={isDeleting}
+              className="border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10"
+            >
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={isDeleting}
+              onClick={(e) => {
+                e.preventDefault();
+                void handleDeleteBot();
+              }}
+              className="bg-rose-600 text-white hover:bg-rose-700"
+            >
+              {isDeleting ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="mr-2 h-4 w-4" />
+              )}
+              Eliminar definitivamente
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

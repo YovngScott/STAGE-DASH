@@ -14,10 +14,12 @@ import {
   Power,
   RefreshCw,
   ServerCrash,
+  Trash2,
   UserRound,
   Wifi,
   WifiOff,
 } from "lucide-react";
+import { toast } from "sonner";
 import { KpiCard } from "@/components/kpi-card";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -31,6 +33,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -129,6 +141,8 @@ function HealthPage() {
   const [whatsappTestDestination, setWhatsappTestDestination] = useState("");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [followupReplies, setFollowupReplies] = useState<Record<string, string>>({});
+  const [deleteTarget, setDeleteTarget] = useState<BotHealth | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const knownAlertIds = useRef<Set<string>>(new Set());
 
   const load = useCallback(async (silent = false) => {
@@ -247,6 +261,43 @@ function HealthPage() {
       setError(e instanceof Error ? e.message : "No se pudo cambiar el estado del bot.");
     } finally {
       setToggling(null);
+    }
+  };
+
+  const handleDeleteBot = async () => {
+    if (!deleteTarget) return;
+    setIsDeleting(true);
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const res = await fetch("/api/quality-center", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          Authorization: `Bearer ${session?.access_token ?? ""}`,
+        },
+        body: JSON.stringify({
+          action: "delete_bot",
+          slug: deleteTarget.slug,
+        }),
+      });
+      const body = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(body?.error || `Error ${res.status}`);
+      toast.success(
+        body.wasActive
+          ? `Bot "${deleteTarget.name}" y sus recursos en Fly.io fueron destruidos con éxito.`
+          : `Bot "${deleteTarget.name}" eliminado correctamente.`,
+      );
+      if (selectedSlug === deleteTarget.slug) {
+        setSelectedSlug("");
+      }
+      setDeleteTarget(null);
+      await load(true);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "No se pudo eliminar el bot.");
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -423,25 +474,37 @@ function HealthPage() {
                     {timeAgo(b.checkedAt)}
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className={cn(
-                        "h-8 rounded-lg text-xs font-medium transition-all gap-1.5",
-                        b.status === "active"
-                          ? "border-white/10 bg-white/5 text-zinc-300 hover:border-rose-500/30 hover:bg-rose-500/10 hover:text-rose-300"
-                          : "border-emerald-500/30 bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25",
-                      )}
-                      disabled={toggling === b.botId || !b.host}
-                      onClick={() => void toggleBot(b, b.status !== "active")}
-                    >
-                      {toggling === b.botId ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <Power className={cn("h-3.5 w-3.5", b.status === "active" ? "text-zinc-400" : "text-emerald-400")} />
-                      )}
-                      {b.status === "active" ? "Pausar" : "Reactivar"}
-                    </Button>
+                    <div className="flex items-center justify-end gap-1.5">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className={cn(
+                          "h-8 rounded-lg text-xs font-medium transition-all gap-1.5",
+                          b.status === "active"
+                            ? "border-white/10 bg-white/5 text-zinc-300 hover:border-rose-500/30 hover:bg-rose-500/10 hover:text-rose-300"
+                            : "border-emerald-500/30 bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25",
+                        )}
+                        disabled={toggling === b.botId || !b.host}
+                        onClick={() => void toggleBot(b, b.status !== "active")}
+                      >
+                        {toggling === b.botId ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Power className={cn("h-3.5 w-3.5", b.status === "active" ? "text-zinc-400" : "text-emerald-400")} />
+                        )}
+                        {b.status === "active" ? "Pausar" : "Reactivar"}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 w-8 p-0 border-white/10 bg-white/5 text-zinc-400 hover:border-rose-500/30 hover:bg-rose-500/10 hover:text-rose-300 transition-all"
+                        title={`Eliminar bot ${b.name}`}
+                        disabled={isDeleting}
+                        onClick={() => setDeleteTarget(b)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
@@ -663,6 +726,14 @@ function HealthPage() {
                   <div className="mt-4 flex flex-wrap gap-3">
                     <Button variant="outline" className="h-9 rounded-xl border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10 text-xs" disabled={actionLoading === "recoveryDrill"} onClick={() => void runAction("recoveryDrill")}><DatabaseBackup className="mr-2 h-4 w-4" /> Ejecutar simulacro</Button>
                     <Button variant="outline" className="h-9 rounded-xl border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10 text-xs" disabled={actionLoading === "export"} onClick={() => void exportBot()}><Download className="mr-2 h-4 w-4" /> Exportar configuración</Button>
+                    <Button
+                      variant="outline"
+                      className="h-9 rounded-xl border-rose-500/30 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20 text-xs"
+                      disabled={isDeleting}
+                      onClick={() => setDeleteTarget(selectedBot)}
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" /> Eliminar bot y destruir recursos
+                    </Button>
                   </div>
                 </div>
               </TabsContent>
@@ -772,6 +843,48 @@ function HealthPage() {
         El monitor corre mientras el Owner Console está abierto. Para avisos 24/7 con la consola
         cerrada, se puede agregar un chequeo programado en segundo plano.
       </p>
+
+      <AlertDialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(open) => !open && !isDeleting && setDeleteTarget(null)}
+      >
+        <AlertDialogContent className="border-border/60 bg-zinc-950/90 backdrop-blur-xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-rose-400">
+              <AlertTriangle className="h-5 w-5" />
+              ¿Eliminar el bot &quot;{deleteTarget?.name}&quot;?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-zinc-300">
+              Esta acción es <strong>permanente e irreversible</strong>. Se destruirá la aplicación
+              dedicada en Fly.io liberando las máquinas, volúmenes e IPs reservadas, y se eliminará la
+              configuración del bot en GitHub y la base de datos de Supabase.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              disabled={isDeleting}
+              className="border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10"
+            >
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={isDeleting}
+              onClick={(e) => {
+                e.preventDefault();
+                void handleDeleteBot();
+              }}
+              className="bg-rose-600 text-white hover:bg-rose-700"
+            >
+              {isDeleting ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="mr-2 h-4 w-4" />
+              )}
+              Eliminar definitivamente
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
