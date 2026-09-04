@@ -70,6 +70,12 @@ interface BotBuilderRequest {
     extraInstructions?: string;
     cotizaPorChat?: boolean;
     googleCalendarId?: string;
+    knowledgeBase?: {
+      sourceUrl?: string;
+      sourceName?: string;
+      content?: string;
+      lastSyncedAt?: string;
+    };
     asistente?: {
       correo?: string;
       whatsappAlertas?: string;
@@ -264,6 +270,16 @@ export const Route = createFileRoute("/api/bot-builder")({
             requireHumanForCommitments: true,
           },
           googleCalendarId: body.tenant.googleCalendarId?.trim() || "primary",
+          ...(body.tenant.knowledgeBase?.sourceUrl || body.tenant.knowledgeBase?.content
+            ? {
+                knowledgeBase: {
+                  sourceUrl: body.tenant.knowledgeBase.sourceUrl?.trim() || undefined,
+                  sourceName: body.tenant.knowledgeBase.sourceName?.trim() || undefined,
+                  content: body.tenant.knowledgeBase.content?.trim() || undefined,
+                  lastSyncedAt: body.tenant.knowledgeBase.lastSyncedAt || new Date().toISOString(),
+                },
+              }
+            : {}),
           ...(asistente ? { asistente } : {}),
         };
 

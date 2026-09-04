@@ -175,6 +175,10 @@ const defaultDraft = {
   // borradores y lo encienda cuando le convenza.
   asistenteEnviarAutomatico: false,
   asistenteProveedor: "gmail" as ProveedorCorreo,
+  // --- Customer Support & Base de Conocimiento ---
+  kbSourceUrl: "",
+  kbSourceName: "",
+  kbContent: "",
 };
 
 const scheduleDays = [
@@ -611,6 +615,14 @@ function BotBuilder() {
             extraInstructions: draft.extraPrompt,
             cotizaPorChat: draft.cotizaPorChat,
             googleCalendarId: "primary",
+            knowledgeBase: (draft.kbSourceUrl.trim() || draft.kbContent.trim())
+              ? {
+                  sourceUrl: draft.kbSourceUrl.trim() || undefined,
+                  sourceName: draft.kbSourceName.trim() || undefined,
+                  content: draft.kbContent.trim() || undefined,
+                  lastSyncedAt: new Date().toISOString(),
+                }
+              : undefined,
             asistente:
               draft.botType === "assistant"
                 ? {
@@ -1357,6 +1369,55 @@ function BotBuilder() {
                 "This field supplements the default function; it does not replace internal safety policies.",
               )}
             </p>
+          </div>
+
+          {/* Customer Support: Base de conocimiento y catálogo local */}
+          <div className="mt-8 space-y-4 rounded-xl border border-white/10 bg-black/40 p-5 backdrop-blur-md">
+            <div className="flex items-center gap-2 text-primary">
+              <Sparkles className="h-4 w-4" />
+              <h4 className="text-sm font-semibold tracking-tight text-zinc-100">
+                {text("Base de conocimiento y Customer Support (Cero alucinaciones)", "Knowledge Base & Customer Support (Zero hallucinations)")}
+              </h4>
+            </div>
+            <p className="text-xs text-zinc-400 leading-relaxed">
+              {text(
+                "Registra la fuente de verdad del negocio (catálogos, web, servicios o FAQ). El bot responderá consultas basándose estrictamente en esta información y escalará con respaldo humano si no encuentra el dato.",
+                "Register the business source of truth (catalogs, website, services, or FAQs). The bot will answer queries strictly based on this information and escalate to a human if not found.",
+              )}
+            </p>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label={text("URL o Fuente Web del negocio", "Business URL or Web Source")}>
+                <Input
+                  className="h-10 rounded-xl border-white/10 bg-black/50 text-zinc-100 placeholder:text-zinc-500"
+                  value={draft.kbSourceUrl}
+                  onChange={(e) => setDraft((c) => ({ ...c, kbSourceUrl: e.target.value }))}
+                  placeholder="https://ejemplo.com/servicios"
+                />
+              </Field>
+              <Field label={text("Nombre de la fuente", "Source name")}>
+                <Input
+                  className="h-10 rounded-xl border-white/10 bg-black/50 text-zinc-100 placeholder:text-zinc-500"
+                  value={draft.kbSourceName}
+                  onChange={(e) => setDraft((c) => ({ ...c, kbSourceName: e.target.value }))}
+                  placeholder="Web Oficial / Catálogo 2026"
+                />
+              </Field>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-zinc-300">
+                {text("Contenido o Preguntas Frecuentes oficiales", "Official content or FAQs")}
+              </Label>
+              <Textarea
+                rows={4}
+                className="rounded-xl border-white/10 bg-black/50 text-zinc-100 placeholder:text-zinc-500 backdrop-blur-sm focus:border-white/20"
+                value={draft.kbContent}
+                onChange={(e) => setDraft((c) => ({ ...c, kbContent: e.target.value }))}
+                placeholder={text(
+                  "Escribe aquí detalles de servicios, políticas de garantía, métodos de pago, envíos y preguntas frecuentes...",
+                  "Enter service details, warranty policies, payment methods, delivery info, and FAQs...",
+                )}
+              />
+            </div>
           </div>
 
           <div className="mt-6 rounded-xl border border-primary/20 bg-primary/5 p-4 text-xs text-zinc-300 backdrop-blur-md">

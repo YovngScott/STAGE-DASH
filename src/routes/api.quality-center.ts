@@ -31,10 +31,16 @@ type ActionBody = {
     | "restore_drill"
     | "rollback"
     | "restore_backup"
-    | "delete_bot";
+    | "delete_bot"
+    | "update_knowledge_base";
   slug?: string;
   question?: string;
   snapshotId?: string;
+  knowledgeBase?: {
+    sourceUrl?: string;
+    sourceName?: string;
+    content?: string;
+  };
 };
 
 export const Route = createFileRoute("/api/quality-center")({
@@ -128,6 +134,46 @@ export const Route = createFileRoute("/api/quality-center")({
             record.manualRuns = [run, ...record.manualRuns].slice(0, 20);
             await saveQualityRecord(record, `Prueba manual de ${slug}`);
             return Response.json({ ok: true, run });
+          }
+
+          if (body.action === "update_knowledge_base") {
+            const kb = body.knowledgeBase ?? {};
+            record.tenantConfig.knowledgeBase = {
+              sourceUrl: kb.sourceUrl?.trim() || undefined,
+              sourceName: kb.sourceName?.trim() || undefined,
+              content: kb.content?.trim() || undefined,
+              lastSyncedAt: new Date().toISOString(),
+            };
+            await saveQualityRecord(record, `Actualizar base de conocimiento de ${slug}`);
+
+            const published = await readPublishedTenant(slug);
+            if (published) {
+              published.knowledgeBase = record.tenantConfig.knowledgeBase;
+              await writePublishedTenant(
+                slug,
+                published,
+                `Actualizar base de conocimiento de ${slug}`,
+              );
+
+              const { data: bot } = await supabaseAdmin
+                .from("client_bots")
+                .select("kind,bot_status_url,status")
+                .eq("slug", slug)
+                .maybeSingle();
+              if (bot?.status === "active") {
+                const appName = appNameFromStatusUrl(bot.bot_status_url);
+                if (appName) {
+                  await redeployBotConfig({
+                    appName,
+                    slug,
+                    kind: (bot.kind ?? record.botType) as BotKind,
+                    tenantConfig: published,
+                  });
+                }
+              }
+            }
+
+            return Response.json({ ok: true, record });
           }
 
           if (body.action === "automatic_tests") {

@@ -3,17 +3,20 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   ArchiveRestore,
+  BookOpen,
   Bot,
   CheckCircle2,
   Clock3,
   DatabaseBackup,
   FlaskConical,
+  Globe,
   History,
   KeyRound,
   Loader2,
   Play,
   RefreshCw,
   Rocket,
+  Save,
   ShieldCheck,
   Trash2,
   Wrench,
@@ -81,6 +84,12 @@ type RecordRow = {
   groqKeyMode?: "automatic" | "dedicated";
   tenantConfig: {
     whatsapp?: { provider?: "baileys" | "meta_cloud"; phoneNumberId?: string; apiVersion?: string };
+    knowledgeBase?: {
+      sourceUrl?: string;
+      sourceName?: string;
+      content?: string;
+      lastSyncedAt?: string;
+    };
   };
 };
 type BotRow = {
@@ -135,12 +144,23 @@ function QualityCenterPage() {
   } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // Customer Support & Base de Conocimiento
+  const [kbSourceUrl, setKbSourceUrl] = useState("");
+  const [kbSourceName, setKbSourceName] = useState("");
+  const [kbContent, setKbContent] = useState("");
+  const [kbSaving, setKbSaving] = useState(false);
+  const [kbSavedMsg, setKbSavedMsg] = useState<string | null>(null);
+
   useEffect(() => {
     setDedicatedKey("");
     setMetaAccessToken("");
     setMetaAppSecret("");
     setMetaVerifyToken("");
-  }, [record?.slug]);
+    setKbSourceUrl(record?.tenantConfig?.knowledgeBase?.sourceUrl ?? "");
+    setKbSourceName(record?.tenantConfig?.knowledgeBase?.sourceName ?? "");
+    setKbContent(record?.tenantConfig?.knowledgeBase?.content ?? "");
+    setKbSavedMsg(null);
+  }, [record?.slug, record?.tenantConfig?.knowledgeBase]);
 
   const authFetch = useCallback(async (url: string, init?: RequestInit) => {
     const { data } = await supabase.auth.getSession();
@@ -356,6 +376,36 @@ function QualityCenterPage() {
       toast.error(text);
     } finally {
       setBusy(null);
+    }
+  };
+
+  const handleSaveKnowledgeBase = async () => {
+    if (!record) return;
+    setKbSaving(true);
+    setKbSavedMsg(null);
+    try {
+      await authFetch("/api/quality-center", {
+        method: "POST",
+        body: JSON.stringify({
+          action: "update_knowledge_base",
+          slug: record.slug,
+          knowledgeBase: {
+            sourceUrl: kbSourceUrl,
+            sourceName: kbSourceName,
+            content: kbContent,
+          },
+        }),
+      });
+      setKbSavedMsg("Base de conocimiento guardada y sincronizada exitosamente.");
+      toast.success("Base de conocimiento actualizada.");
+      await Promise.all([loadDetail(record.slug), loadList()]);
+      setTimeout(() => setKbSavedMsg(null), 4000);
+    } catch (e) {
+      const text = e instanceof Error ? e.message : "Error al guardar la base de conocimiento.";
+      setError(text);
+      toast.error(text);
+    } finally {
+      setKbSaving(false);
     }
   };
 
@@ -758,9 +808,10 @@ function QualityCenterPage() {
             </Card>
 
             <Tabs defaultValue="manual" className="space-y-4">
-              <TabsList className="grid h-auto w-full grid-cols-3 bg-muted/50 p-1">
+              <TabsList className="grid h-auto w-full grid-cols-4 bg-muted/50 p-1">
                 <TabsTrigger value="manual">1. Prueba manual</TabsTrigger>
                 <TabsTrigger value="automatic">2. Validación automática</TabsTrigger>
+                <TabsTrigger value="knowledge">3. Base de conocimiento</TabsTrigger>
                 <TabsTrigger value="history">Versiones y respaldo</TabsTrigger>
               </TabsList>
 
@@ -890,6 +941,116 @@ function QualityCenterPage() {
                   )}
                 </div>
               </Card>
+              </TabsContent>
+
+              <TabsContent value="knowledge" className="mt-0">
+                <Card className="border border-zinc-800/60 bg-zinc-950/40 p-6 shadow-sm backdrop-blur-md">
+                  <div className="flex flex-wrap items-start justify-between gap-4">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <BookOpen className="h-5 w-5 text-primary" />
+                        <h3 className="font-semibold text-zinc-100">Customer Support y Base de Conocimiento</h3>
+                      </div>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Registra la fuente de verdad del negocio (catálogo, portal web, servicios o preguntas frecuentes). La IA responderá en WhatsApp basándose estrictamente en esta información, con cero alucinaciones y escalando con respaldo humano si no encuentra el dato.
+                      </p>
+                    </div>
+                    {record.tenantConfig?.knowledgeBase?.lastSyncedAt && (
+                      <span className="text-[11px] text-muted-foreground">
+                        Última sincronización: {formatDate(record.tenantConfig.knowledgeBase.lastSyncedAt)}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="mt-6 grid gap-5 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="kb-url" className="text-xs font-medium text-zinc-300">
+                        URL o Enlace Web Oficial
+                      </Label>
+                      <div className="relative">
+                        <Globe className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          id="kb-url"
+                          value={kbSourceUrl}
+                          onChange={(e) => setKbSourceUrl(e.target.value)}
+                          placeholder="https://tienda.com/catalogo o https://empresa.com/faq"
+                          className="pl-9"
+                        />
+                      </div>
+                      <p className="text-[11px] text-muted-foreground">
+                        Página de servicios, catálogo o documentación pública del negocio.
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="kb-name" className="text-xs font-medium text-zinc-300">
+                        Nombre de la Fuente de Información
+                      </Label>
+                      <Input
+                        id="kb-name"
+                        value={kbSourceName}
+                        onChange={(e) => setKbSourceName(e.target.value)}
+                        placeholder="Ej.: Catálogo Oficial 2026, Ficha de Tarifas, Manual de Garantía"
+                      />
+                      <p className="text-[11px] text-muted-foreground">
+                        Identificador con el que el bot referencia la autenticidad de la información.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-5 space-y-2">
+                    <Label htmlFor="kb-content" className="text-xs font-medium text-zinc-300">
+                      Contenido Estructurado / Catálogo / Preguntas Frecuentes (Customer Support)
+                    </Label>
+                    <Textarea
+                      id="kb-content"
+                      value={kbContent}
+                      onChange={(e) => setKbContent(e.target.value)}
+                      placeholder="Pega aquí el catálogo, descripción detallada de servicios, políticas de envío, garantías, horarios especiales y respuestas a preguntas comunes..."
+                      className="min-h-56 font-mono text-xs leading-relaxed"
+                    />
+                    <p className="text-[11px] text-muted-foreground">
+                      Este texto es inyectado de forma directa e inviolable en el bloque de contexto oficial del bot.
+                    </p>
+                  </div>
+
+                  <div className="mt-6 rounded-xl border border-primary/20 bg-primary/[0.04] p-4">
+                    <div className="flex items-start gap-3">
+                      <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                      <div className="space-y-1 text-xs">
+                        <p className="font-medium text-zinc-200">
+                          Blindaje Estricto Anti-Alucinaciones con Respaldo Humano
+                        </p>
+                        <p className="text-muted-foreground leading-relaxed">
+                          La IA tiene terminantemente prohibido inventar o estimar datos que no figuren en este registro o en la base de datos de catálogo. Si un cliente formula una consulta no contemplada, responderá cordialmente que transferirá el caso a un asesor humano y pausará la atención automática durante 3 horas para dar paso a tu equipo.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-border/60 pt-4">
+                    <div className="flex items-center gap-2">
+                      {kbSavedMsg && (
+                        <span className="flex items-center gap-1.5 text-xs font-medium text-emerald-400">
+                          <CheckCircle2 className="h-4 w-4" />
+                          {kbSavedMsg}
+                        </span>
+                      )}
+                    </div>
+                    <Button
+                      onClick={() => void handleSaveKnowledgeBase()}
+                      disabled={kbSaving || busy !== null}
+                      className="gap-2"
+                    >
+                      {kbSaving ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Save className="h-4 w-4" />
+                      )}
+                      Guardar base de conocimiento
+                    </Button>
+                  </div>
+                </Card>
               </TabsContent>
 
               <TabsContent value="history" className="mt-0">

@@ -50,6 +50,13 @@ export interface AsistenteConfigDraft {
   enviarAutomatico: boolean;
 }
 
+export interface KnowledgeBaseConfigDraft {
+  sourceUrl?: string;
+  sourceName?: string;
+  content?: string;
+  lastSyncedAt?: string;
+}
+
 export interface TenantConfigDraft {
   slug: string;
   kind: BotKind;
@@ -91,6 +98,7 @@ export interface TenantConfigDraft {
     requireHumanForCommitments: true;
   };
   googleCalendarId: string;
+  knowledgeBase?: KnowledgeBaseConfigDraft;
   asistente?: AsistenteConfigDraft;
 }
 
