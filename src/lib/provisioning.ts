@@ -355,7 +355,7 @@ async function runProvision(jobId: string, input: ProvisionInput): Promise<void>
         guest: {
           cpu_kind: "shared",
           cpus: 1,
-          memory_mb: 512,
+          memory_mb: 1024,
         },
         restart: {
           policy: "always",
