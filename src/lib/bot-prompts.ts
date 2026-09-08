@@ -117,7 +117,9 @@ export function composeTenantPrompt(args: {
     commercialPolicy,
     companyInfo ? `<knowledge_base>\n${companyInfoHeading}\n${companyInfo}\n</knowledge_base>` : "",
     SECURITY_PROTOCOL,
-    extraInstructions ? `<extra_instructions>\n### INSTRUCCIONES ADICIONALES AUTORIZADAS\n${extraInstructions}\n</extra_instructions>` : "",
+    extraInstructions
+      ? `<extra_instructions>\n### INSTRUCCIONES ADICIONALES AUTORIZADAS\n${extraInstructions}\n</extra_instructions>`
+      : "",
   ]
     .filter(Boolean)
     .join("\n\n");

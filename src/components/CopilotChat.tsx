@@ -15,12 +15,6 @@ import {
   Copy,
   ExternalLink,
   MessageSquare,
-  ListFilter,
-  RefreshCw,
-  Activity,
-  AlertTriangle,
-  Phone,
-  Layers,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -29,8 +23,6 @@ import { toast } from "sonner";
 import { useLanguage } from "@/hooks/use-language";
 import { useNavigate } from "@tanstack/react-router";
 
-const STORAGE_KEY = "stage_copilot_chat_history_v1";
-
 export interface ChatMessage {
   id: string;
   role: "user" | "copilot" | "system";
@@ -38,8 +30,43 @@ export interface ChatMessage {
   timestamp: string;
   functionCall?: {
     name: string;
-    args: Record<string, any>;
-    result?: Record<string, any>;
+    args: {
+      slug?: string;
+      name?: string;
+      phone?: string;
+      tokens?: number;
+      budget?: number;
+      prompt?: string;
+    };
+    result?: {
+      success: boolean;
+      message: string;
+      data?: {
+        slug: string;
+        name: string;
+        phone: string;
+        monthlyTokens: number;
+        monthlyBudgetUsd: number;
+        model: string;
+        prompt: string;
+      };
+      normalized?: {
+        slug: string;
+        phone: string;
+        whatsappJid: string;
+        monthlyTokens: number;
+        monthlyBudgetUsd: number;
+      };
+      files?: {
+        configPath: string;
+        sqlPath: string;
+        templateConfigPath?: string;
+      };
+      supabase?: {
+        success: boolean;
+        message: string;
+      };
+    };
   };
 }
 
@@ -47,59 +74,37 @@ const INITIAL_GREETING: ChatMessage = {
   id: "greeting",
   role: "copilot",
   content:
-    "¡Hola! Soy el **Agente Autónomo de Infraestructura de Stage AI Labs**.\n\nTengo control completo sobre la flota de bots y servicios de la plataforma. Puedes pedirme en lenguaje natural:\n* 📋 *«Lista todos los bots activos y sus teléfonos»*\n* 🚀 *«Aprovisiona un bot para Domínguez Auto Pintura (+1 809 555 0199), taller de desabolladura y pintura horneada»*\n* ✏️ *«Cambia el WhatsApp de Clínica Dental Sonrisas a +1 809 555 9999»*\n* ⚡ *«Haz un test de conexión al bot de Domínguez Auto Pintura»*",
+    "¡Hola! Soy el **Copiloto de Infraestructura de Stage AI Labs**. Estoy conectado directamente con Gemini y los motores de aprovisionamiento de nuestra plataforma.\n\nPuedes pedirme en lenguaje natural crear un bot para cualquier cliente o empresa, por ejemplo:\n* *«Aprovisiona un bot para Domínguez Auto Pintura, WhatsApp +1 809 555 0199, taller de pintura y desabolladura, presupuesto $50/mes»*.\n\nYo me encargo de validar la sintaxis, generar las configuraciones de producción y sincronizar la base de datos de Supabase.",
   timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
 };
 
 const SUGGESTED_PROMPTS = [
   {
-    title: "Listar Infraestructura",
-    text: "Lista todos los bots registrados, sus IDs, slugs y números de WhatsApp.",
-    category: "Gestión",
-    icon: ListFilter,
+    title: "Taller Automotriz",
+    text: "Aprovisiona un bot para Domínguez Auto Pintura (+1 809 555 0199). Es un taller de desabolladura y pintura horneada de alta gama. Presupuesto $50/mes con 10M de tokens.",
+    category: "Servicios",
   },
   {
-    title: "Nuevo Bot de Taller",
-    text: "Aprovisiona un bot para Domínguez Auto Pintura (+1 809 555 0199). Es un taller de desabolladura y pintura horneada de alta gama. Presupuesto $50/mes.",
-    category: "Creación",
-    icon: Sparkles,
+    title: "Clínica Odontológica",
+    text: "Crear un bot para Clínica Dental Sonrisas (+1 809 555 4321). Consultas, citas de profilaxis y diseño de sonrisa con horario de lunes a sábado.",
+    category: "Salud",
   },
   {
-    title: "Modificar WhatsApp",
-    text: "Actualiza el teléfono del bot 'clinica-dental-sonrisas' a +18095558888.",
-    category: "Edición",
-    icon: Phone,
+    title: "Inmobiliaria y Bienes Raíces",
+    text: "Alta de bot de ventas para Inmobiliaria Deluxe (+1 829 555 9876). Venta y alquiler de villas en Punta Cana. Presupuesto $100/mes con 20M tokens.",
+    category: "Real Estate",
   },
   {
-    title: "Test de Salud y Ping",
-    text: "Haz un test de salud y conectividad al bot 'dominguez-a-pintura'.",
-    category: "Diagnóstico",
-    icon: Activity,
+    title: "Restaurante Gourmet",
+    text: "Aprovisionar bot de atención y reservas para Bistro Criollo (+1 849 555 7788). Atención a clientes, menú digital y reservas de mesas.",
+    category: "Gastronomía",
   },
 ];
 
 export function CopilotChat() {
   const { text } = useLanguage();
   const navigate = useNavigate();
-
-  // Memoria persistente sincronizada con localStorage
-  const [messages, setMessages] = useState<ChatMessage[]>(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const saved = localStorage.getItem(STORAGE_KEY);
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            return parsed;
-          }
-        }
-      } catch (err) {
-        console.warn("Error leyendo historial del copiloto de localStorage:", err);
-      }
-    }
-    return [INITIAL_GREETING];
-  });
-
+  const [messages, setMessages] = useState<ChatMessage[]>([INITIAL_GREETING]);
   const [inputValue, setInputValue] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [statusText, setStatusText] = useState("");
@@ -109,17 +114,6 @@ export function CopilotChat() {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-  // Sincronizar cambios en messages hacia localStorage
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
-      } catch (err) {
-        console.warn("Error guardando historial del copiloto en localStorage:", err);
-      }
-    }
-  }, [messages]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -144,9 +138,10 @@ export function CopilotChat() {
     setMessages(newHistory);
     setInputValue("");
     setIsSending(true);
-    setStatusText("El Agente Autónomo está analizando requerimientos...");
+    setStatusText("El Copiloto está analizando requerimientos con Gemini...");
 
     try {
+      // Formatear historial para el endpoint /api/copilot
       const payloadMessages = newHistory
         .filter((m) => m.id !== "greeting")
         .map((m) => ({
@@ -154,11 +149,12 @@ export function CopilotChat() {
           content: m.content,
         }));
 
+      // Si el historial está vacío (solo estaba el greeting), enviamos el mensaje actual
       if (payloadMessages.length === 0) {
         payloadMessages.push({ role: "user", content });
       }
 
-      setStatusText("Ejecutando herramientas y consultando Supabase...");
+      setStatusText("Orquestando infraestructura y herramientas autónomas...");
 
       const response = await fetch("/api/copilot", {
         method: "POST",
@@ -186,10 +182,6 @@ export function CopilotChat() {
         toast.success(
           `Tenant '${data.functionCall.args?.slug || "bot"}' aprovisionado exitosamente en Stage AI Labs.`,
         );
-      } else if (data.functionCall?.name === "update_bot") {
-        toast.success(data.functionCall.result?.message || "Bot actualizado correctamente.");
-      } else if (data.functionCall?.name === "delete_bot") {
-        toast.info(data.functionCall.result?.message || "Bot eliminado.");
       }
     } catch (error) {
       console.error("[Copilot Chat Error]", error);
@@ -216,17 +208,13 @@ export function CopilotChat() {
   };
 
   const handleResetChat = () => {
-    const resetState = [
+    setMessages([
       {
         ...INITIAL_GREETING,
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       },
-    ];
-    setMessages(resetState);
-    if (typeof window !== "undefined") {
-      localStorage.removeItem(STORAGE_KEY);
-    }
-    toast.info("Conversación reiniciada y memoria local limpiada.");
+    ]);
+    toast.info("Conversación reiniciada.");
   };
 
   const handleScanUrlAndFill = async () => {
@@ -283,13 +271,13 @@ export function CopilotChat() {
                 className="bg-indigo-950/40 text-indigo-400 border-indigo-500/30 text-[11px] font-medium hidden sm:inline-flex items-center gap-1"
               >
                 <Sparkles className="w-3 h-3 text-indigo-400" />
-                Agente Autónomo • Memoria Persistente
+                Gemini 1.5 Flash • Agentic Tools
               </Badge>
             </div>
             <p className="text-xs text-muted-foreground line-clamp-1">
               {text(
-                "Control CRUD completo sobre bots, clientes y telemetría en Stage AI Labs.",
-                "Full CRUD control over bots, clients, and telemetry in Stage AI Labs.",
+                "Aprovisionamiento autónomo de bots, bases de datos y configuraciones en Stage AI Labs.",
+                "Autonomous provisioning of bots, databases, and runtime configs in Stage AI Labs.",
               )}
             </p>
           </div>
@@ -310,15 +298,15 @@ export function CopilotChat() {
             size="sm"
             onClick={handleResetChat}
             className="text-xs text-muted-foreground hover:text-white hover:bg-white/5 h-8 gap-1.5"
-            title={text("Limpiar memoria y conversación", "Clear memory & chat")}
+            title={text("Limpiar conversación", "Clear chat")}
           >
             <Trash2 className="w-3.5 h-3.5" />
-            <span className="hidden md:inline">{text("Limpiar Memoria", "Reset Memory")}</span>
+            <span className="hidden md:inline">{text("Reiniciar", "Reset")}</span>
           </Button>
         </div>
       </div>
 
-      {/* Modal para Escanear URL */}
+      {/* Modal / Popover para Escanear URL */}
       {urlScanModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
           <div className="w-full max-w-md bg-[#10121a] border border-indigo-500/30 rounded-2xl p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-150">
@@ -401,7 +389,9 @@ export function CopilotChat() {
                 </div>
               )}
 
-              <div className={`flex flex-col space-y-1.5 max-w-[90%] sm:max-w-[80%] ${isUser ? "items-end" : "items-start"}`}>
+              <div
+                className={`flex flex-col space-y-1.5 max-w-[88%] sm:max-w-[78%] ${isUser ? "items-end" : "items-start"}`}
+              >
                 <div
                   className={`rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-md backdrop-blur-md ${
                     isUser
@@ -411,7 +401,7 @@ export function CopilotChat() {
                 >
                   <div className="whitespace-pre-wrap break-words">{msg.content}</div>
 
-                  {/* Visualización de Herramienta: provisionar_bot_cliente */}
+                  {/* Card Especial de Function Call (Aprovisionamiento Ejecutado) */}
                   {msg.functionCall && msg.functionCall.name === "provisionar_bot_cliente" && (
                     <div className="mt-3 pt-3 border-t border-white/10 space-y-2.5">
                       <div className="flex items-center justify-between gap-2">
@@ -447,7 +437,8 @@ export function CopilotChat() {
                         <div>
                           <span className="text-gray-400">Cuota: </span>
                           <span className="text-violet-300">
-                            {msg.functionCall.args.tokens?.toLocaleString()} tokens (${msg.functionCall.args.budget} USD)
+                            {msg.functionCall.args.tokens?.toLocaleString()} tokens ($
+                            {msg.functionCall.args.budget} USD)
                           </span>
                         </div>
                       </div>
@@ -456,6 +447,10 @@ export function CopilotChat() {
                         <div className="inline-flex items-center gap-1 text-[11px] text-gray-400 bg-white/5 px-2.5 py-1 rounded-md border border-white/5">
                           <Database className="w-3 h-3 text-emerald-400" />
                           <span>Supabase DB: public.tenants & runtime_policies</span>
+                        </div>
+                        <div className="inline-flex items-center gap-1 text-[11px] text-gray-400 bg-white/5 px-2.5 py-1 rounded-md border border-white/5">
+                          <FileCode className="w-3 h-3 text-indigo-400" />
+                          <span>Config JSON & SQL generados</span>
                         </div>
                         <Button
                           variant="ghost"
@@ -469,147 +464,9 @@ export function CopilotChat() {
                       </div>
                     </div>
                   )}
-
-                  {/* Visualización de Herramienta: list_bots */}
-                  {msg.functionCall && msg.functionCall.name === "list_bots" && msg.functionCall.result?.bots && (
-                    <div className="mt-3 pt-3 border-t border-white/10 space-y-2.5">
-                      <div className="flex items-center justify-between gap-2">
-                        <Badge
-                          variant="outline"
-                          className="bg-indigo-950/50 text-indigo-400 border-indigo-500/30 text-[11px] font-semibold flex items-center gap-1.5 py-0.5"
-                        >
-                          <ListFilter className="w-3.5 h-3.5 text-indigo-400" />
-                          {`Flota de Bots (${msg.functionCall.result.bots.length})`}
-                        </Badge>
-                        <span className="text-[11px] text-gray-400 font-mono">tool: list_bots</span>
-                      </div>
-
-                      <div className="grid grid-cols-1 gap-2">
-                        {msg.functionCall.result.bots.map((b: any, idx: number) => (
-                          <div
-                            key={idx}
-                            className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 rounded-xl bg-black/40 border border-white/5 text-xs font-mono"
-                          >
-                            <div className="space-y-0.5">
-                              <div className="flex items-center gap-2">
-                                <span className="font-semibold text-white">{b.name}</span>
-                                <Badge
-                                  variant="outline"
-                                  className={`text-[10px] px-1.5 py-0 ${
-                                    b.status === "active"
-                                      ? "bg-emerald-950/40 text-emerald-400 border-emerald-500/30"
-                                      : "bg-gray-800 text-gray-400 border-gray-700"
-                                  }`}
-                                >
-                                  {b.status}
-                                </Badge>
-                              </div>
-                              <div className="text-[11px] text-gray-400 flex flex-wrap gap-x-3">
-                                <span>Slug: <strong className="text-indigo-300">{b.slug}</strong></span>
-                                <span>WhatsApp: <strong className="text-emerald-300">{b.phone}</strong></span>
-                              </div>
-                            </div>
-
-                            <div className="flex items-center gap-1 self-end sm:self-center">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => copyToClipboard(b.id, "ID")}
-                                className="text-[10px] h-6 px-2 text-gray-400 hover:text-white"
-                                title="Copiar ID del Bot"
-                              >
-                                <Copy className="w-3 h-3 mr-1" />
-                                Copiar ID
-                              </Button>
-                              {b.dashboardUrl && (
-                                <a
-                                  href={b.dashboardUrl}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="inline-flex items-center gap-1 text-[10px] h-6 px-2 text-indigo-400 hover:text-indigo-300 bg-indigo-500/10 rounded-md border border-indigo-500/20"
-                                >
-                                  <ExternalLink className="w-3 h-3" />
-                                  Dashboard
-                                </a>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Visualización de Herramienta: update_bot */}
-                  {msg.functionCall && msg.functionCall.name === "update_bot" && (
-                    <div className="mt-3 pt-3 border-t border-white/10 space-y-2">
-                      <div className="flex items-center justify-between gap-2">
-                        <Badge
-                          variant="outline"
-                          className="bg-emerald-950/50 text-emerald-400 border-emerald-500/30 text-[11px] font-semibold flex items-center gap-1.5 py-0.5"
-                        >
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                          {text("Bot Actualizado", "Bot Updated")}
-                        </Badge>
-                        <span className="text-[11px] text-gray-400 font-mono">tool: update_bot</span>
-                      </div>
-                      <div className="text-xs bg-black/40 rounded-xl p-2.5 border border-white/5 font-mono text-gray-300">
-                        {msg.functionCall.result?.message || "Parámetros actualizados con éxito en Supabase."}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Visualización de Herramienta: test_bot */}
-                  {msg.functionCall && msg.functionCall.name === "test_bot" && (
-                    <div className="mt-3 pt-3 border-t border-white/10 space-y-2">
-                      <div className="flex items-center justify-between gap-2">
-                        <Badge
-                          variant="outline"
-                          className="bg-violet-950/50 text-violet-400 border-violet-500/30 text-[11px] font-semibold flex items-center gap-1.5 py-0.5"
-                        >
-                          <Activity className="w-3.5 h-3.5 text-violet-400" />
-                          {text("Diagnóstico en Vivo", "Live Diagnostic")}
-                        </Badge>
-                        <span className="text-[11px] text-gray-400 font-mono">tool: test_bot</span>
-                      </div>
-                      <div className="text-xs bg-black/40 rounded-xl p-2.5 border border-white/5 font-mono space-y-1">
-                        <div>
-                          <span className="text-gray-400">Estado: </span>
-                          <span className="text-emerald-400 font-semibold">{msg.functionCall.result?.health?.status}</span>
-                        </div>
-                        <div>
-                          <span className="text-gray-400">Latencia: </span>
-                          <span className="text-indigo-300">{msg.functionCall.result?.health?.latencyMs} ms</span>
-                        </div>
-                        <div className="text-gray-400 text-[11px]">
-                          {msg.functionCall.result?.health?.details}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Visualización de Herramienta: delete_bot */}
-                  {msg.functionCall && msg.functionCall.name === "delete_bot" && (
-                    <div className="mt-3 pt-3 border-t border-white/10 space-y-2">
-                      <div className="flex items-center justify-between gap-2">
-                        <Badge
-                          variant="outline"
-                          className="bg-rose-950/50 text-rose-400 border-rose-500/30 text-[11px] font-semibold flex items-center gap-1.5 py-0.5"
-                        >
-                          <Trash2 className="w-3.5 h-3.5 text-rose-400" />
-                          {text("Bot Desactivado / Eliminado", "Bot Removed")}
-                        </Badge>
-                        <span className="text-[11px] text-gray-400 font-mono">tool: delete_bot</span>
-                      </div>
-                      <div className="text-xs bg-black/40 rounded-xl p-2.5 border border-white/5 font-mono text-gray-300">
-                        {msg.functionCall.result?.message || "Bot eliminado de la infraestructura."}
-                      </div>
-                    </div>
-                  )}
                 </div>
 
-                <span className="text-[10px] text-muted-foreground px-1">
-                  {msg.timestamp}
-                </span>
+                <span className="text-[10px] text-muted-foreground px-1">{msg.timestamp}</span>
               </div>
 
               {isUser && (
@@ -621,7 +478,7 @@ export function CopilotChat() {
           );
         })}
 
-        {/* Indicador de Carga */}
+        {/* Indicador de Carga / Procesando */}
         {isSending && (
           <div className="flex gap-3 items-start justify-start animate-in fade-in duration-200">
             <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center text-white shrink-0 shadow-md shadow-indigo-500/20">
@@ -634,54 +491,48 @@ export function CopilotChat() {
           </div>
         )}
 
-        {/* Sugerencias si solo está el mensaje inicial */}
+        {/* Estado Vacío / Sugerencias si solo está el mensaje inicial */}
         {messages.length === 1 && !isSending && (
           <div className="pt-2 pb-6 space-y-4">
             <div className="text-center space-y-1">
               <p className="text-xs font-semibold text-indigo-400 uppercase tracking-wider">
-                {text("Acciones Rápidas del Agente", "Quick Agent Actions")}
+                {text("Sugerencias Rápidas de Aprovisionamiento", "Quick Provisioning Suggestions")}
               </p>
               <p className="text-xs text-muted-foreground">
                 {text(
-                  "Selecciona una orden o describe lo que necesitas en lenguaje natural:",
-                  "Select a quick action or write your instruction in natural language:",
+                  "Selecciona uno de los ejemplos o describe el negocio en tus propias palabras:",
+                  "Select an example or describe your client in your own words:",
                 )}
               </p>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-w-4xl mx-auto">
-              {SUGGESTED_PROMPTS.map((item, idx) => {
-                const Icon = item.icon;
-                return (
-                  <button
-                    key={idx}
-                    onClick={() => handleSendMessage(item.text)}
-                    className="text-left p-3.5 rounded-xl bg-[#0e0f17]/70 hover:bg-[#151724]/90 border border-white/5 hover:border-indigo-500/40 transition-all duration-200 group flex flex-col justify-between space-y-2 shadow-sm"
-                  >
-                    <div className="flex items-center justify-between w-full">
-                      <div className="flex items-center gap-2">
-                        <Icon className="w-3.5 h-3.5 text-indigo-400" />
-                        <span className="text-xs font-semibold text-white group-hover:text-indigo-300 transition-colors">
-                          {item.title}
-                        </span>
-                      </div>
-                      <Badge
-                        variant="outline"
-                        className="text-[10px] px-1.5 py-0 bg-white/5 text-gray-400 border-white/10"
-                      >
-                        {item.category}
-                      </Badge>
-                    </div>
-                    <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
-                      {item.text}
-                    </p>
-                    <div className="flex items-center gap-1 text-[11px] text-indigo-400 font-medium pt-1 opacity-80 group-hover:opacity-100 transition-opacity">
-                      <span>{text("Ejecutar comando", "Run command")}</span>
-                      <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
-                    </div>
-                  </button>
-                );
-              })}
+              {SUGGESTED_PROMPTS.map((item, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => handleSendMessage(item.text)}
+                  className="text-left p-3.5 rounded-xl bg-[#0e0f17]/70 hover:bg-[#151724]/90 border border-white/5 hover:border-indigo-500/40 transition-all duration-200 group flex flex-col justify-between space-y-2 shadow-sm"
+                >
+                  <div className="flex items-center justify-between w-full">
+                    <span className="text-xs font-semibold text-white group-hover:text-indigo-300 transition-colors">
+                      {item.title}
+                    </span>
+                    <Badge
+                      variant="outline"
+                      className="text-[10px] px-1.5 py-0 bg-white/5 text-gray-400 border-white/10"
+                    >
+                      {item.category}
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
+                    {item.text}
+                  </p>
+                  <div className="flex items-center gap-1 text-[11px] text-indigo-400 font-medium pt-1 opacity-80 group-hover:opacity-100 transition-opacity">
+                    <span>{text("Aprovisionar este ejemplo", "Provision this example")}</span>
+                    <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
+                  </div>
+                </button>
+              ))}
             </div>
           </div>
         )}
@@ -689,7 +540,7 @@ export function CopilotChat() {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Barra de Entrada */}
+      {/* Barra de Entrada Fija Inferior */}
       <div className="pt-2">
         <div className="relative rounded-2xl bg-[#0d0e16]/90 border border-white/10 p-2 shadow-2xl backdrop-blur-xl focus-within:border-indigo-500/60 focus-within:ring-1 focus-within:ring-indigo-500/30 transition-all">
           <textarea
@@ -700,8 +551,8 @@ export function CopilotChat() {
             disabled={isSending}
             rows={2}
             placeholder={text(
-              "Pídele al Copiloto listar bots, cambiar teléfonos, aprovisionar un cliente o verificar salud...",
-              "Ask the Copilot to list bots, change phone numbers, provision a client, or test health...",
+              "Escribe el nombre de la empresa, teléfono o detalles del bot a crear...",
+              "Type the company name, phone, or details of the bot to create...",
             )}
             className="w-full bg-transparent px-3 py-1.5 text-sm text-white placeholder:text-gray-500 focus:outline-none resize-none disabled:opacity-50"
           />
@@ -709,7 +560,11 @@ export function CopilotChat() {
           <div className="flex items-center justify-between pt-1 px-1 border-t border-white/5 text-xs text-muted-foreground">
             <div className="flex items-center gap-2">
               <span className="hidden sm:inline text-[11px] text-gray-500">
-                Presiona <kbd className="px-1.5 py-0.5 rounded bg-white/10 text-gray-300 font-mono text-[10px]">Enter</kbd> para enviar
+                Presiona{" "}
+                <kbd className="px-1.5 py-0.5 rounded bg-white/10 text-gray-300 font-mono text-[10px]">
+                  Enter
+                </kbd>{" "}
+                para enviar
               </span>
             </div>
 
@@ -722,7 +577,7 @@ export function CopilotChat() {
               {isSending ? (
                 <>
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  <span className="text-xs">{text("Procesando...", "Processing...")}</span>
+                  <span className="text-xs">{text("Aprovisionando...", "Provisioning...")}</span>
                 </>
               ) : (
                 <>

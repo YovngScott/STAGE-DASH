@@ -157,8 +157,7 @@ async function deleteJson(path: string, message: string): Promise<boolean> {
     headers: headers(cfg.token),
   });
   if (existing.status === 404) return false;
-  if (!existing.ok)
-    throw new Error(`GitHub no pudo revisar ${path} (${existing.status}).`);
+  if (!existing.ok) throw new Error(`GitHub no pudo revisar ${path} (${existing.status}).`);
   const sha = (await existing.json())?.sha;
   if (!sha) return false;
 
@@ -179,8 +178,12 @@ async function deleteJson(path: string, message: string): Promise<boolean> {
 }
 
 export async function deleteQualityRecord(slug: string) {
-  await deleteJson(`${QUALITY_ROOT}/${slug}.json`, `Eliminar control de calidad de ${slug}`).catch(() => {});
-  await deleteJson(`backend/config/tenants/${slug}.json`, `Eliminar tenant ${slug}`).catch(() => {});
+  await deleteJson(`${QUALITY_ROOT}/${slug}.json`, `Eliminar control de calidad de ${slug}`).catch(
+    () => {},
+  );
+  await deleteJson(`backend/config/tenants/${slug}.json`, `Eliminar tenant ${slug}`).catch(
+    () => {},
+  );
 }
 
 export interface DeleteBotResult {
@@ -329,9 +332,7 @@ export function mandatoryTestsPassed(record: QualityRecord) {
   if (!requiredIds.length) return false;
   if (!record.tests || !record.tests.length) return false;
 
-  const passedIds = new Set(
-    record.tests.filter((test) => test.passed).map((test) => test.id),
-  );
+  const passedIds = new Set(record.tests.filter((test) => test.passed).map((test) => test.id));
 
   const allRequiredPassed = requiredIds.every((id) => passedIds.has(id));
   const noneFailed = record.tests.every((test) => test.passed);

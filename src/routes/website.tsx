@@ -6,12 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -103,7 +98,8 @@ function WebsiteContent() {
       const homeRow = rows.find((r) => r.key === "home");
       const contactRow = rows.find((r) => r.key === "contact");
       if (homeRow) setHome({ ...defaultHome, ...(homeRow.value as Partial<HomeContent>) });
-      if (contactRow) setContact({ ...defaultContact, ...(contactRow.value as Partial<ContactContent>) });
+      if (contactRow)
+        setContact({ ...defaultContact, ...(contactRow.value as Partial<ContactContent>) });
     }
     if (solutionsRes.error) toast.error(solutionsRes.error.message);
     else setSolutions((solutionsRes.data ?? []) as Solution[]);
@@ -187,12 +183,8 @@ function WebsiteContent() {
   return (
     <div className="mx-auto max-w-[1200px] p-6 md:p-8 space-y-6">
       <div>
-        <p className="text-xs uppercase tracking-widest text-muted-foreground">
-          Public Site
-        </p>
-        <h2 className="mt-1 text-2xl font-semibold tracking-tight">
-          Website Content
-        </h2>
+        <p className="text-xs uppercase tracking-widest text-muted-foreground">Public Site</p>
+        <h2 className="mt-1 text-2xl font-semibold tracking-tight">Website Content</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           Edit the text and images shown on the public landing page. Changes go live immediately.
         </p>
@@ -212,7 +204,9 @@ function WebsiteContent() {
               <Label>Eyebrow</Label>
               <Input
                 value={home.hero.eyebrow}
-                onChange={(e) => setHome((h) => ({ ...h, hero: { ...h.hero, eyebrow: e.target.value } }))}
+                onChange={(e) =>
+                  setHome((h) => ({ ...h, hero: { ...h.hero, eyebrow: e.target.value } }))
+                }
               />
             </div>
             <div className="space-y-2">
@@ -220,7 +214,9 @@ function WebsiteContent() {
               <Textarea
                 rows={2}
                 value={home.hero.title}
-                onChange={(e) => setHome((h) => ({ ...h, hero: { ...h.hero, title: e.target.value } }))}
+                onChange={(e) =>
+                  setHome((h) => ({ ...h, hero: { ...h.hero, title: e.target.value } }))
+                }
               />
             </div>
             <div className="space-y-2">
@@ -228,7 +224,9 @@ function WebsiteContent() {
               <Textarea
                 rows={3}
                 value={home.hero.subtitle}
-                onChange={(e) => setHome((h) => ({ ...h, hero: { ...h.hero, subtitle: e.target.value } }))}
+                onChange={(e) =>
+                  setHome((h) => ({ ...h, hero: { ...h.hero, subtitle: e.target.value } }))
+                }
               />
             </div>
             <ImageField
@@ -251,20 +249,26 @@ function WebsiteContent() {
                 <Label>Eyebrow</Label>
                 <Input
                   value={home.ethos.eyebrow}
-                  onChange={(e) => setHome((h) => ({ ...h, ethos: { ...h.ethos, eyebrow: e.target.value } }))}
+                  onChange={(e) =>
+                    setHome((h) => ({ ...h, ethos: { ...h.ethos, eyebrow: e.target.value } }))
+                  }
                 />
               </div>
               <div className="space-y-2">
                 <Label>Title</Label>
                 <Input
                   value={home.ethos.title}
-                  onChange={(e) => setHome((h) => ({ ...h, ethos: { ...h.ethos, title: e.target.value } }))}
+                  onChange={(e) =>
+                    setHome((h) => ({ ...h, ethos: { ...h.ethos, title: e.target.value } }))
+                  }
                 />
               </div>
             </div>
             {home.ethos.cards.map((card, i) => (
               <div key={card.tag} className="rounded-md border border-border/60 p-4 space-y-3">
-                <p className="text-xs uppercase tracking-widest text-muted-foreground">{card.tag}</p>
+                <p className="text-xs uppercase tracking-widest text-muted-foreground">
+                  {card.tag}
+                </p>
                 <Input
                   placeholder="Card title"
                   value={card.title}
@@ -298,7 +302,9 @@ function WebsiteContent() {
               <Label>Title</Label>
               <Input
                 value={home.cta.title}
-                onChange={(e) => setHome((h) => ({ ...h, cta: { ...h.cta, title: e.target.value } }))}
+                onChange={(e) =>
+                  setHome((h) => ({ ...h, cta: { ...h.cta, title: e.target.value } }))
+                }
               />
             </div>
             <div className="space-y-2">
@@ -306,14 +312,20 @@ function WebsiteContent() {
               <Textarea
                 rows={2}
                 value={home.cta.subtitle}
-                onChange={(e) => setHome((h) => ({ ...h, cta: { ...h.cta, subtitle: e.target.value } }))}
+                onChange={(e) =>
+                  setHome((h) => ({ ...h, cta: { ...h.cta, subtitle: e.target.value } }))
+                }
               />
             </div>
           </Card>
 
           <div className="flex justify-end">
             <Button className="gap-2" onClick={saveHome} disabled={savingHome}>
-              {savingHome ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              {savingHome ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Save className="h-4 w-4" />
+              )}
               Save home page
             </Button>
           </div>
@@ -362,7 +374,11 @@ function WebsiteContent() {
 
           <div className="flex justify-end">
             <Button className="gap-2" onClick={saveContact} disabled={savingContact}>
-              {savingContact ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              {savingContact ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Save className="h-4 w-4" />
+              )}
               Save contact page
             </Button>
           </div>
@@ -375,20 +391,33 @@ function WebsiteContent() {
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
                   <Label>Name</Label>
-                  <Input value={s.name} onChange={(e) => updateSolution(s.slug, { name: e.target.value })} />
+                  <Input
+                    value={s.name}
+                    onChange={(e) => updateSolution(s.slug, { name: e.target.value })}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label>Tagline</Label>
-                  <Input value={s.tagline} onChange={(e) => updateSolution(s.slug, { tagline: e.target.value })} />
+                  <Input
+                    value={s.tagline}
+                    onChange={(e) => updateSolution(s.slug, { tagline: e.target.value })}
+                  />
                 </div>
               </div>
               <div className="space-y-2">
                 <Label>Headline</Label>
-                <Input value={s.headline} onChange={(e) => updateSolution(s.slug, { headline: e.target.value })} />
+                <Input
+                  value={s.headline}
+                  onChange={(e) => updateSolution(s.slug, { headline: e.target.value })}
+                />
               </div>
               <div className="space-y-2">
                 <Label>Intro</Label>
-                <Textarea rows={3} value={s.intro} onChange={(e) => updateSolution(s.slug, { intro: e.target.value })} />
+                <Textarea
+                  rows={3}
+                  value={s.intro}
+                  onChange={(e) => updateSolution(s.slug, { intro: e.target.value })}
+                />
               </div>
               <ImageField
                 label="Card / hero image"
@@ -396,7 +425,9 @@ function WebsiteContent() {
                 uploadKey={`solution-${s.slug}`}
                 uploading={uploadingKey === `solution-${s.slug}`}
                 onUpload={(file) =>
-                  handleUpload(`solution-${s.slug}`, file, (url) => updateSolution(s.slug, { image_url: url }))
+                  handleUpload(`solution-${s.slug}`, file, (url) =>
+                    updateSolution(s.slug, { image_url: url }),
+                  )
                 }
               />
               <div className="space-y-2">
@@ -420,7 +451,9 @@ function WebsiteContent() {
                 uploadKey={`usecase-${s.slug}`}
                 uploading={uploadingKey === `usecase-${s.slug}`}
                 onUpload={(file) =>
-                  handleUpload(`usecase-${s.slug}`, file, (url) => updateSolution(s.slug, { use_case_image_url: url }))
+                  handleUpload(`usecase-${s.slug}`, file, (url) =>
+                    updateSolution(s.slug, { use_case_image_url: url }),
+                  )
                 }
               />
               <div className="flex justify-end">
@@ -441,8 +474,8 @@ function WebsiteContent() {
           ))}
           {solutions.length === 0 && (
             <Card className="border-dashed border-border/60 p-10 text-center text-sm text-muted-foreground">
-              No solutions found. Run the supabase-site-content.sql migration from the landing
-              repo to seed them.
+              No solutions found. Run the supabase-site-content.sql migration from the landing repo
+              to seed them.
             </Card>
           )}
         </TabsContent>
@@ -476,7 +509,11 @@ function ImageField({
           />
         )}
         <label className="inline-flex items-center gap-2 rounded-md border border-border/60 px-3 py-2 text-xs cursor-pointer hover:border-primary/40">
-          {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+          {uploading ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Upload className="h-3.5 w-3.5" />
+          )}
           {uploading ? "Uploading…" : "Upload image"}
           <input
             type="file"

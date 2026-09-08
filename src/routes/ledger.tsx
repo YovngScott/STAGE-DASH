@@ -12,12 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
@@ -95,10 +90,7 @@ function Ledger() {
 
   const remove = async () => {
     if (!confirmDelete) return;
-    const { error } = await supabase
-      .from("ledger_entries")
-      .delete()
-      .eq("id", confirmDelete.id);
+    const { error } = await supabase.from("ledger_entries").delete().eq("id", confirmDelete.id);
     if (error) return toast.error(error.message);
     toast.success(`${confirmDelete.label} deleted`);
     setConfirmDelete(null);
@@ -160,7 +152,9 @@ function Ledger() {
               <div className="space-y-2">
                 <Label>Type</Label>
                 <Select value={kind} onValueChange={(v) => setKind(v as Kind)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="investment">Investment</SelectItem>
                     <SelectItem value="expense">Expense</SelectItem>
@@ -183,11 +177,21 @@ function Ledger() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="date">Date</Label>
-                <Input id="date" name="date" type="date" defaultValue={new Date().toISOString().slice(0, 10)} />
+                <Input
+                  id="date"
+                  name="date"
+                  type="date"
+                  defaultValue={new Date().toISOString().slice(0, 10)}
+                />
               </div>
               {kind === "expense" && (
                 <label className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <input type="checkbox" name="recurring" className="h-4 w-4 rounded border-border/70" defaultChecked />
+                  <input
+                    type="checkbox"
+                    name="recurring"
+                    className="h-4 w-4 rounded border-border/70"
+                    defaultChecked
+                  />
                   Recurring monthly cost
                 </label>
               )}
@@ -246,16 +250,13 @@ function Ledger() {
         </TabsContent>
       </Tabs>
 
-      <AlertDialog
-        open={!!confirmDelete}
-        onOpenChange={(o) => !o && setConfirmDelete(null)}
-      >
+      <AlertDialog open={!!confirmDelete} onOpenChange={(o) => !o && setConfirmDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete transaction?</AlertDialogTitle>
             <AlertDialogDescription>
-              {confirmDelete?.label} (${confirmDelete?.amount.toLocaleString()}) will be
-              permanently removed from the ledger.
+              {confirmDelete?.label} (${confirmDelete?.amount.toLocaleString()}) will be permanently
+              removed from the ledger.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -299,7 +300,11 @@ function SummaryCard({
   return (
     <Card
       className="border-border/60 p-5"
-      style={accent ? { background: "var(--gradient-card)", boxShadow: "var(--shadow-elegant)" } : undefined}
+      style={
+        accent
+          ? { background: "var(--gradient-card)", boxShadow: "var(--shadow-elegant)" }
+          : undefined
+      }
     >
       <div className="flex items-center gap-2 text-xs uppercase tracking-widest text-muted-foreground">
         <Icon className="h-3.5 w-3.5" />
@@ -339,7 +344,9 @@ function LedgerTable({
               <TableCell className="font-mono text-xs text-muted-foreground">{t.date}</TableCell>
               <TableCell className="font-medium">{t.label}</TableCell>
               <TableCell>
-                <Badge variant="secondary" className="font-normal">{t.category}</Badge>
+                <Badge variant="secondary" className="font-normal">
+                  {t.category}
+                </Badge>
               </TableCell>
               {showRecurring && (
                 <TableCell>

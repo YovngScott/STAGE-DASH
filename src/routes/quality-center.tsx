@@ -202,7 +202,9 @@ function QualityCenterPage() {
             setJob(statusRes.job);
             if (statusRes.job.state === "complete" || statusRes.job.state === "failed") {
               if (body.record.state === "publishing") {
-                const refreshed = await authFetch(`/api/quality-center?slug=${encodeURIComponent(slug)}`);
+                const refreshed = await authFetch(
+                  `/api/quality-center?slug=${encodeURIComponent(slug)}`,
+                );
                 if (refreshed?.record) {
                   setRecord(refreshed.record);
                   setCanPublish(Boolean(refreshed.canPublish));
@@ -271,7 +273,7 @@ function QualityCenterPage() {
         state,
         progress,
         phase,
-        logs: logsArray.length ? logsArray : (current?.logs || []),
+        logs: logsArray.length ? logsArray : current?.logs || [],
         appName: data.fly_app_name || current?.appName || "",
         error: isFailed ? lastLog : undefined,
         dashboardUrl: data.fly_app_name
@@ -638,48 +640,84 @@ function QualityCenterPage() {
               </div>
               {record.groqKeyMode === "dedicated" ? (
                 <details className="mt-4 rounded-lg border border-primary/20 bg-primary/[0.03]">
-                  <summary className="cursor-pointer list-none px-4 py-3 text-sm font-medium">Configuración avanzada para publicar</summary>
+                  <summary className="cursor-pointer list-none px-4 py-3 text-sm font-medium">
+                    Configuración avanzada para publicar
+                  </summary>
                   <div className="border-t border-border/60 p-4">
-                  <div className="flex items-start gap-3">
-                    <KeyRound className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-                    <div className="w-full max-w-xl space-y-2">
-                      <Label htmlFor="dedicated-groq-key">Clave Groq dedicada del cliente</Label>
-                      <Input
-                        id="dedicated-groq-key"
-                        type="password"
-                        autoComplete="off"
-                        value={dedicatedKey}
-                        onChange={(event) => setDedicatedKey(event.target.value)}
-                        placeholder="gsk_…"
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Se envía directamente como secreto a la app del cliente al publicar. No se
-                        guarda en GitHub ni en el borrador.
-                      </p>
+                    <div className="flex items-start gap-3">
+                      <KeyRound className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                      <div className="w-full max-w-xl space-y-2">
+                        <Label htmlFor="dedicated-groq-key">Clave Groq dedicada del cliente</Label>
+                        <Input
+                          id="dedicated-groq-key"
+                          type="password"
+                          autoComplete="off"
+                          value={dedicatedKey}
+                          onChange={(event) => setDedicatedKey(event.target.value)}
+                          placeholder="gsk_…"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Se envía directamente como secreto a la app del cliente al publicar. No se
+                          guarda en GitHub ni en el borrador.
+                        </p>
+                      </div>
                     </div>
-                  </div>
                   </div>
                 </details>
               ) : null}
               {record.tenantConfig?.whatsapp?.provider === "meta_cloud" ? (
                 <details className="mt-4 rounded-lg border border-primary/20 bg-primary/[0.03]">
-                  <summary className="cursor-pointer list-none px-4 py-3 text-sm font-medium">Credenciales avanzadas de WhatsApp</summary>
+                  <summary className="cursor-pointer list-none px-4 py-3 text-sm font-medium">
+                    Credenciales avanzadas de WhatsApp
+                  </summary>
                   <div className="border-t border-border/60 p-4">
-                  <div className="flex items-start gap-3">
-                    <KeyRound className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-                    <div className="w-full space-y-3">
-                      <div>
-                        <p className="text-sm font-medium">Credenciales Meta WhatsApp Cloud API</p>
-                        <p className="mt-1 text-xs text-muted-foreground">Se validan con Meta y se envían directamente a secretos de Fly. Nunca se guardan en GitHub.</p>
+                    <div className="flex items-start gap-3">
+                      <KeyRound className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                      <div className="w-full space-y-3">
+                        <div>
+                          <p className="text-sm font-medium">
+                            Credenciales Meta WhatsApp Cloud API
+                          </p>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            Se validan con Meta y se envían directamente a secretos de Fly. Nunca se
+                            guardan en GitHub.
+                          </p>
+                        </div>
+                        <div className="grid gap-3 md:grid-cols-3">
+                          <div className="space-y-2">
+                            <Label>Access Token</Label>
+                            <Input
+                              type="password"
+                              autoComplete="off"
+                              value={metaAccessToken}
+                              onChange={(event) => setMetaAccessToken(event.target.value)}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>App Secret</Label>
+                            <Input
+                              type="password"
+                              autoComplete="off"
+                              value={metaAppSecret}
+                              onChange={(event) => setMetaAppSecret(event.target.value)}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Verify Token</Label>
+                            <Input
+                              type="password"
+                              autoComplete="new-password"
+                              value={metaVerifyToken}
+                              onChange={(event) => setMetaVerifyToken(event.target.value)}
+                            />
+                          </div>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Webhook: https://stage-{record.slug}-{record.botType}.fly.dev/api/
+                          {record.slug}/whatsapp/meta-webhook
+                        </p>
                       </div>
-                      <div className="grid gap-3 md:grid-cols-3">
-                        <div className="space-y-2"><Label>Access Token</Label><Input type="password" autoComplete="off" value={metaAccessToken} onChange={(event) => setMetaAccessToken(event.target.value)} /></div>
-                        <div className="space-y-2"><Label>App Secret</Label><Input type="password" autoComplete="off" value={metaAppSecret} onChange={(event) => setMetaAppSecret(event.target.value)} /></div>
-                        <div className="space-y-2"><Label>Verify Token</Label><Input type="password" autoComplete="new-password" value={metaVerifyToken} onChange={(event) => setMetaVerifyToken(event.target.value)} /></div>
-                      </div>
-                      <p className="text-xs text-muted-foreground">Webhook: https://stage-{record.slug}-{record.botType}.fly.dev/api/{record.slug}/whatsapp/meta-webhook</p>
                     </div>
-                  </div>
                   </div>
                 </details>
               ) : null}
@@ -773,7 +811,7 @@ function QualityCenterPage() {
 
                   {/* Terminal Logs Viewport */}
                   <div className="max-h-56 min-h-[110px] overflow-y-auto p-4 font-mono text-[11px] leading-relaxed">
-                    {(!job.logs || job.logs.length === 0) ? (
+                    {!job.logs || job.logs.length === 0 ? (
                       <div className="flex items-center gap-2 text-zinc-500">
                         <Loader2 className="h-3.5 w-3.5 animate-spin text-zinc-400" />
                         <span>Conectando al stream de Supabase Realtime...</span>
@@ -816,131 +854,131 @@ function QualityCenterPage() {
               </TabsList>
 
               <TabsContent value="manual" className="mt-0">
-              <Card className="p-5">
-                <div className="flex items-center gap-2">
-                  <FlaskConical className="h-4 w-4 text-primary" />
-                  <h3 className="font-semibold">Laboratorio manual</h3>
-                </div>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Pregunta como un usuario real. Verás la respuesta, decisión y herramientas
-                  propuestas.
-                </p>
-                <Textarea
-                  value={question}
-                  onChange={(e) => setQuestion(e.target.value)}
-                  placeholder="Ej.: ¿Cuánto cuesta un servicio que no está en el catálogo?"
-                  className="mt-4 min-h-24"
-                />
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <Button
-                    className="gap-2"
-                    variant="outline"
-                    disabled={!question.trim() || busy !== null}
-                    onClick={() => void action("manual_test", { question })}
-                  >
-                    {busy === "manual_test" ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Play className="h-4 w-4" />
+                <Card className="p-5">
+                  <div className="flex items-center gap-2">
+                    <FlaskConical className="h-4 w-4 text-primary" />
+                    <h3 className="font-semibold">Laboratorio manual</h3>
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Pregunta como un usuario real. Verás la respuesta, decisión y herramientas
+                    propuestas.
+                  </p>
+                  <Textarea
+                    value={question}
+                    onChange={(e) => setQuestion(e.target.value)}
+                    placeholder="Ej.: ¿Cuánto cuesta un servicio que no está en el catálogo?"
+                    className="mt-4 min-h-24"
+                  />
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Button
+                      className="gap-2"
+                      variant="outline"
+                      disabled={!question.trim() || busy !== null}
+                      onClick={() => void action("manual_test", { question })}
+                    >
+                      {busy === "manual_test" ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Play className="h-4 w-4" />
+                      )}
+                      Probar pregunta
+                    </Button>
+                    <Button
+                      className="gap-2"
+                      disabled={
+                        !record.manualRuns.length ||
+                        !record.tests.length ||
+                        record.tests.some((test) => !test.passed) ||
+                        !record.preflightChecks?.length ||
+                        record.preflightChecks.some((check) => !check.ok) ||
+                        busy !== null
+                      }
+                      onClick={() => void action("manual_approval")}
+                    >
+                      <CheckCircle2 className="h-4 w-4" />
+                      {record.manualApprovedAt ? "Revisión aprobada" : "Aprobar revisión"}
+                    </Button>
+                  </div>
+                  <div className="mt-4 max-h-72 space-y-3 overflow-y-auto">
+                    {record.manualRuns.map((run) => (
+                      <RunCard key={run.id} run={run} />
+                    ))}
+                    {!record.manualRuns.length && (
+                      <Empty text="Ejecuta al menos una conversación realista y revisa la decisión antes de aprobar." />
                     )}
-                    Probar pregunta
-                  </Button>
-                  <Button
-                    className="gap-2"
-                    disabled={
-                      !record.manualRuns.length ||
-                      !record.tests.length ||
-                      record.tests.some((test) => !test.passed) ||
-                      !record.preflightChecks?.length ||
-                      record.preflightChecks.some((check) => !check.ok) ||
-                      busy !== null
-                    }
-                    onClick={() => void action("manual_approval")}
-                  >
-                    <CheckCircle2 className="h-4 w-4" />
-                    {record.manualApprovedAt ? "Revisión aprobada" : "Aprobar revisión"}
-                  </Button>
-                </div>
-                <div className="mt-4 max-h-72 space-y-3 overflow-y-auto">
-                  {record.manualRuns.map((run) => (
-                    <RunCard key={run.id} run={run} />
-                  ))}
-                  {!record.manualRuns.length && (
-                    <Empty text="Ejecuta al menos una conversación realista y revisa la decisión antes de aprobar." />
-                  )}
-                </div>
-              </Card>
+                  </div>
+                </Card>
               </TabsContent>
 
               <TabsContent value="automatic" className="mt-0">
-              <Card className="p-5">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <ShieldCheck className="h-4 w-4 text-primary" />
-                      <h3 className="font-semibold">Validación automática</h3>
+                <Card className="p-5">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <ShieldCheck className="h-4 w-4 text-primary" />
+                        <h3 className="font-semibold">Validación automática</h3>
+                      </div>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Prueba seguridad, función, acciones e infraestructura sin crear máquinas.
+                      </p>
                     </div>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Prueba seguridad, función, acciones e infraestructura sin crear máquinas.
-                    </p>
+                    <Button
+                      onClick={() => void action("automatic_tests")}
+                      disabled={busy !== null}
+                      className="gap-2"
+                    >
+                      {busy === "automatic_tests" ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Play className="h-4 w-4" />
+                      )}
+                      Validar todo
+                    </Button>
                   </div>
-                  <Button
-                    onClick={() => void action("automatic_tests")}
-                    disabled={busy !== null}
-                    className="gap-2"
-                  >
-                    {busy === "automatic_tests" ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Play className="h-4 w-4" />
+                  <div className="mt-4 max-h-96 space-y-3 overflow-y-auto">
+                    {record.tests.map((test) => (
+                      <div key={test.id} className="rounded-lg border border-border/60 p-3">
+                        <div className="flex items-start gap-2">
+                          {test.passed ? (
+                            <CheckCircle2 className="mt-0.5 h-4 w-4 text-success" />
+                          ) : (
+                            <XCircle className="mt-0.5 h-4 w-4 text-destructive" />
+                          )}
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium">{test.name}</p>
+                            <p className="mt-1 text-xs text-muted-foreground">{test.reason}</p>
+                            <p className="mt-2 rounded bg-muted/40 p-2 text-xs">
+                              {test.response || "Sin respuesta"}
+                            </p>
+                            <Decision
+                              decision={test.decision}
+                              tools={test.tools}
+                              latency={test.latencyMs}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    {record.preflightChecks?.map((check) => (
+                      <div key={check.id} className="rounded-lg border border-border/60 p-3">
+                        <div className="flex items-start gap-2">
+                          {check.ok ? (
+                            <CheckCircle2 className="mt-0.5 h-4 w-4 text-success" />
+                          ) : (
+                            <XCircle className="mt-0.5 h-4 w-4 text-destructive" />
+                          )}
+                          <div>
+                            <p className="text-sm font-medium">{check.label}</p>
+                            <p className="mt-1 text-xs text-muted-foreground">{check.details}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    {!record.tests.length && (
+                      <Empty text="Ejecuta la validación antes de publicar." />
                     )}
-                    Validar todo
-                  </Button>
-                </div>
-                <div className="mt-4 max-h-96 space-y-3 overflow-y-auto">
-                  {record.tests.map((test) => (
-                    <div key={test.id} className="rounded-lg border border-border/60 p-3">
-                      <div className="flex items-start gap-2">
-                        {test.passed ? (
-                          <CheckCircle2 className="mt-0.5 h-4 w-4 text-success" />
-                        ) : (
-                          <XCircle className="mt-0.5 h-4 w-4 text-destructive" />
-                        )}
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium">{test.name}</p>
-                          <p className="mt-1 text-xs text-muted-foreground">{test.reason}</p>
-                          <p className="mt-2 rounded bg-muted/40 p-2 text-xs">
-                            {test.response || "Sin respuesta"}
-                          </p>
-                          <Decision
-                            decision={test.decision}
-                            tools={test.tools}
-                            latency={test.latencyMs}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                  {record.preflightChecks?.map((check) => (
-                    <div key={check.id} className="rounded-lg border border-border/60 p-3">
-                      <div className="flex items-start gap-2">
-                        {check.ok ? (
-                          <CheckCircle2 className="mt-0.5 h-4 w-4 text-success" />
-                        ) : (
-                          <XCircle className="mt-0.5 h-4 w-4 text-destructive" />
-                        )}
-                        <div>
-                          <p className="text-sm font-medium">{check.label}</p>
-                          <p className="mt-1 text-xs text-muted-foreground">{check.details}</p>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                  {!record.tests.length && (
-                    <Empty text="Ejecuta la validación antes de publicar." />
-                  )}
-                </div>
-              </Card>
+                  </div>
+                </Card>
               </TabsContent>
 
               <TabsContent value="knowledge" className="mt-0">
@@ -949,15 +987,21 @@ function QualityCenterPage() {
                     <div>
                       <div className="flex items-center gap-2">
                         <BookOpen className="h-5 w-5 text-primary" />
-                        <h3 className="font-semibold text-zinc-100">Customer Support y Base de Conocimiento</h3>
+                        <h3 className="font-semibold text-zinc-100">
+                          Customer Support y Base de Conocimiento
+                        </h3>
                       </div>
                       <p className="mt-1 text-xs text-muted-foreground">
-                        Registra la fuente de verdad del negocio (catálogo, portal web, servicios o preguntas frecuentes). La IA responderá en WhatsApp basándose estrictamente en esta información, con cero alucinaciones y escalando con respaldo humano si no encuentra el dato.
+                        Registra la fuente de verdad del negocio (catálogo, portal web, servicios o
+                        preguntas frecuentes). La IA responderá en WhatsApp basándose estrictamente
+                        en esta información, con cero alucinaciones y escalando con respaldo humano
+                        si no encuentra el dato.
                       </p>
                     </div>
                     {record.tenantConfig?.knowledgeBase?.lastSyncedAt && (
                       <span className="text-[11px] text-muted-foreground">
-                        Última sincronización: {formatDate(record.tenantConfig.knowledgeBase.lastSyncedAt)}
+                        Última sincronización:{" "}
+                        {formatDate(record.tenantConfig.knowledgeBase.lastSyncedAt)}
                       </span>
                     )}
                   </div>
@@ -993,7 +1037,8 @@ function QualityCenterPage() {
                         placeholder="Ej.: Catálogo Oficial 2026, Ficha de Tarifas, Manual de Garantía"
                       />
                       <p className="text-[11px] text-muted-foreground">
-                        Identificador con el que el bot referencia la autenticidad de la información.
+                        Identificador con el que el bot referencia la autenticidad de la
+                        información.
                       </p>
                     </div>
                   </div>
@@ -1010,7 +1055,8 @@ function QualityCenterPage() {
                       className="min-h-56 font-mono text-xs leading-relaxed"
                     />
                     <p className="text-[11px] text-muted-foreground">
-                      Este texto es inyectado de forma directa e inviolable en el bloque de contexto oficial del bot.
+                      Este texto es inyectado de forma directa e inviolable en el bloque de contexto
+                      oficial del bot.
                     </p>
                   </div>
 
@@ -1022,7 +1068,11 @@ function QualityCenterPage() {
                           Blindaje Estricto Anti-Alucinaciones con Respaldo Humano
                         </p>
                         <p className="text-muted-foreground leading-relaxed">
-                          La IA tiene terminantemente prohibido inventar o estimar datos que no figuren en este registro o en la base de datos de catálogo. Si un cliente formula una consulta no contemplada, responderá cordialmente que transferirá el caso a un asesor humano y pausará la atención automática durante 3 horas para dar paso a tu equipo.
+                          La IA tiene terminantemente prohibido inventar o estimar datos que no
+                          figuren en este registro o en la base de datos de catálogo. Si un cliente
+                          formula una consulta no contemplada, responderá cordialmente que
+                          transferirá el caso a un asesor humano y pausará la atención automática
+                          durante 3 horas para dar paso a tu equipo.
                         </p>
                       </div>
                     </div>
@@ -1054,95 +1104,98 @@ function QualityCenterPage() {
               </TabsContent>
 
               <TabsContent value="history" className="mt-0">
-              <div className="grid gap-6 xl:grid-cols-2">
-              <Card className="p-5">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <History className="h-4 w-4 text-primary" />
-                    <h3 className="font-semibold">Versiones y rollback</h3>
-                  </div>
-                </div>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Cada publicación y restauración conserva un punto de retorno.
-                </p>
-                <div className="mt-4 max-h-56 space-y-2 overflow-y-auto">
-                  {versions.map((v) => (
-                    <SnapshotRow
-                      key={v.id}
-                      item={v}
-                      button="Restaurar"
-                      loading={busy === `version-${v.id}`}
-                      onClick={() => {
-                        setBusy(`version-${v.id}`);
-                        void action("rollback", { snapshotId: v.id });
-                      }}
-                    />
-                  ))}
-                  {!versions.length && <Empty text="La primera versión se crea al publicar." />}
-                </div>
-              </Card>
-              <Card className="p-5">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <DatabaseBackup className="h-4 w-4 text-primary" />
-                      <h3 className="font-semibold">Backups y recuperación</h3>
+                <div className="grid gap-6 xl:grid-cols-2">
+                  <Card className="p-5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <History className="h-4 w-4 text-primary" />
+                        <h3 className="font-semibold">Versiones y rollback</h3>
+                      </div>
                     </div>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      Copias con checksum y simulacro real de lectura y validación.
+                      Cada publicación y restauración conserva un punto de retorno.
                     </p>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={busy !== null}
-                      onClick={() => void action("backup")}
-                    >
-                      <DatabaseBackup className="mr-2 h-3.5 w-3.5" />
-                      Backup
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={!backups.length || busy !== null}
-                      onClick={() => void action("restore_drill")}
-                    >
-                      <Wrench className="mr-2 h-3.5 w-3.5" />
-                      Simulacro
-                    </Button>
-                  </div>
-                </div>
-                {record.lastRestoreDrillAt && (
-                  <p
-                    className={cn(
-                      "mt-3 text-xs",
-                      record.lastRestoreDrillOk ? "text-success" : "text-destructive",
+                    <div className="mt-4 max-h-56 space-y-2 overflow-y-auto">
+                      {versions.map((v) => (
+                        <SnapshotRow
+                          key={v.id}
+                          item={v}
+                          button="Restaurar"
+                          loading={busy === `version-${v.id}`}
+                          onClick={() => {
+                            setBusy(`version-${v.id}`);
+                            void action("rollback", { snapshotId: v.id });
+                          }}
+                        />
+                      ))}
+                      {!versions.length && <Empty text="La primera versión se crea al publicar." />}
+                    </div>
+                  </Card>
+                  <Card className="p-5">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <DatabaseBackup className="h-4 w-4 text-primary" />
+                          <h3 className="font-semibold">Backups y recuperación</h3>
+                        </div>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Copias con checksum y simulacro real de lectura y validación.
+                        </p>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={busy !== null}
+                          onClick={() => void action("backup")}
+                        >
+                          <DatabaseBackup className="mr-2 h-3.5 w-3.5" />
+                          Backup
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={!backups.length || busy !== null}
+                          onClick={() => void action("restore_drill")}
+                        >
+                          <Wrench className="mr-2 h-3.5 w-3.5" />
+                          Simulacro
+                        </Button>
+                      </div>
+                    </div>
+                    {record.lastRestoreDrillAt && (
+                      <p
+                        className={cn(
+                          "mt-3 text-xs",
+                          record.lastRestoreDrillOk ? "text-success" : "text-destructive",
+                        )}
+                      >
+                        Último simulacro {formatDate(record.lastRestoreDrillAt)}:{" "}
+                        {record.lastRestoreDrillOk
+                          ? "restauración comprobada"
+                          : "requiere atención"}
+                        .
+                      </p>
                     )}
-                  >
-                    Último simulacro {formatDate(record.lastRestoreDrillAt)}:{" "}
-                    {record.lastRestoreDrillOk ? "restauración comprobada" : "requiere atención"}.
-                  </p>
-                )}
-                <div className="mt-4 max-h-56 space-y-2 overflow-y-auto">
-                  {backups.map((v) => (
-                    <SnapshotRow
-                      key={v.id}
-                      item={v}
-                      button="Restaurar"
-                      loading={busy === `backup-${v.id}`}
-                      onClick={() => {
-                        setBusy(`backup-${v.id}`);
-                        void action("restore_backup", { snapshotId: v.id });
-                      }}
-                    />
-                  ))}
-                  {!backups.length && (
-                    <Empty text="Crea el primer backup cuando la configuración esté lista." />
-                  )}
+                    <div className="mt-4 max-h-56 space-y-2 overflow-y-auto">
+                      {backups.map((v) => (
+                        <SnapshotRow
+                          key={v.id}
+                          item={v}
+                          button="Restaurar"
+                          loading={busy === `backup-${v.id}`}
+                          onClick={() => {
+                            setBusy(`backup-${v.id}`);
+                            void action("restore_backup", { snapshotId: v.id });
+                          }}
+                        />
+                      ))}
+                      {!backups.length && (
+                        <Empty text="Crea el primer backup cuando la configuración esté lista." />
+                      )}
+                    </div>
+                  </Card>
                 </div>
-              </Card>
-              </div>
               </TabsContent>
             </Tabs>
           </div>
@@ -1157,20 +1210,20 @@ function QualityCenterPage() {
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2 text-rose-400">
               <AlertTriangle className="h-5 w-5" />
-              ¿Eliminar {deleteTarget?.state === "active" ? "bot activo" : "borrador"}{" "}
-              &quot;{deleteTarget?.name}&quot;?
+              ¿Eliminar {deleteTarget?.state === "active" ? "bot activo" : "borrador"} &quot;
+              {deleteTarget?.name}&quot;?
             </AlertDialogTitle>
             <AlertDialogDescription className="text-zinc-300">
               {deleteTarget?.state === "active" ? (
                 <span>
-                  Esta acción es <strong>permanente e irreversible</strong>. Se destruirá la aplicación
-                  en Fly.io liberando las máquinas, volúmenes e IPs reservadas, y se eliminará la
-                  configuración del bot en GitHub y la base de datos.
+                  Esta acción es <strong>permanente e irreversible</strong>. Se destruirá la
+                  aplicación en Fly.io liberando las máquinas, volúmenes e IPs reservadas, y se
+                  eliminará la configuración del bot en GitHub y la base de datos.
                 </span>
               ) : (
                 <span>
-                  Esta acción eliminará el borrador, sus pruebas de calidad y la configuración asociada.
-                  Esta acción no se puede deshacer.
+                  Esta acción eliminará el borrador, sus pruebas de calidad y la configuración
+                  asociada. Esta acción no se puede deshacer.
                 </span>
               )}
             </AlertDialogDescription>

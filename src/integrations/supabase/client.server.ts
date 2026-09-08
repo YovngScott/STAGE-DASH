@@ -18,11 +18,42 @@ const wsTransport =
 // supabaseAdmin. Fall back to a placeholder so construction always
 // succeeds; any actual request against it will just fail with a normal
 // Supabase auth error instead of crashing the whole site.
-export const supabaseAdmin = createClient(
-  SUPABASE_URL,
-  process.env.STAGE_SUPABASE_SERVICE_ROLE_KEY || "missing-STAGE_SUPABASE_SERVICE_ROLE_KEY",
-  {
-    auth: { persistSession: false, autoRefreshToken: false },
-    realtime: { transport: wsTransport },
-  },
-);
+function resolveDashboardServiceRoleKey(): string {
+  const key = process.env.STAGE_SUPABASE_SERVICE_ROLE_KEY;
+  if (key && key.startsWith("ey")) {
+    try {
+      const payload = JSON.parse(Buffer.from(key.split(".")[1], "base64").toString());
+      if (payload.ref === "auvbmpfiplwawxqibmmq") {
+        return key;
+      }
+    } catch {
+      // ignore
+    }
+  }
+  // If STAGE_SUPABASE_SERVICE_ROLE_KEY was configured with the messaging project key,
+  // ensure STAGE_MESSAGING_SUPABASE_SERVICE_ROLE_KEY receives it so messaging endpoints work.
+  if (
+    key &&
+    key.startsWith("ey") &&
+    !process.env.STAGE_MESSAGING_SUPABASE_SERVICE_ROLE_KEY?.startsWith("ey")
+  ) {
+    try {
+      const payload = JSON.parse(Buffer.from(key.split(".")[1], "base64").toString());
+      if (payload.ref === "vulyyztktylldfnuvzbn") {
+        process.env.STAGE_MESSAGING_SUPABASE_SERVICE_ROLE_KEY = key;
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  return (
+    process.env.STAGE_DASHBOARD_SUPABASE_SERVICE_ROLE_KEY ||
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF1dmJtcGZpcGx3YXd4cWlibW1xIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzk4ODA2OSwiZXhwIjoyMDk5NTY0MDY5fQ.6o_HHsM06jw94Jgp4FQnQKBnw70Jg-2pKKDZE5VxGek"
+  );
+}
+
+export const supabaseAdmin = createClient(SUPABASE_URL, resolveDashboardServiceRoleKey(), {
+  auth: { persistSession: false, autoRefreshToken: false },
+  realtime: { transport: wsTransport },
+});

@@ -52,7 +52,7 @@ export const Route = createFileRoute("/api/webhooks/leads")({
         } catch {
           return Response.json(
             { error: "Payload JSON inválido o malformado." },
-            { status: 400, headers: corsHeaders }
+            { status: 400, headers: corsHeaders },
           );
         }
 
@@ -64,7 +64,7 @@ export const Route = createFileRoute("/api/webhooks/leads")({
         if (!name || !email) {
           return Response.json(
             { error: "Los campos 'name' y 'email' son obligatorios." },
-            { status: 400, headers: corsHeaders }
+            { status: 400, headers: corsHeaders },
           );
         }
 
@@ -119,8 +119,11 @@ export const Route = createFileRoute("/api/webhooks/leads")({
         if (error) {
           console.error("[Leads Webhook] Error al insertar en Supabase:", error);
           return Response.json(
-            { error: "Error interno al registrar el lead en la base de datos.", details: error.message },
-            { status: 500, headers: corsHeaders }
+            {
+              error: "Error interno al registrar el lead en la base de datos.",
+              details: error.message,
+            },
+            { status: 500, headers: corsHeaders },
           );
         }
 
@@ -133,7 +136,7 @@ export const Route = createFileRoute("/api/webhooks/leads")({
           {
             status: 201,
             headers: corsHeaders,
-          }
+          },
         );
       },
     },

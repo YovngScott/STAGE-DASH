@@ -142,9 +142,7 @@ export interface FlyMachine {
  */
 function getFlyToken(): string {
   let token =
-    process.env.STAGE_FLY_API_TOKEN ||
-    process.env.FLY_API_TOKEN ||
-    process.env.FLY_ACCESS_TOKEN;
+    process.env.STAGE_FLY_API_TOKEN || process.env.FLY_API_TOKEN || process.env.FLY_ACCESS_TOKEN;
 
   if (!token?.trim()) {
     throw new Error(
@@ -161,10 +159,7 @@ function getFlyToken(): string {
 /**
  * Helper base para ejecutar peticiones HTTP a la API de Fly Machines.
  */
-async function flyRequest<T>(
-  endpoint: string,
-  options: RequestInit = {},
-): Promise<T> {
+async function flyRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const token = getFlyToken();
   const url = `${FLY_API_BASE}${endpoint.startsWith("/") ? endpoint : `/${endpoint}`}`;
 

@@ -3,7 +3,6 @@ import type {} from "@tanstack/react-start";
 import { createClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { authorizeOwner } from "@/lib/auth-owner.server";
 
 const MESSAGING_SUPABASE_URL =
   process.env.STAGE_MESSAGING_SUPABASE_URL || "https://vulyyztktylldfnuvzbn.supabase.co";
@@ -30,7 +29,7 @@ export const Route = createFileRoute("/api/client-admin-user")({
   server: {
     handlers: {
       GET: async ({ request }) => {
-        const ownerError = await authorizeOwner(request);
+        const ownerError = await requireOwner(request);
         if (ownerError) return ownerError;
 
         const url = new URL(request.url);
@@ -54,13 +53,18 @@ export const Route = createFileRoute("/api/client-admin-user")({
           const users = (memberships ?? []).flatMap((membership: { user_id: string }) => {
             const user = usersById.get(membership.user_id);
             if (!user) return [];
-            return [{
-              id: user.id,
-              email: user.email ?? "",
-              displayName: typeof user.user_metadata?.display_name === "string" ? user.user_metadata.display_name : "",
-              createdAt: user.created_at ?? null,
-              lastSignInAt: user.last_sign_in_at ?? null,
-            }];
+            return [
+              {
+                id: user.id,
+                email: user.email ?? "",
+                displayName:
+                  typeof user.user_metadata?.display_name === "string"
+                    ? user.user_metadata.display_name
+                    : "",
+                createdAt: user.created_at ?? null,
+                lastSignInAt: user.last_sign_in_at ?? null,
+              },
+            ];
           });
           return Response.json({ ok: true, users });
         } catch (error) {
@@ -69,7 +73,7 @@ export const Route = createFileRoute("/api/client-admin-user")({
       },
 
       POST: async ({ request }) => {
-        const ownerError = await authorizeOwner(request);
+        const ownerError = await requireOwner(request);
         if (ownerError) return ownerError;
         const body = await parseBody(request);
         if (body instanceof Response) return body;
@@ -102,9 +106,11 @@ export const Route = createFileRoute("/api/client-admin-user")({
             // "Create" is also the safe way to grant an existing account
             // access to another customer. Supabase does not return that user
             // on a duplicate email, so find it explicitly before continuing.
-            if (!isDuplicateUserError(created.error.message)) throw new Error(created.error.message);
+            if (!isDuplicateUserError(created.error.message))
+              throw new Error(created.error.message);
             user = await findAuthUserByEmail(messagingAdmin, email);
-            if (!user) throw new Error("La cuenta ya existe, pero no se pudo recuperar para darle acceso.");
+            if (!user)
+              throw new Error("La cuenta ya existe, pero no se pudo recuperar para darle acceso.");
           }
           if (!user?.id) throw new Error("No se pudo crear la cuenta del dashboard.");
 
@@ -131,7 +137,7 @@ export const Route = createFileRoute("/api/client-admin-user")({
       },
 
       PATCH: async ({ request }) => {
-        const ownerError = await authorizeOwner(request);
+        const ownerError = await requireOwner(request);
         if (ownerError) return ownerError;
         const body = await parseBody(request);
         if (body instanceof Response) return body;
@@ -139,16 +145,10 @@ export const Route = createFileRoute("/api/client-admin-user")({
         const clientId = String(body.clientId ?? "").trim();
         const tenantSlug = normalizeSlug(body.tenantSlug);
         const userId = String(body.userId ?? "").trim();
-        const password = typeof body.password === "string" ? body.password.trim() : "";
-        const displayName = typeof body.displayName === "string" ? body.displayName.trim() : undefined;
-        if (!clientId || !tenantSlug || !userId || (!password && displayName === undefined)) {
-          return Response.json(
-            { error: "Faltan clientId, tenantSlug, userId o datos para actualizar." },
-            { status: 400 },
-          );
-        }
-        if (password && password.length < 8) {
-          return Response.json({ error: "La nueva clave debe tener al menos 8 caracteres." }, { status: 400 });
+        const email = normalizeEmail(body.email);
+        const password = String(body.password ?? "").trim();
+        if (!clientId || !tenantSlug || !userId || !email || (password && password.length < 8)) {
+          return Response.json({ error: "Datos de usuario inválidos." }, { status: 400 });
         }
 
         try {
@@ -156,23 +156,31 @@ export const Route = createFileRoute("/api/client-admin-user")({
           const messagingAdmin = getMessagingAdmin();
           const tenantId = await resolveTenantId(messagingAdmin, tenantSlug);
           await assertTenantMembership(messagingAdmin, tenantId, userId);
+          const displayName = String(body.displayName ?? "").trim();
+          const update: Record<string, unknown> = {
+            email,
+            email_confirm: true,
+            user_metadata: { display_name: displayName },
+          };
+          if (password) update.password = password;
+          const { data, error } = await messagingAdmin.auth.admin.updateUserById(userId, update);
+          if (error || !data.user)
+            throw new Error(error?.message ?? "No se pudo actualizar el usuario.");
 
-          const attributes: { password?: string; user_metadata?: { display_name?: string } } = {};
-          if (password) attributes.password = password;
-          if (displayName !== undefined) attributes.user_metadata = { display_name: displayName };
-          const updated = await messagingAdmin.auth.admin.updateUserById(userId, attributes);
-          if (updated.error) throw new Error(updated.error.message);
-          const user = updated.data.user;
-          if (!user) throw new Error("No se pudo actualizar el usuario.");
-          await trackClientAccount({ clientId, userId: user.id, email: user.email ?? "", displayName });
-          return Response.json({ ok: true, user: serializeAuthUser(user) });
+          await supabaseAdmin
+            .from("client_email_accounts")
+            .delete()
+            .eq("client_id", clientId)
+            .eq("auth_user_id", userId);
+          await trackClientAccount({ clientId, userId, email, displayName });
+          return Response.json({ ok: true, user: serializeAuthUser(data.user) });
         } catch (error) {
           return Response.json({ error: messageFrom(error) }, { status: 502 });
         }
       },
 
       DELETE: async ({ request }) => {
-        const ownerError = await authorizeOwner(request);
+        const ownerError = await requireOwner(request);
         if (ownerError) return ownerError;
         const body = await parseBody(request);
         if (body instanceof Response) return body;
@@ -207,7 +215,11 @@ export const Route = createFileRoute("/api/client-admin-user")({
             const { error: deleteError } = await messagingAdmin.auth.admin.deleteUser(userId);
             if (deleteError) throw new Error(deleteError.message);
           }
-          await supabaseAdmin.from("client_email_accounts").delete().eq("client_id", clientId).eq("auth_user_id", userId);
+          await supabaseAdmin
+            .from("client_email_accounts")
+            .delete()
+            .eq("client_id", clientId)
+            .eq("auth_user_id", userId);
           return Response.json({ ok: true, deletedAccount });
         } catch (error) {
           return Response.json({ error: messageFrom(error) }, { status: 502 });
@@ -216,6 +228,20 @@ export const Route = createFileRoute("/api/client-admin-user")({
     },
   },
 });
+
+async function requireOwner(request: Request): Promise<Response | null> {
+  const authHeader = request.headers.get("authorization") ?? "";
+  const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
+  if (!token) return Response.json({ error: "No autorizado." }, { status: 401 });
+  const { data: userData, error: userError } = await supabase.auth.getUser(token);
+  if (userError || !userData.user)
+    return Response.json({ error: "No autorizado." }, { status: 401 });
+  const { data: isOwner } = await supabase.rpc("has_role", {
+    _user_id: userData.user.id,
+    _role: "owner",
+  });
+  return isOwner ? null : Response.json({ error: "No autorizado." }, { status: 401 });
+}
 
 async function parseBody(request: Request): Promise<DashboardUserBody | Response> {
   try {
@@ -227,41 +253,58 @@ async function parseBody(request: Request): Promise<DashboardUserBody | Response
 
 function getMessagingAdmin(): MessagingAdmin {
   const key = process.env.STAGE_MESSAGING_SUPABASE_SERVICE_ROLE_KEY;
-  if (!key) throw new Error("Falta STAGE_MESSAGING_SUPABASE_SERVICE_ROLE_KEY para administrar usuarios de bots.");
-  return createClient(MESSAGING_SUPABASE_URL, key, { auth: { persistSession: false, autoRefreshToken: false } });
+  if (!key)
+    throw new Error(
+      "Falta STAGE_MESSAGING_SUPABASE_SERVICE_ROLE_KEY para administrar usuarios de bots.",
+    );
+  return createClient(MESSAGING_SUPABASE_URL, key, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
 }
 
 async function resolveTenantId(messagingAdmin: MessagingAdmin, tenantSlug: string) {
-  const { data, error } = await messagingAdmin.from("tenants").select("id").eq("slug", tenantSlug).maybeSingle();
+  const { data, error } = await messagingAdmin
+    .from("tenants")
+    .select("id")
+    .eq("slug", tenantSlug)
+    .maybeSingle();
   if (error || !data?.id) throw new Error(`No existe el tenant ${tenantSlug}.`);
   return data.id as string;
 }
 
 async function assertClientOwnsTenant(clientId: string, tenantSlug: string) {
-  const [{ data: bot, error: botError }, { data: dashboard, error: dashboardError }] = await Promise.all([
-    supabaseAdmin
-      .from("client_bots")
-      .select("id")
-      .eq("client_id", clientId)
-      .eq("slug", tenantSlug)
-      .limit(1)
-      .maybeSingle(),
-    supabaseAdmin
-      .from("client_dashboards")
-      .select("id")
-      .eq("client_id", clientId)
-      .eq("slug", tenantSlug)
-      .limit(1)
-      .maybeSingle(),
-  ]);
+  const [{ data: bot, error: botError }, { data: dashboard, error: dashboardError }] =
+    await Promise.all([
+      supabaseAdmin
+        .from("client_bots")
+        .select("id")
+        .eq("client_id", clientId)
+        .eq("slug", tenantSlug)
+        .limit(1)
+        .maybeSingle(),
+      supabaseAdmin
+        .from("client_dashboards")
+        .select("id")
+        .eq("client_id", clientId)
+        .eq("slug", tenantSlug)
+        .limit(1)
+        .maybeSingle(),
+    ]);
   if (botError) throw new Error(`No se pudo validar el bot del cliente: ${botError.message}`);
-  if (dashboardError) throw new Error(`No se pudo validar el dashboard del cliente: ${dashboardError.message}`);
+  if (dashboardError)
+    throw new Error(`No se pudo validar el dashboard del cliente: ${dashboardError.message}`);
   if (!bot && !dashboard) {
-    throw new Error("El tenant seleccionado no pertenece a este cliente. Recarga la ficha e inténtalo de nuevo.");
+    throw new Error(
+      "El tenant seleccionado no pertenece a este cliente. Recarga la ficha e inténtalo de nuevo.",
+    );
   }
 }
 
-async function assertTenantMembership(messagingAdmin: MessagingAdmin, tenantId: string, userId: string) {
+async function assertTenantMembership(
+  messagingAdmin: MessagingAdmin,
+  tenantId: string,
+  userId: string,
+) {
   const { data, error } = await messagingAdmin
     .from("tenant_admins")
     .select("user_id")
@@ -285,10 +328,17 @@ async function listAuthUsers(messagingAdmin: MessagingAdmin) {
 
 async function findAuthUserByEmail(messagingAdmin: MessagingAdmin, email: string) {
   const users = await listAuthUsers(messagingAdmin);
-  return [...users.values()].find((user) => String(user.email ?? "").toLowerCase() === email) ?? null;
+  return (
+    [...users.values()].find((user) => String(user.email ?? "").toLowerCase() === email) ?? null
+  );
 }
 
-async function trackClientAccount(args: { clientId: string; userId: string; email: string; displayName: string }) {
+async function trackClientAccount(args: {
+  clientId: string;
+  userId: string;
+  email: string;
+  displayName: string;
+}) {
   const payload = {
     client_id: args.clientId,
     email: args.email,
@@ -306,35 +356,46 @@ async function trackClientAccount(args: { clientId: string; userId: string; emai
     .select("id")
     .ilike("email", args.email)
     .maybeSingle();
-  if (findError) throw new Error(`No se pudo revisar la cuenta en Client Manager: ${findError.message}`);
+  if (findError)
+    throw new Error(`No se pudo revisar la cuenta en Client Manager: ${findError.message}`);
 
   const result = existing?.id
     ? await supabaseAdmin.from("client_email_accounts").update(payload).eq("id", existing.id)
     : await supabaseAdmin.from("client_email_accounts").insert(payload);
-  if (result.error) throw new Error(`No se pudo registrar la cuenta en Client Manager: ${result.error.message}`);
+  if (result.error)
+    throw new Error(`No se pudo registrar la cuenta en Client Manager: ${result.error.message}`);
 }
 
 function serializeAuthUser(user: any) {
   return {
     id: user.id,
     email: user.email ?? "",
-    displayName: typeof user.user_metadata?.display_name === "string" ? user.user_metadata.display_name : "",
+    displayName:
+      typeof user.user_metadata?.display_name === "string" ? user.user_metadata.display_name : "",
     createdAt: user.created_at ?? null,
     lastSignInAt: user.last_sign_in_at ?? null,
   };
 }
 
 function normalizeEmail(value: unknown) {
-  return String(value ?? "").trim().toLowerCase();
+  return String(value ?? "")
+    .trim()
+    .toLowerCase();
 }
 
 function normalizeSlug(value: unknown) {
-  return String(value ?? "").trim().toLowerCase();
+  return String(value ?? "")
+    .trim()
+    .toLowerCase();
 }
 
 function isDuplicateUserError(message: string) {
   const normalized = message.toLowerCase();
-  return normalized.includes("already") || normalized.includes("exists") || normalized.includes("registered");
+  return (
+    normalized.includes("already") ||
+    normalized.includes("exists") ||
+    normalized.includes("registered")
+  );
 }
 
 function messageFrom(error: unknown) {

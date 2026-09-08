@@ -122,7 +122,9 @@ function Dashboard() {
         fetch("/api/bot-health", {
           method: "POST",
           headers: { Authorization: `Bearer ${session?.access_token ?? ""}` },
-        }).then((r) => r.json()).catch(() => null),
+        })
+          .then((r) => r.json())
+          .catch(() => null),
       ]);
 
       if (!cRes.error) setClients((cRes.data ?? []) as Client[]);
@@ -150,9 +152,12 @@ function Dashboard() {
   const displayActiveCount = activeCount ?? activeClients.length;
   const displayTotalCount = totalCount ?? clients.length;
   const mrr = activeClients.reduce((s, c) => s + Number(c.mrr), 0);
-  
+
   // Costos API consolidados
-  const totalApiCosts = useMemo(() => bots.reduce((s, b) => s + (b.runtime?.monthlyCostUsd ?? 0), 0), [bots]);
+  const totalApiCosts = useMemo(
+    () => bots.reduce((s, b) => s + (b.runtime?.monthlyCostUsd ?? 0), 0),
+    [bots],
+  );
 
   const totalInvestments = entries
     .filter((e) => e.kind === "investment")
@@ -165,7 +170,8 @@ function Dashboard() {
   const consolidatedExpenses = monthlyExpenses + totalApiCosts;
   const profit = mrr - consolidatedExpenses;
   const margin = mrr > 0 ? ((profit / mrr) * 100).toFixed(1) : "0.0";
-  const runwayMonths = consolidatedExpenses > 0 ? (totalInvestments / consolidatedExpenses).toFixed(1) : "—";
+  const runwayMonths =
+    consolidatedExpenses > 0 ? (totalInvestments / consolidatedExpenses).toFixed(1) : "—";
 
   const handleReconnect = async (bot: BotHealth) => {
     setReconnecting(bot.botId);
@@ -189,7 +195,7 @@ function Dashboard() {
         toast.success(
           language === "es"
             ? `Sesión de WhatsApp de ${bot.clientName} reiniciada.`
-            : `WhatsApp session for ${bot.clientName} restarted.`
+            : `WhatsApp session for ${bot.clientName} restarted.`,
         );
       } else {
         throw new Error(data?.error || "Error al reiniciar la sesión.");
@@ -232,7 +238,9 @@ function Dashboard() {
       const data = await res.json().catch(() => null);
       if (res.ok && data?.url) {
         toast.success(
-          language === "es" ? "Acceso concedido. Abriendo pestaña..." : "Access granted. Opening tab..."
+          language === "es"
+            ? "Acceso concedido. Abriendo pestaña..."
+            : "Access granted. Opening tab...",
         );
         window.open(data.url, "_blank");
       } else {
@@ -376,7 +384,10 @@ function Dashboard() {
               {text("Tablero de Salud de Bots", "Bot Connection & Health Grid")}
             </h3>
             <p className="text-xs text-zinc-400 mt-0.5">
-              {text("Comandos rápidos y estado de conexión de mensajería y voz", "Live connectivity and rapid command controls")}
+              {text(
+                "Comandos rápidos y estado de conexión de mensajería y voz",
+                "Live connectivity and rapid command controls",
+              )}
             </p>
           </div>
         </div>
@@ -389,14 +400,30 @@ function Dashboard() {
             <Table>
               <TableHeader>
                 <TableRow className="border-b border-white/10 hover:bg-transparent">
-                  <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400 py-3.5">{text("Cliente", "Client")}</TableHead>
-                  <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400 py-3.5">{text("Tipo", "Type")}</TableHead>
-                  <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400 py-3.5">{text("Estado Servidor", "Server Health")}</TableHead>
-                  <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400 py-3.5">{text("WhatsApp", "WhatsApp")}</TableHead>
-                  <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400 py-3.5">{text("Correo", "Email")}</TableHead>
-                  <TableHead className="text-right text-[11px] font-semibold uppercase tracking-wider text-zinc-400 py-3.5">{text("Operaciones Pendientes", "Pending Ops")}</TableHead>
-                  <TableHead className="text-right text-[11px] font-semibold uppercase tracking-wider text-zinc-400 py-3.5">{text("Costo API (Mes)", "API Cost (Mo)")}</TableHead>
-                  <TableHead className="text-center text-[11px] font-semibold uppercase tracking-wider text-zinc-400 py-3.5">{text("Comandos", "Actions")}</TableHead>
+                  <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400 py-3.5">
+                    {text("Cliente", "Client")}
+                  </TableHead>
+                  <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400 py-3.5">
+                    {text("Tipo", "Type")}
+                  </TableHead>
+                  <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400 py-3.5">
+                    {text("Estado Servidor", "Server Health")}
+                  </TableHead>
+                  <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400 py-3.5">
+                    {text("WhatsApp", "WhatsApp")}
+                  </TableHead>
+                  <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400 py-3.5">
+                    {text("Correo", "Email")}
+                  </TableHead>
+                  <TableHead className="text-right text-[11px] font-semibold uppercase tracking-wider text-zinc-400 py-3.5">
+                    {text("Operaciones Pendientes", "Pending Ops")}
+                  </TableHead>
+                  <TableHead className="text-right text-[11px] font-semibold uppercase tracking-wider text-zinc-400 py-3.5">
+                    {text("Costo API (Mes)", "API Cost (Mo)")}
+                  </TableHead>
+                  <TableHead className="text-center text-[11px] font-semibold uppercase tracking-wider text-zinc-400 py-3.5">
+                    {text("Comandos", "Actions")}
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -406,10 +433,16 @@ function Dashboard() {
                   const isEmailConnected = bot.email === "connected";
 
                   return (
-                    <TableRow key={bot.botId} className="border-b border-white/5 transition-colors hover:bg-white/[0.02]">
+                    <TableRow
+                      key={bot.botId}
+                      className="border-b border-white/5 transition-colors hover:bg-white/[0.02]"
+                    >
                       <TableCell className="font-medium text-white">{bot.clientName}</TableCell>
                       <TableCell>
-                        <Badge variant="outline" className="capitalize text-[11px] font-normal border-white/10 bg-white/5 text-zinc-300">
+                        <Badge
+                          variant="outline"
+                          className="capitalize text-[11px] font-normal border-white/10 bg-white/5 text-zinc-300"
+                        >
                           {bot.kind}
                         </Badge>
                       </TableCell>
@@ -423,7 +456,9 @@ function Dashboard() {
                           ) : (
                             <>
                               <span className="h-2 w-2 rounded-full bg-rose-400 animate-pulse" />
-                              <span className="text-rose-400 font-medium">{text("Caído", "Offline")}</span>
+                              <span className="text-rose-400 font-medium">
+                                {text("Caído", "Offline")}
+                              </span>
                             </>
                           )}
                         </span>
@@ -435,7 +470,9 @@ function Dashboard() {
                           ) : isWhatsAppConnected ? (
                             <>
                               <span className="h-2 w-2 rounded-full bg-emerald-400" />
-                              <span className="text-zinc-300">{text("Conectado", "Connected")}</span>
+                              <span className="text-zinc-300">
+                                {text("Conectado", "Connected")}
+                              </span>
                             </>
                           ) : (
                             <>
@@ -454,7 +491,9 @@ function Dashboard() {
                           ) : isEmailConnected ? (
                             <>
                               <span className="h-2 w-2 rounded-full bg-emerald-400" />
-                              <span className="text-zinc-300">{text("Conectado", "Connected")}</span>
+                              <span className="text-zinc-300">
+                                {text("Conectado", "Connected")}
+                              </span>
                             </>
                           ) : (
                             <>
@@ -468,7 +507,10 @@ function Dashboard() {
                       </TableCell>
                       <TableCell className="text-right">
                         {bot.pendingFailures > 0 ? (
-                          <Badge variant="outline" className="border-amber-500/30 bg-amber-500/10 text-amber-300 text-[11px]">
+                          <Badge
+                            variant="outline"
+                            className="border-amber-500/30 bg-amber-500/10 text-amber-300 text-[11px]"
+                          >
                             {bot.pendingFailures} {text("Fallas", "Failures")}
                           </Badge>
                         ) : (
@@ -500,13 +542,14 @@ function Dashboard() {
                             size="sm"
                             className="h-8 rounded-lg text-xs px-3 gap-1.5 shadow-sm transition-all"
                             onClick={() => {
-                              const client = clients.find(c => c.company_name === bot.clientName);
+                              const client = clients.find((c) => c.company_name === bot.clientName);
                               if (client) void handleImpersonate(client.id, bot.slug);
                               else toast.error("No se pudo asociar el cliente.");
                             }}
                             disabled={impersonating !== null}
                           >
-                            {impersonating === clients.find(c => c.company_name === bot.clientName)?.id ? (
+                            {impersonating ===
+                            clients.find((c) => c.company_name === bot.clientName)?.id ? (
                               <Loader2 className="h-3 w-3 animate-spin" />
                             ) : (
                               <Eye className="h-3.5 w-3.5" />
@@ -533,7 +576,10 @@ function Dashboard() {
                 {text("Desglose Financiero por Cliente", "Client MRR & Margins Breakdown")}
               </h3>
               <p className="text-xs text-zinc-400 mt-0.5">
-                {text("Ingresos de suscripción versus costo de consumo de infraestructura", "Client subscription revenue versus live API usage costs")}
+                {text(
+                  "Ingresos de suscripción versus costo de consumo de infraestructura",
+                  "Client subscription revenue versus live API usage costs",
+                )}
               </p>
             </div>
           </div>
@@ -541,13 +587,27 @@ function Dashboard() {
             <Table>
               <TableHeader>
                 <TableRow className="border-b border-white/10 hover:bg-transparent">
-                  <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400 py-3.5">{text("Empresa", "Company")}</TableHead>
-                  <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400 py-3.5">{text("Servicios", "Services")}</TableHead>
-                  <TableHead className="text-right text-[11px] font-semibold uppercase tracking-wider text-zinc-400 py-3.5">{text("MRR Cobrado", "MRR Billed")}</TableHead>
-                  <TableHead className="text-right text-[11px] font-semibold uppercase tracking-wider text-zinc-400 py-3.5">{text("Costo API (Bot)", "API cost")}</TableHead>
-                  <TableHead className="text-right text-[11px] font-semibold uppercase tracking-wider text-zinc-400 py-3.5">{text("Margen Neto", "Net profit")}</TableHead>
-                  <TableHead className="text-center text-[11px] font-semibold uppercase tracking-wider text-zinc-400 py-3.5">{text("Estado Pago", "Status")}</TableHead>
-                  <TableHead className="text-center text-[11px] font-semibold uppercase tracking-wider text-zinc-400 py-3.5">{text("Panel", "Console")}</TableHead>
+                  <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400 py-3.5">
+                    {text("Empresa", "Company")}
+                  </TableHead>
+                  <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400 py-3.5">
+                    {text("Servicios", "Services")}
+                  </TableHead>
+                  <TableHead className="text-right text-[11px] font-semibold uppercase tracking-wider text-zinc-400 py-3.5">
+                    {text("MRR Cobrado", "MRR Billed")}
+                  </TableHead>
+                  <TableHead className="text-right text-[11px] font-semibold uppercase tracking-wider text-zinc-400 py-3.5">
+                    {text("Costo API (Bot)", "API cost")}
+                  </TableHead>
+                  <TableHead className="text-right text-[11px] font-semibold uppercase tracking-wider text-zinc-400 py-3.5">
+                    {text("Margen Neto", "Net profit")}
+                  </TableHead>
+                  <TableHead className="text-center text-[11px] font-semibold uppercase tracking-wider text-zinc-400 py-3.5">
+                    {text("Estado Pago", "Status")}
+                  </TableHead>
+                  <TableHead className="text-center text-[11px] font-semibold uppercase tracking-wider text-zinc-400 py-3.5">
+                    {text("Panel", "Console")}
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -555,27 +615,46 @@ function Dashboard() {
                   const bot = bots.find((b) => b.clientName === client.company_name);
                   const botApiCost = bot?.runtime?.monthlyCostUsd ?? 0;
                   const clientProfit = Number(client.mrr) - botApiCost;
-                  const clientMargin = Number(client.mrr) > 0 ? ((clientProfit / Number(client.mrr)) * 100).toFixed(1) : "0.0";
+                  const clientMargin =
+                    Number(client.mrr) > 0
+                      ? ((clientProfit / Number(client.mrr)) * 100).toFixed(1)
+                      : "0.0";
 
                   return (
-                    <TableRow key={client.id} className="border-b border-white/5 transition-colors hover:bg-white/[0.02]">
-                      <TableCell className="font-medium text-white">{client.company_name}</TableCell>
+                    <TableRow
+                      key={client.id}
+                      className="border-b border-white/5 transition-colors hover:bg-white/[0.02]"
+                    >
+                      <TableCell className="font-medium text-white">
+                        {client.company_name}
+                      </TableCell>
                       <TableCell>
                         <div className="flex flex-wrap gap-1 max-w-[200px]">
                           {(client.services ?? []).map((s, idx) => (
-                            <Badge key={idx} variant="outline" className="text-[10px] py-0 px-1 font-normal border-white/10 bg-white/5 text-zinc-300">
+                            <Badge
+                              key={idx}
+                              variant="outline"
+                              className="text-[10px] py-0 px-1 font-normal border-white/10 bg-white/5 text-zinc-300"
+                            >
                               {s}
                             </Badge>
                           ))}
                         </div>
                       </TableCell>
-                      <TableCell className="text-right font-medium text-zinc-200 font-mono">${Number(client.mrr).toLocaleString()}</TableCell>
-                      <TableCell className="text-right text-zinc-400 font-mono text-xs">${botApiCost.toFixed(2)}</TableCell>
+                      <TableCell className="text-right font-medium text-zinc-200 font-mono">
+                        ${Number(client.mrr).toLocaleString()}
+                      </TableCell>
+                      <TableCell className="text-right text-zinc-400 font-mono text-xs">
+                        ${botApiCost.toFixed(2)}
+                      </TableCell>
                       <TableCell className="text-right font-medium text-emerald-400 font-mono">
                         ${clientProfit.toLocaleString()} ({clientMargin}%)
                       </TableCell>
                       <TableCell className="text-center">
-                        <Badge variant="outline" className="border-emerald-500/30 bg-emerald-500/10 text-emerald-400 text-[10px] font-medium rounded-full">
+                        <Badge
+                          variant="outline"
+                          className="border-emerald-500/30 bg-emerald-500/10 text-emerald-400 text-[10px] font-medium rounded-full"
+                        >
                           {text("Al día", "Cleared")}
                         </Badge>
                       </TableCell>
@@ -585,7 +664,9 @@ function Dashboard() {
                           variant="ghost"
                           className="h-7 w-7 p-0 text-zinc-400 hover:text-white rounded-lg transition-colors"
                           onClick={() => {
-                            const slug = bot?.slug || client.company_name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+                            const slug =
+                              bot?.slug ||
+                              client.company_name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
                             void handleImpersonate(client.id, slug);
                           }}
                           disabled={impersonating !== null}
@@ -618,7 +699,11 @@ function Dashboard() {
               <ChartContainer config={categoryChartConfig} className="h-full w-full">
                 <ResponsiveContainer>
                   <BarChart data={categorySeries} margin={{ left: 0, right: 8, top: 4 }}>
-                    <CartesianGrid strokeDasharray="3 6" stroke="rgba(255,255,255,0.06)" vertical={false} />
+                    <CartesianGrid
+                      strokeDasharray="3 6"
+                      stroke="rgba(255,255,255,0.06)"
+                      vertical={false}
+                    />
                     <XAxis
                       dataKey="category"
                       tickLine={false}

@@ -3,14 +3,14 @@
  * ============================================================================
  * Stage AI Labs LLC — CLI de Automatización de Onboarding de Tenants
  * ============================================================================
- * 
+ *
  * Uso:
  *   node scripts/onboard-tenant.ts [opciones]
- * 
+ *
  * Modos de ejecución:
  *   1. Interactivo (por defecto si no se pasan argumentos):
  *      node scripts/onboard-tenant.ts
- * 
+ *
  *   2. Mediante flags de línea de comandos:
  *      node scripts/onboard-tenant.ts \
  *        --slug taller-dominguez \
@@ -20,14 +20,14 @@
  *        --budget 50 \
  *        --model gemini \
  *        --prompt "Taller automotriz líder en desabolladura y pintura horneada."
- * 
+ *
  *   3. Mediante archivo JSON o string JSON:
  *      node scripts/onboard-tenant.ts --json tenant-data.json
  *      node scripts/onboard-tenant.ts --data '{"slug":"mi-bot","name":"Mi Empresa",...}'
- * 
+ *
  *   4. Modo prueba / simulación:
  *      node scripts/onboard-tenant.ts ... --dry-run
- * 
+ *
  *   5. Aplicar directamente a Supabase:
  *      node scripts/onboard-tenant.ts ... --execute
  * ============================================================================
@@ -103,7 +103,8 @@ export function validateSlug(rawSlug: string): { valid: boolean; slug?: string; 
   if (!/^[a-z0-9][a-z0-9-]*[a-z0-9]$/.test(slug)) {
     return {
       valid: false,
-      error: "El slug solo puede contener letras minúsculas, dígitos y guiones (sin empezar ni terminar con guion).",
+      error:
+        "El slug solo puede contener letras minúsculas, dígitos y guiones (sin empezar ni terminar con guion).",
     };
   }
   if (slug.includes("--")) {
@@ -248,7 +249,8 @@ export function generateTenantConfig(
       appointmentReminderTime: "09:00",
       dailyReportTime: "18:00",
     },
-    adminEmails: data.adminEmails && data.adminEmails.length > 0 ? data.adminEmails : ["owner@stagelabs.com"],
+    adminEmails:
+      data.adminEmails && data.adminEmails.length > 0 ? data.adminEmails : ["owner@stagelabs.com"],
     behavior: "sales",
     policy: {
       canQuoteByChat: false,
@@ -301,7 +303,12 @@ export function generateTenantSql(
 ): string {
   const cleanName = data.name.trim().replace(/'/g, "''");
   const cleanSlug = normalized.slug.replace(/'/g, "''");
-  const canal = normalized.kind === "assistant" ? "asistente" : normalized.kind === "voice" ? "llamadas" : "mensajes";
+  const canal =
+    normalized.kind === "assistant"
+      ? "asistente"
+      : normalized.kind === "voice"
+        ? "llamadas"
+        : "mensajes";
 
   return `-- ============================================================================
 -- Stage AI Labs LLC — Script de Aprovisionamiento para Tenant: ${cleanSlug}
@@ -411,7 +418,10 @@ export function loadEnvFiles() {
           if (eqIdx !== -1) {
             const key = trimmed.slice(0, eqIdx).trim();
             let val = trimmed.slice(eqIdx + 1).trim();
-            if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+            if (
+              (val.startsWith('"') && val.endsWith('"')) ||
+              (val.startsWith("'") && val.endsWith("'"))
+            ) {
               val = val.slice(1, -1);
             }
             if (!process.env[key]) {
@@ -459,7 +469,12 @@ export async function executeSupabaseProvision(
       auth: { persistSession: false },
     });
 
-    const canal = normalized.kind === "assistant" ? "asistente" : normalized.kind === "voice" ? "llamadas" : "mensajes";
+    const canal =
+      normalized.kind === "assistant"
+        ? "asistente"
+        : normalized.kind === "voice"
+          ? "llamadas"
+          : "mensajes";
 
     // 1. Upsert en tenants
     const { data: tenantRow, error: tenantError } = await supabase
@@ -486,21 +501,19 @@ export async function executeSupabaseProvision(
     const tenantId = tenantRow.id;
 
     // 2. Upsert en tenant_runtime_policies
-    const { error: policyError } = await supabase
-      .from("tenant_runtime_policies")
-      .upsert(
-        {
-          tenant_id: tenantId,
-          mode: "live",
-          auto_send_percentage: 100,
-          monthly_tokens: normalized.monthlyTokens,
-          monthly_cost_usd: normalized.monthlyBudgetUsd,
-          warning_percentage: 80,
-          country_code: "DO",
-          require_consent: true,
-        },
-        { onConflict: "tenant_id" },
-      );
+    const { error: policyError } = await supabase.from("tenant_runtime_policies").upsert(
+      {
+        tenant_id: tenantId,
+        mode: "live",
+        auto_send_percentage: 100,
+        monthly_tokens: normalized.monthlyTokens,
+        monthly_cost_usd: normalized.monthlyBudgetUsd,
+        warning_percentage: 80,
+        country_code: "DO",
+        require_consent: true,
+      },
+      { onConflict: "tenant_id" },
+    );
 
     if (policyError) {
       console.warn(
@@ -514,8 +527,7 @@ export async function executeSupabaseProvision(
       process.env.SUPABASE_URL ||
       "https://auvbmpfiplwawxqibmmq.supabase.co";
     const ownerKey =
-      process.env.STAGE_SUPABASE_SERVICE_ROLE_KEY ||
-      process.env.SUPABASE_SERVICE_ROLE_KEY;
+      process.env.STAGE_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
 
     if (ownerUrl && ownerKey && !ownerKey.startsWith("missing-")) {
       try {
@@ -754,12 +766,18 @@ ${c.bold}OPCIONES DISPONIBLES:${c.reset}
 async function runInteractivePrompt(): Promise<TenantInputData> {
   const rl = readline.createInterface({ input, output });
 
-  console.log(`\n${c.bgCyan}${c.bold} STAGE AI LABS — ASISTENTE INTERACTIVO DE ONBOARDING DE TENANTS ${c.reset}\n`);
-  console.log(`${c.gray}Por favor completa los siguientes datos para aprovisionar el nuevo tenant:${c.reset}\n`);
+  console.log(
+    `\n${c.bgCyan}${c.bold} STAGE AI LABS — ASISTENTE INTERACTIVO DE ONBOARDING DE TENANTS ${c.reset}\n`,
+  );
+  console.log(
+    `${c.gray}Por favor completa los siguientes datos para aprovisionar el nuevo tenant:${c.reset}\n`,
+  );
 
   let slug = "";
   while (!slug) {
-    const answer = await rl.question(`${c.bold}${c.cyan}? Tenant ID / Slug (ej. taller-dominguez):${c.reset} `);
+    const answer = await rl.question(
+      `${c.bold}${c.cyan}? Tenant ID / Slug (ej. taller-dominguez):${c.reset} `,
+    );
     const check = validateSlug(answer);
     if (check.valid) {
       slug = check.slug!;
@@ -770,7 +788,9 @@ async function runInteractivePrompt(): Promise<TenantInputData> {
 
   let name = "";
   while (!name) {
-    const answer = await rl.question(`${c.bold}${c.cyan}? Nombre comercial de la empresa:${c.reset} `);
+    const answer = await rl.question(
+      `${c.bold}${c.cyan}? Nombre comercial de la empresa:${c.reset} `,
+    );
     if (answer.trim().length >= 2) {
       name = answer.trim();
     } else {
@@ -931,8 +951,12 @@ export async function main() {
   console.log(`\n${c.green}${c.bold}✔ Datos validados con éxito:${c.reset}`);
   console.log(`  ${c.cyan}Tenant ID (slug):${c.reset}  ${normalized.slug}`);
   console.log(`  ${c.cyan}Empresa:${c.reset}           ${fullData.name}`);
-  console.log(`  ${c.cyan}Teléfono:${c.reset}          ${normalized.phone} (${normalized.whatsappJid})`);
-  console.log(`  ${c.cyan}Tokens / Presupuesto:${c.reset} ${normalized.monthlyTokens.toLocaleString()} tokens / $${normalized.monthlyBudgetUsd.toFixed(2)} USD`);
+  console.log(
+    `  ${c.cyan}Teléfono:${c.reset}          ${normalized.phone} (${normalized.whatsappJid})`,
+  );
+  console.log(
+    `  ${c.cyan}Tokens / Presupuesto:${c.reset} ${normalized.monthlyTokens.toLocaleString()} tokens / $${normalized.monthlyBudgetUsd.toFixed(2)} USD`,
+  );
   console.log(`  ${c.cyan}Modelo Preferido:${c.reset}   ${normalized.model.toUpperCase()}`);
   console.log(`  ${c.cyan}Tipo de Bot:${c.reset}        ${normalized.kind}`);
 
@@ -951,13 +975,17 @@ export async function main() {
 
   // Guardar archivos
   const outDir = typeof flags.outDir === "string" ? flags.outDir : undefined;
-  const { configPath, sqlPath, templateConfigPath } = saveTenantFiles(fullData, normalized, { outDir });
+  const { configPath, sqlPath, templateConfigPath } = saveTenantFiles(fullData, normalized, {
+    outDir,
+  });
 
   console.log(`\n${c.bold}${c.green}✔ Artefactos generados exitosamente:${c.reset}`);
   console.log(`  ${c.gray}1. Configuración JSON:${c.reset}  ${c.cyan}${configPath}${c.reset}`);
   console.log(`  ${c.gray}2. Migración SQL:${c.reset}       ${c.cyan}${sqlPath}${c.reset}`);
   if (templateConfigPath) {
-    console.log(`  ${c.gray}3. Sincronizado en bot:${c.reset} ${c.green}${templateConfigPath}${c.reset}`);
+    console.log(
+      `  ${c.gray}3. Sincronizado en bot:${c.reset} ${c.green}${templateConfigPath}${c.reset}`,
+    );
   }
 
   // Ejecución en Supabase si se especificó el flag
@@ -972,14 +1000,21 @@ export async function main() {
   } else {
     console.log(`\n${c.gray}💡 Para ejecutar la inserción en Supabase:${c.reset}`);
     console.log(`   - Ejecuta este script con el flag ${c.green}--execute${c.reset}, o`);
-    console.log(`   - Copia y pega el contenido de ${c.cyan}${sqlPath}${c.reset} en el SQL Editor de tu proyecto Supabase.`);
+    console.log(
+      `   - Copia y pega el contenido de ${c.cyan}${sqlPath}${c.reset} en el SQL Editor de tu proyecto Supabase.`,
+    );
   }
 
-  console.log(`\n${c.bold}${c.green}🎉 Onboarding del tenant '${normalized.slug}' completado con éxito.${c.reset}\n`);
+  console.log(
+    `\n${c.bold}${c.green}🎉 Onboarding del tenant '${normalized.slug}' completado con éxito.${c.reset}\n`,
+  );
 }
 
 // Ejecutar automáticamente si es llamado directamente
-if (import.meta.url === `file://${process.argv[1]}` || process.argv[1]?.endsWith("onboard-tenant.ts")) {
+if (
+  import.meta.url === `file://${process.argv[1]}` ||
+  process.argv[1]?.endsWith("onboard-tenant.ts")
+) {
   main().catch((err) => {
     console.error(`\n${c.red}${c.bold}Error fatal:${c.reset}`, err);
     process.exit(1);
