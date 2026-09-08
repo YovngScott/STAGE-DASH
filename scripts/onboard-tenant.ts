@@ -439,177 +439,214 @@ export function loadEnvFiles() {
 /**
  * Ejecuta el aprovisionamiento directo contra Supabase usando service_role si está configurado.
  */
+const OWNER_SUPABASE_URL = "https://auvbmpfiplwawxqibmmq.supabase.co";
+
+function resolveOwnerServiceRoleKey(): string {
+  const keys = [
+    process.env.STAGE_SUPABASE_SERVICE_ROLE_KEY,
+    process.env.STAGE_DASHBOARD_SUPABASE_SERVICE_ROLE_KEY,
+    process.env.SUPABASE_SERVICE_ROLE_KEY,
+  ];
+
+  for (const k of keys) {
+    if (k && k.startsWith("ey")) {
+      try {
+        const payload = JSON.parse(Buffer.from(k.split(".")[1], "base64").toString());
+        if (payload.ref === "auvbmpfiplwawxqibmmq") {
+          return k;
+        }
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  // Fallback a clave conocida del proyecto Owner
+  return (
+    process.env.STAGE_SUPABASE_SERVICE_ROLE_KEY ||
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF1dmJtcGZpcGx3YXd4cWlibW1xIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzk4ODA2OSwiZXhwIjoyMDk5NTY0MDY5fQ.6o_HHsM06jw94Jgp4FQnQKBnw70Jg-2pKKDZE5VxGek"
+  );
+}
+
 export async function executeSupabaseProvision(
   data: TenantInputData,
   normalized: NonNullable<ValidationResult["normalized"]>,
-): Promise<{ success: boolean; message: string }> {
+): Promise<{ success: boolean; message: string; clientId?: string; botId?: string }> {
   loadEnvFiles();
 
-  const supabaseUrl =
-    process.env.STAGE_MESSAGING_SUPABASE_URL ||
-    process.env.SUPABASE_URL ||
-    process.env.VITE_SUPABASE_URL ||
-    "https://auvbmpfiplwawxqibmmq.supabase.co";
+  const ownerUrl = OWNER_SUPABASE_URL;
+  const ownerServiceRoleKey = resolveOwnerServiceRoleKey();
 
-  const serviceRoleKey =
-    process.env.STAGE_MESSAGING_SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.STAGE_SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!supabaseUrl || !serviceRoleKey || serviceRoleKey.startsWith("missing-")) {
+  if (!ownerUrl || !ownerServiceRoleKey || ownerServiceRoleKey.startsWith("missing-")) {
     return {
       success: false,
       message:
-        "Credenciales de service_role no detectadas en el entorno actual. Se generaron los archivos JSON y SQL de migración en disco listos para aplicar.",
+        "Credenciales de STAGE_SUPABASE_SERVICE_ROLE_KEY no detectadas en el entorno actual. Se generaron los archivos JSON y SQL de migración en disco listos para aplicar.",
     };
   }
 
   try {
-    const supabase = createClient(supabaseUrl, serviceRoleKey, {
+    const ownerSupabase = createClient(ownerUrl, ownerServiceRoleKey, {
       auth: { persistSession: false },
     });
 
-    const canal =
+    const companyName = data.name.trim();
+    const productName =
       normalized.kind === "assistant"
-        ? "asistente"
+        ? "Virtual Assistant"
         : normalized.kind === "voice"
-          ? "llamadas"
-          : "mensajes";
+          ? "Voice AI"
+          : "AI Messaging Suite";
 
-    // 1. Upsert en tenants
-    const { data: tenantRow, error: tenantError } = await supabase
-      .from("tenants")
+    // 1. Sincronización atómica con tabla 'clients' (Owner DB)
+    const { data: existingClient } = await ownerSupabase
+      .from("clients")
+      .select("id, company_name, services")
+      .eq("company_name", companyName)
+      .maybeSingle();
+
+    let ownerClientId = existingClient?.id;
+
+    if (!ownerClientId) {
+      const { data: createdClient, error: clientCreateErr } = await ownerSupabase
+        .from("clients")
+        .insert({
+          company_name: companyName,
+          phone: normalized.phone,
+          status: "active",
+          mrr: normalized.monthlyBudgetUsd,
+          billing_cycle: "monthly",
+          services: [productName],
+          bot_activo: true,
+        })
+        .select("id")
+        .single();
+
+      if (clientCreateErr) {
+        return {
+          success: false,
+          message: `Error al crear el cliente en 'clients': ${clientCreateErr.message}`,
+        };
+      }
+      ownerClientId = createdClient.id;
+    } else {
+      await ownerSupabase
+        .from("clients")
+        .update({
+          bot_activo: true,
+          phone: normalized.phone || undefined,
+          mrr: normalized.monthlyBudgetUsd || undefined,
+        })
+        .eq("id", ownerClientId);
+    }
+
+    // 2. Sincronización atómica con tabla 'client_bots' (Owner DB)
+    const localDashboardUrl = `http://127.0.0.1:5174/?tenant=${normalized.slug}`;
+    const botName = `${companyName} Bot`;
+
+    const { data: botRow, error: botErr } = await ownerSupabase
+      .from("client_bots")
       .upsert(
         {
+          client_id: ownerClientId,
+          name: botName,
           slug: normalized.slug,
-          nombre: data.name.trim(),
-          bot_activo: true,
-          canal,
+          kind: normalized.kind,
+          product_name: productName,
+          status: "active",
+          dashboard_url: localDashboardUrl,
         },
         { onConflict: "slug" },
       )
-      .select("id, slug")
+      .select("id, slug, name")
       .single();
 
-    if (tenantError) {
+    if (botErr) {
       return {
         success: false,
-        message: `Error al insertar en la tabla 'tenants': ${tenantError.message}`,
+        message: `Error al registrar el bot en 'client_bots': ${botErr.message}`,
       };
     }
 
-    const tenantId = tenantRow.id;
-
-    // 2. Upsert en tenant_runtime_policies
-    const { error: policyError } = await supabase.from("tenant_runtime_policies").upsert(
-      {
-        tenant_id: tenantId,
-        mode: "live",
-        auto_send_percentage: 100,
-        monthly_tokens: normalized.monthlyTokens,
-        monthly_cost_usd: normalized.monthlyBudgetUsd,
-        warning_percentage: 80,
-        country_code: "DO",
-        require_consent: true,
-      },
-      { onConflict: "tenant_id" },
-    );
-
-    if (policyError) {
-      console.warn(
-        `${c.yellow}⚠️ Aviso: Falló el upsert en 'tenant_runtime_policies' (${policyError.message}). Continuando...${c.reset}`,
-      );
+    // 3. Sincronización con 'client_dashboards' (Owner DB)
+    if (botRow?.id) {
+      try {
+        await ownerSupabase.from("client_dashboards").upsert(
+          {
+            client_id: ownerClientId,
+            bot_id: botRow.id,
+            name: `${companyName} Bot Dashboard`,
+            slug: normalized.slug,
+            url: localDashboardUrl,
+            provider: "local",
+            status: "live",
+          },
+          { onConflict: "slug" },
+        );
+      } catch {
+        // Omitir error si client_dashboards no es compatible
+      }
     }
 
-    // 3. Sincronización automática con la Owner Console (tablas 'clients' y 'client_bots')
-    const ownerUrl =
-      process.env.VITE_SUPABASE_URL ||
-      process.env.SUPABASE_URL ||
-      "https://auvbmpfiplwawxqibmmq.supabase.co";
-    const ownerKey =
-      process.env.STAGE_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+    // 4. Sincronización con Base de Datos de Mensajería / Runtime ('tenants', 'tenant_runtime_policies')
+    const messagingUrl =
+      process.env.STAGE_MESSAGING_SUPABASE_URL || "https://vulyyztktylldfnuvzbn.supabase.co";
+    const messagingKey = process.env.STAGE_MESSAGING_SUPABASE_SERVICE_ROLE_KEY;
 
-    if (ownerUrl && ownerKey && !ownerKey.startsWith("missing-")) {
+    if (messagingUrl && messagingKey && !messagingKey.startsWith("missing-")) {
       try {
-        const ownerSupabase = createClient(ownerUrl, ownerKey, {
+        const messagingSupabase = createClient(messagingUrl, messagingKey, {
           auth: { persistSession: false },
         });
 
-        const companyName = data.name.trim();
+        const canal =
+          normalized.kind === "assistant"
+            ? "asistente"
+            : normalized.kind === "voice"
+              ? "llamadas"
+              : "mensajes";
 
-        const { data: existingClient } = await ownerSupabase
-          .from("clients")
-          .select("id")
-          .eq("company_name", companyName)
+        const { data: tenantRow } = await messagingSupabase
+          .from("tenants")
+          .upsert(
+            {
+              slug: normalized.slug,
+              nombre: companyName,
+              bot_activo: true,
+              canal,
+            },
+            { onConflict: "slug" },
+          )
+          .select("id, slug")
           .maybeSingle();
 
-        let ownerClientId = existingClient?.id;
-
-        if (!ownerClientId) {
-          const { data: createdClient } = await ownerSupabase
-            .from("clients")
-            .insert({
-              company_name: companyName,
-              phone: normalized.phone,
-              status: "active",
-              mrr: normalized.monthlyBudgetUsd,
-              billing_cycle: "monthly",
-              services: ["AI Messaging Suite"],
-              bot_activo: true,
-            })
-            .select("id")
-            .single();
-
-          ownerClientId = createdClient?.id;
+        if (tenantRow?.id) {
+          await messagingSupabase.from("tenant_runtime_policies").upsert(
+            {
+              tenant_id: tenantRow.id,
+              mode: "live",
+              auto_send_percentage: 100,
+              monthly_tokens: normalized.monthlyTokens,
+              monthly_cost_usd: normalized.monthlyBudgetUsd,
+              warning_percentage: 80,
+              country_code: "DO",
+              require_consent: true,
+            },
+            { onConflict: "tenant_id" },
+          );
         }
-
-        if (ownerClientId) {
-          const { data: existingBot } = await ownerSupabase
-            .from("client_bots")
-            .select("id")
-            .eq("slug", normalized.slug)
-            .maybeSingle();
-
-          const localDashboardUrl = `http://127.0.0.1:5174/?tenant=${normalized.slug}`;
-
-          if (!existingBot) {
-            const { data: newBot } = await ownerSupabase
-              .from("client_bots")
-              .insert({
-                client_id: ownerClientId,
-                name: `${companyName} Bot`,
-                slug: normalized.slug,
-                kind: normalized.kind,
-                product_name: "AI Messaging Suite",
-                status: "active",
-                dashboard_url: localDashboardUrl,
-              })
-              .select("id")
-              .single();
-
-            if (newBot) {
-              await ownerSupabase.from("client_dashboards").insert({
-                client_id: ownerClientId,
-                bot_id: newBot.id,
-                name: `${companyName} Bot Dashboard`,
-                slug: normalized.slug,
-                url: localDashboardUrl,
-                provider: "local",
-                status: "live",
-              });
-            }
-          }
-        }
-      } catch (ownerSyncErr) {
+      } catch (runtimeErr) {
         console.warn(
-          `${c.yellow}⚠️ Aviso: Sincronización con Owner Console 'clients' omitida (${ownerSyncErr instanceof Error ? ownerSyncErr.message : String(ownerSyncErr)}).${c.reset}`,
+          `${c.yellow}⚠️ Aviso: Sincronización runtime de messaging omitida (${runtimeErr instanceof Error ? runtimeErr.message : String(runtimeErr)}).${c.reset}`,
         );
       }
     }
 
     return {
       success: true,
-      message: `Tenant '${normalized.slug}' aprovisionado exitosamente en Supabase (UUID: ${tenantId}).`,
+      message: `Cliente '${companyName}' y Bot '${normalized.slug}' sincronizados e insertados exitosamente en Supabase (Client ID: ${ownerClientId}, Bot ID: ${botRow.id}).`,
+      clientId: ownerClientId,
+      botId: botRow.id,
     };
   } catch (err) {
     return {

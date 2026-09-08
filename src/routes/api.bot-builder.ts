@@ -370,6 +370,21 @@ export const Route = createFileRoute("/api/bot-builder")({
 
         if (body.mode !== "publish") {
           try {
+            // Sincronizar atómicamente el borrador en client_bots
+            await supabaseAdmin.from("client_bots").upsert(
+              {
+                client_id: clientId,
+                name: tenantConfig.nombreBot || `${client.company_name} Bot`,
+                slug,
+                kind: botType,
+                product_name:
+                  body.productName ?? (botType === "assistant" ? "Virtual Assistant" : "AI Messaging Suite"),
+                status: "draft",
+                dashboard_url: `http://127.0.0.1:5174/?tenant=${slug}`,
+              },
+              { onConflict: "slug" },
+            );
+
             const previous = await loadQualityRecord(slug);
             const record = newQualityRecord({
               slug,
