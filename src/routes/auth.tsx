@@ -68,7 +68,7 @@ function AuthPage() {
           </p>
         </div>
 
-        {!loading && session && !isOwner && (
+        {session && !isOwner && (
           <Card className="border-destructive/40 bg-destructive/10 p-4">
             <div className="flex items-start gap-3">
               <ShieldAlert className="h-5 w-5 text-destructive shrink-0 mt-0.5" />

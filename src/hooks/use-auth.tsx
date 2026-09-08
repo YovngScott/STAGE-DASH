@@ -14,78 +14,67 @@ type AuthState = {
 
 const AuthContext = createContext<AuthState | undefined>(undefined);
 
-const KNOWN_OWNER_EMAILS = [
-  "stage.labs@hotmail.com",
-  "itssilverio032008@gmail.com",
-  "josephsilverio9498@gmail.com",
-  "wilfredmorillo37@gmail.com",
-  "doriandiaz1221@gmail.com",
-  "briannamrj@gmail.com",
-];
-
-function isKnownOwnerEmail(email?: string | null) {
-  const clean = (email ?? "").toLowerCase().trim();
-  return Boolean(clean && KNOWN_OWNER_EMAILS.includes(clean));
-}
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [isOwner, setIsOwner] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  const checkOwner = async (userId: string | undefined, email?: string | null) => {
-    if (isKnownOwnerEmail(email)) {
-      setIsOwner(true);
-      return;
-    }
-
+  const checkOwner = async (userId: string | undefined) => {
     if (!userId) {
       setIsOwner(false);
       return;
     }
-
     try {
       const { data, error } = await supabase.rpc("has_role", {
         _user_id: userId,
         _role: "owner",
       });
-      if (!error && Boolean(data)) {
-        setIsOwner(true);
+
+      if (!error && typeof data === "boolean") {
+        setIsOwner(data);
         return;
       }
 
-      // Fallback a consulta directa sobre user_roles
-      const { data: roleRow } = await supabase
+      if (error) {
+        console.warn("has_role RPC returned error, checking user_roles directly:", error.message);
+      }
+    } catch (rpcErr) {
+      console.warn("has_role RPC failed to execute:", rpcErr);
+    }
+
+    // Direct fallback check in user_roles table
+    try {
+      const { data: roleRow, error: roleError } = await supabase
         .from("user_roles")
         .select("role")
         .eq("user_id", userId)
         .eq("role", "owner")
         .maybeSingle();
 
-      setIsOwner(roleRow?.role === "owner");
-    } catch {
-      setIsOwner(false);
+      if (!roleError && roleRow) {
+        setIsOwner(true);
+        return;
+      }
+    } catch (fallbackErr) {
+      console.error("user_roles direct query fallback failed:", fallbackErr);
     }
+
+    setIsOwner(false);
   };
 
   useEffect(() => {
     // Listener first — fires synchronously on subscribe with current session
     const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
       setSession(s);
-      if (isKnownOwnerEmail(s?.user?.email)) {
-        setIsOwner(true);
-      }
+      // Defer role lookup — never call other supabase methods inside the callback synchronously
       setTimeout(() => {
-        void checkOwner(s?.user.id, s?.user.email);
+        void checkOwner(s?.user.id);
       }, 0);
     });
 
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session);
-      if (isKnownOwnerEmail(data.session?.user?.email)) {
-        setIsOwner(true);
-      }
-      void checkOwner(data.session?.user.id, data.session?.user.email).finally(() => setLoading(false));
+      void checkOwner(data.session?.user.id).finally(() => setLoading(false));
     });
 
     return () => sub.subscription.unsubscribe();

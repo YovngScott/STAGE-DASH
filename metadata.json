@@ -1,0 +1,6 @@
+{
+  "name": "Stage AI Labs — Owner Console",
+  "description": "Internal SaaS console for Stage AI Labs LLC — manage MRR, clients, investments, and AI product operations.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

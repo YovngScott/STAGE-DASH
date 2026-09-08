@@ -2,7 +2,6 @@ import { createFileRoute } from "@tanstack/react-router";
 import type {} from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { authorizeOwner } from "@/lib/auth-owner.server";
 
 // Server-only: el navegador nunca habla con los backends de los bots (ni con
 // el secreto de plataforma). Llama a esta ruta con el token del owner; aquí se
@@ -40,14 +39,80 @@ interface BotHealth {
   slowResponses: number;
   tokens24h: number;
   abnormalCost: boolean;
-  failures: Array<{ id: string; source: string; operation: string; message: string; status: string; attempts: number; maxAttempts: number; updatedAt: string }>;
-  runtime: { mode: "shadow" | "limited" | "live" | "paused"; autoSendPercentage: number; monthlyMessages: number; monthlyEmails: number; monthlyTokens: number; monthlyCostUsd: number } | null;
-  usage: Array<{ channel: string; messages: number; emails: number; input_tokens: number; output_tokens: number; estimated_cost_usd: number }>;
-  handoffs: Array<{ channel: string; conversation_id: string; taken_by: string; reason: string; taken_at: string }>;
-  shadows: Array<{ id: string; channel: string; conversation_id: string; proposed_response: string; decision: string; reviewed: boolean; correct_response: string | null; created_at: string }>;
-  channelTests: Array<{ id: string; channel: string; status: string; challenge: string; destination: string; results: Record<string, boolean>; error: string | null; started_at: string }>;
-  conversations: Array<{ channel: "whatsapp" | "email"; id: string; contact: string; subject: string | null; updatedAt: string }>;
-  emailFollowups: Array<{ id: string; thread_id: string; recipient: string; subject: string; task_type: string; title: string; notes: string | null; status: string; draft_reply: string | null; owner_note: string | null; created_at: string; updated_at: string }>;
+  failures: Array<{
+    id: string;
+    source: string;
+    operation: string;
+    message: string;
+    status: string;
+    attempts: number;
+    maxAttempts: number;
+    updatedAt: string;
+  }>;
+  runtime: {
+    mode: "shadow" | "limited" | "live" | "paused";
+    autoSendPercentage: number;
+    monthlyMessages: number;
+    monthlyEmails: number;
+    monthlyTokens: number;
+    monthlyCostUsd: number;
+  } | null;
+  usage: Array<{
+    channel: string;
+    messages: number;
+    emails: number;
+    input_tokens: number;
+    output_tokens: number;
+    estimated_cost_usd: number;
+  }>;
+  handoffs: Array<{
+    channel: string;
+    conversation_id: string;
+    taken_by: string;
+    reason: string;
+    taken_at: string;
+  }>;
+  shadows: Array<{
+    id: string;
+    channel: string;
+    conversation_id: string;
+    proposed_response: string;
+    decision: string;
+    reviewed: boolean;
+    correct_response: string | null;
+    created_at: string;
+  }>;
+  channelTests: Array<{
+    id: string;
+    channel: string;
+    status: string;
+    challenge: string;
+    destination: string;
+    results: Record<string, boolean>;
+    error: string | null;
+    started_at: string;
+  }>;
+  conversations: Array<{
+    channel: "whatsapp" | "email";
+    id: string;
+    contact: string;
+    subject: string | null;
+    updatedAt: string;
+  }>;
+  emailFollowups: Array<{
+    id: string;
+    thread_id: string;
+    recipient: string;
+    subject: string;
+    task_type: string;
+    title: string;
+    notes: string | null;
+    status: string;
+    draft_reply: string | null;
+    owner_note: string | null;
+    created_at: string;
+    updated_at: string;
+  }>;
   severity: "ok" | "warn" | "down" | "unknown";
   statusLabel: string;
   checkedAt: string;
@@ -59,8 +124,18 @@ export const Route = createFileRoute("/api/bot-health")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const denied = await authorizeOwner(request);
-        if (denied) return denied;
+        const authHeader = request.headers.get("authorization") ?? "";
+        const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
+        if (!token) return Response.json({ error: "No autorizado." }, { status: 401 });
+
+        const { data: userData, error: userError } = await supabase.auth.getUser(token);
+        if (userError || !userData.user)
+          return Response.json({ error: "No autorizado." }, { status: 401 });
+        const { data: isOwner } = await supabase.rpc("has_role", {
+          _user_id: userData.user.id,
+          _role: "owner",
+        });
+        if (!isOwner) return Response.json({ error: "No autorizado." }, { status: 401 });
 
         if (!process.env.STAGE_SUPABASE_SERVICE_ROLE_KEY) {
           return Response.json(
@@ -75,24 +150,34 @@ export const Route = createFileRoute("/api/bot-health")({
           .select("id,name,slug,kind,status,bot_status_url,client_id");
         if (botsError) return Response.json({ error: botsError.message }, { status: 500 });
         const bots = (botsData ?? []) as BotRow[];
-        const command = await request.json().catch(() => null) as any;
+        const command = (await request.json().catch(() => null)) as any;
         if (command?.action && command?.slug) {
           const bot = bots.find((item) => item.slug === command.slug);
           const host = deriveHost(bot?.bot_status_url ?? null);
-          if (!bot || !host || !secret) return Response.json({ error: "No se puede contactar ese bot." }, { status: 400 });
+          if (!bot || !host || !secret)
+            return Response.json({ error: "No se puede contactar ese bot." }, { status: 400 });
           const slug = encodeURIComponent(command.slug);
           let path = "";
           let method = "POST";
           if (command.action === "runtime") path = `/api/${slug}/operations/runtime`;
-          else if (command.action === "channelTest") path = `/api/${slug}/operations/channel-tests/${command.channel === "email" ? "email" : "whatsapp"}`;
-          else if (command.action === "take" || command.action === "return") path = `/api/${slug}/operations/conversations/${command.channel === "email" ? "email" : "whatsapp"}/${encodeURIComponent(command.conversationId)}/${command.action}`;
-          else if (command.action === "reviewShadow") path = `/api/${slug}/operations/shadows/${encodeURIComponent(command.id)}/review`;
-          else if (command.action === "replyFollowup") path = `/api/${slug}/operations/email-followups/${encodeURIComponent(command.id)}/reply`;
-          else if (command.action === "resolveFollowup") path = `/api/${slug}/operations/email-followups/${encodeURIComponent(command.id)}/resolve`;
-          else if (command.action === "recoveryDrill") path = `/api/${slug}/operations/recovery-drill`;
-          else if (command.action === "reconnect-whatsapp") path = `/api/${slug}/config/reconnect-whatsapp`;
-          else if (command.action === "export") { path = `/api/${slug}/operations/export`; method = "GET"; }
-          else return Response.json({ error: "Acción desconocida." }, { status: 400 });
+          else if (command.action === "channelTest")
+            path = `/api/${slug}/operations/channel-tests/${command.channel === "email" ? "email" : "whatsapp"}`;
+          else if (command.action === "take" || command.action === "return")
+            path = `/api/${slug}/operations/conversations/${command.channel === "email" ? "email" : "whatsapp"}/${encodeURIComponent(command.conversationId)}/${command.action}`;
+          else if (command.action === "reviewShadow")
+            path = `/api/${slug}/operations/shadows/${encodeURIComponent(command.id)}/review`;
+          else if (command.action === "replyFollowup")
+            path = `/api/${slug}/operations/email-followups/${encodeURIComponent(command.id)}/reply`;
+          else if (command.action === "resolveFollowup")
+            path = `/api/${slug}/operations/email-followups/${encodeURIComponent(command.id)}/resolve`;
+          else if (command.action === "recoveryDrill")
+            path = `/api/${slug}/operations/recovery-drill`;
+          else if (command.action === "reconnect-whatsapp")
+            path = `/api/${slug}/config/reconnect-whatsapp`;
+          else if (command.action === "export") {
+            path = `/api/${slug}/operations/export`;
+            method = "GET";
+          } else return Response.json({ error: "Acción desconocida." }, { status: 400 });
           const upstream = await fetch(`${host}${path}`, {
             method,
             headers: { "x-platform-secret": secret, "content-type": "application/json" },
@@ -106,18 +191,27 @@ export const Route = createFileRoute("/api/bot-health")({
         const url = new URL(request.url);
         const retrySlug = url.searchParams.get("retrySlug")?.trim();
         const failureId = url.searchParams.get("failureId")?.trim();
-        const failureAction = url.searchParams.get("failureAction") === "resolve" ? "resolve" : "retry";
+        const failureAction =
+          url.searchParams.get("failureAction") === "resolve" ? "resolve" : "retry";
         if (retrySlug && failureId) {
           const bot = bots.find((item) => item.slug === retrySlug);
           const host = deriveHost(bot?.bot_status_url ?? null);
-          if (!bot || !host || !secret) return Response.json({ error: "No se puede contactar ese bot." }, { status: 400 });
-          const retry = await fetch(`${host}/api/${encodeURIComponent(retrySlug)}/operations/failures/${encodeURIComponent(failureId)}/${failureAction}`, {
-            method: "POST",
-            headers: { "x-platform-secret": secret },
-            signal: AbortSignal.timeout(45_000),
-          });
+          if (!bot || !host || !secret)
+            return Response.json({ error: "No se puede contactar ese bot." }, { status: 400 });
+          const retry = await fetch(
+            `${host}/api/${encodeURIComponent(retrySlug)}/operations/failures/${encodeURIComponent(failureId)}/${failureAction}`,
+            {
+              method: "POST",
+              headers: { "x-platform-secret": secret },
+              signal: AbortSignal.timeout(45_000),
+            },
+          );
           const payload = await retry.json().catch(() => null);
-          if (!retry.ok) return Response.json({ error: payload?.error || `La operación respondió ${retry.status}.` }, { status: retry.status });
+          if (!retry.ok)
+            return Response.json(
+              { error: payload?.error || `La operación respondió ${retry.status}.` },
+              { status: retry.status },
+            );
           return Response.json({ ok: true });
         }
 
@@ -246,7 +340,12 @@ async function checkBot(
       });
       if (r.ok) {
         const d = await r.json().catch(() => null);
-        base.email = bot.kind === "assistant" ? (d?.email?.connected ? "connected" : "disconnected") : "not_applicable";
+        base.email =
+          bot.kind === "assistant"
+            ? d?.email?.connected
+              ? "connected"
+              : "disconnected"
+            : "not_applicable";
         base.pendingFailures = Number(d?.pendingFailures ?? 0);
         base.averageLatencyMs = Number(d?.averageLatencyMs ?? 0);
         base.slowResponses = Number(d?.slowResponses ?? 0);
@@ -273,9 +372,22 @@ async function checkBot(
   } else if (!base.reachable) {
     base.severity = "down";
     base.statusLabel = "Caído";
-  } else if (status === "active" && (base.whatsapp === "disconnected" || base.email === "disconnected" || base.pendingFailures > 0 || base.abnormalCost)) {
+  } else if (
+    status === "active" &&
+    (base.whatsapp === "disconnected" ||
+      base.email === "disconnected" ||
+      base.pendingFailures > 0 ||
+      base.abnormalCost)
+  ) {
     base.severity = "warn";
-    base.statusLabel = base.whatsapp === "disconnected" ? "WhatsApp desconectado" : base.email === "disconnected" ? "Correo/OAuth desconectado" : base.abnormalCost ? "Costo anormal" : "Operaciones pendientes";
+    base.statusLabel =
+      base.whatsapp === "disconnected"
+        ? "WhatsApp desconectado"
+        : base.email === "disconnected"
+          ? "Correo/OAuth desconectado"
+          : base.abnormalCost
+            ? "Costo anormal"
+            : "Operaciones pendientes";
   } else if (status === "paused") {
     base.severity = "unknown";
     base.statusLabel = "Pausado";
@@ -290,7 +402,14 @@ async function checkBot(
 /** Abre una alerta cuando aparece un problema nuevo y la cierra al recuperarse. */
 async function reconcileAlert(r: BotHealth) {
   // Solo alertamos de bots activos: un borrador o pausado no es una falla.
-  const problem: "down" | "wa_disconnected" | "email_disconnected" | "operation_failures" | "slow_responses" | "abnormal_cost" | null =
+  const problem:
+    | "down"
+    | "wa_disconnected"
+    | "email_disconnected"
+    | "operation_failures"
+    | "slow_responses"
+    | "abnormal_cost"
+    | null =
     r.status !== "active"
       ? null
       : !r.reachable
@@ -346,7 +465,9 @@ async function reconcileAlert(r: BotHealth) {
       .update({ resolved_at: new Date().toISOString() })
       .eq("bot_id", r.botId)
       .is("resolved_at", null);
-    void sendTelegramNotification(`✅ Solucionado: El bot de ${r.clientName} (${r.slug}) ha vuelto a la normalidad.`);
+    void sendTelegramNotification(
+      `✅ Solucionado: El bot de ${r.clientName} (${r.slug}) ha vuelto a la normalidad.`,
+    );
   }
 }
 
@@ -371,9 +492,13 @@ async function sendTelegramNotification(text: string) {
 }
 
 function operationalAlertMessage(problem: string, r: BotHealth, fallback: string) {
-  if (problem === "email_disconnected") return `El OAuth o correo de ${r.clientName} (${r.slug}) necesita reconexión.`;
-  if (problem === "operation_failures") return `${r.pendingFailures} operación(es) de ${r.clientName} requieren reintento o intervención.`;
-  if (problem === "slow_responses") return `${r.slowResponses} respuesta(s) lenta(s) detectadas para ${r.clientName}.`;
-  if (problem === "abnormal_cost") return `Consumo anormal detectado para ${r.clientName}: ${r.tokens24h.toLocaleString()} tokens en 24 h.`;
+  if (problem === "email_disconnected")
+    return `El OAuth o correo de ${r.clientName} (${r.slug}) necesita reconexión.`;
+  if (problem === "operation_failures")
+    return `${r.pendingFailures} operación(es) de ${r.clientName} requieren reintento o intervención.`;
+  if (problem === "slow_responses")
+    return `${r.slowResponses} respuesta(s) lenta(s) detectadas para ${r.clientName}.`;
+  if (problem === "abnormal_cost")
+    return `Consumo anormal detectado para ${r.clientName}: ${r.tokens24h.toLocaleString()} tokens en 24 h.`;
   return fallback;
 }

@@ -144,10 +144,7 @@ function Products() {
 
   const remove = async () => {
     if (!confirmDelete) return;
-    const { error } = await supabase
-      .from("products")
-      .delete()
-      .eq("id", confirmDelete.id);
+    const { error } = await supabase.from("products").delete().eq("id", confirmDelete.id);
     if (error) return toast.error(error.message);
     toast.success(`${confirmDelete.name} deleted`);
     setConfirmDelete(null);
@@ -158,12 +155,8 @@ function Products() {
     <div className="mx-auto max-w-[1400px] p-6 md:p-8 space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-xs uppercase tracking-widest text-muted-foreground">
-            Bots Directory
-          </p>
-          <h2 className="mt-1 text-2xl font-semibold tracking-tight">
-            Proprietary AI Systems
-          </h2>
+          <p className="text-xs uppercase tracking-widest text-muted-foreground">Bots Directory</p>
+          <h2 className="mt-1 text-2xl font-semibold tracking-tight">Proprietary AI Systems</h2>
           <p className="mt-1 text-sm text-muted-foreground">
             {products.length} products · manage your recurring service catalog.
           </p>
@@ -198,16 +191,12 @@ function Products() {
                     {p.status.replace("_", " ")}
                   </Badge>
                 </div>
-                <h3 className="mt-4 text-base font-semibold tracking-tight">
-                  {p.name}
-                </h3>
+                <h3 className="mt-4 text-base font-semibold tracking-tight">{p.name}</h3>
                 <p className="mt-1 text-xs text-muted-foreground capitalize">
                   {p.category.replace("_", " ")}
                 </p>
                 {p.description && (
-                  <p className="mt-3 text-sm text-muted-foreground line-clamp-3">
-                    {p.description}
-                  </p>
+                  <p className="mt-3 text-sm text-muted-foreground line-clamp-3">{p.description}</p>
                 )}
                 <div className="mt-5 flex items-end justify-between border-t border-border/60 pt-4">
                   <div>
@@ -219,12 +208,7 @@ function Products() {
                     </p>
                   </div>
                   <div className="flex gap-1">
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => openEdit(p)}
-                      title="Edit"
-                    >
+                    <Button size="icon" variant="ghost" onClick={() => openEdit(p)} title="Edit">
                       <Pencil className="h-4 w-4" />
                     </Button>
                     <Button
@@ -247,12 +231,8 @@ function Products() {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>
-              {editing ? `Edit ${editing.name}` : "New product"}
-            </DialogTitle>
-            <DialogDescription>
-              Recurring AI service offered by Stage AI Labs.
-            </DialogDescription>
+            <DialogTitle>{editing ? `Edit ${editing.name}` : "New product"}</DialogTitle>
+            <DialogDescription>Recurring AI service offered by Stage AI Labs.</DialogDescription>
           </DialogHeader>
           <form onSubmit={save} className="space-y-4">
             <div className="space-y-2">
@@ -260,9 +240,7 @@ function Products() {
               <Input
                 id="p-name"
                 value={draft.name}
-                onChange={(e) =>
-                  setDraft((d) => ({ ...d, name: e.target.value }))
-                }
+                onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
                 required
               />
             </div>
@@ -271,9 +249,7 @@ function Products() {
                 <Label>Category</Label>
                 <Select
                   value={draft.category}
-                  onValueChange={(v) =>
-                    setDraft((d) => ({ ...d, category: v }))
-                  }
+                  onValueChange={(v) => setDraft((d) => ({ ...d, category: v }))}
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -281,9 +257,7 @@ function Products() {
                   <SelectContent>
                     <SelectItem value="messaging">Messaging</SelectItem>
                     <SelectItem value="voice">Voice</SelectItem>
-                    <SelectItem value="virtual_assistant">
-                      Virtual Assistant
-                    </SelectItem>
+                    <SelectItem value="virtual_assistant">Virtual Assistant</SelectItem>
                     <SelectItem value="automation">Automation</SelectItem>
                   </SelectContent>
                 </Select>
@@ -299,9 +273,7 @@ function Products() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="active">Active</SelectItem>
-                    <SelectItem value="in_development">
-                      In development
-                    </SelectItem>
+                    <SelectItem value="in_development">In development</SelectItem>
                     <SelectItem value="testing">Testing</SelectItem>
                     <SelectItem value="paused">Paused</SelectItem>
                   </SelectContent>
@@ -330,9 +302,7 @@ function Products() {
                 id="p-desc"
                 rows={3}
                 value={draft.description}
-                onChange={(e) =>
-                  setDraft((d) => ({ ...d, description: e.target.value }))
-                }
+                onChange={(e) => setDraft((d) => ({ ...d, description: e.target.value }))}
               />
             </div>
             <DialogFooter>
@@ -345,16 +315,13 @@ function Products() {
         </DialogContent>
       </Dialog>
 
-      <AlertDialog
-        open={!!confirmDelete}
-        onOpenChange={(o) => !o && setConfirmDelete(null)}
-      >
+      <AlertDialog open={!!confirmDelete} onOpenChange={(o) => !o && setConfirmDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete product?</AlertDialogTitle>
             <AlertDialogDescription>
-              {confirmDelete?.name} will be permanently removed. Clients already
-              subscribed to it will keep the service name in their record.
+              {confirmDelete?.name} will be permanently removed. Clients already subscribed to it
+              will keep the service name in their record.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

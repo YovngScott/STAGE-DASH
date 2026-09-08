@@ -388,7 +388,11 @@ function Clients() {
       const bot = effectiveBots.find((candidate) => candidate.slug === dashboard.slug);
       return {
         ...dashboard,
-        url: resolveDashboardUrl(dashboard.url, dashboard.slug, bot?.bot_status_url ?? client.bot_status_url),
+        url: resolveDashboardUrl(
+          dashboard.url,
+          dashboard.slug,
+          bot?.bot_status_url ?? client.bot_status_url,
+        ),
       };
     });
     // Older clients were created before client_dashboards existed. Give every
@@ -675,7 +679,9 @@ function Clients() {
           : "Envío automático apagado: todo quedará como borrador para que el cliente revise.",
       );
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "No se pudo cambiar el envío automático.");
+      toast.error(
+        error instanceof Error ? error.message : "No se pudo cambiar el envío automático.",
+      );
     } finally {
       setCambiandoEnvio(null);
     }
@@ -812,7 +818,9 @@ function Clients() {
         nombreTitular: String(assistant?.nombreTitular ?? ""),
       });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "No se pudo cargar la configuración del bot.");
+      toast.error(
+        error instanceof Error ? error.message : "No se pudo cargar la configuración del bot.",
+      );
       setBotEditDialogOpen(false);
       setBotEditBot(null);
     } finally {
@@ -837,15 +845,17 @@ function Clients() {
           behavior: botEditDraft.behavior,
           companyInfo: botEditDraft.companyInfo,
           extraInstructions: botEditDraft.extraInstructions,
-          ...(botEditBot.kind === "assistant" ? {
-            asistente: {
-              intervaloMinutos: Number(botEditDraft.intervaloMinutos),
-              horaReporte: botEditDraft.horaReporte,
-              enviarAutomatico: botEditDraft.enviarAutomatico,
-              actuaComoTitular: botEditDraft.actuaComoTitular,
-              nombreTitular: botEditDraft.nombreTitular,
-            },
-          } : {}),
+          ...(botEditBot.kind === "assistant"
+            ? {
+                asistente: {
+                  intervaloMinutos: Number(botEditDraft.intervaloMinutos),
+                  horaReporte: botEditDraft.horaReporte,
+                  enviarAutomatico: botEditDraft.enviarAutomatico,
+                  actuaComoTitular: botEditDraft.actuaComoTitular,
+                  nombreTitular: botEditDraft.nombreTitular,
+                },
+              }
+            : {}),
         }),
       });
       const body = await res.json();
@@ -1149,197 +1159,204 @@ function Clients() {
         ) : (
           <>
             <Table>
-            <TableHeader>
-              <TableRow className="border-border/60 hover:bg-transparent">
-                <TableHead>Client</TableHead>
-                <TableHead>Services</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Monthly</TableHead>
-                <TableHead>Next billing</TableHead>
-                <TableHead>Since</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.map((c) => (
-                <TableRow
-                  key={c.id}
-                  className="border-border/60 cursor-pointer"
-                  onClick={() => openClientProfile(c)}
-                >
-                  <TableCell>
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary text-xs font-semibold">
-                        {c.company_name.slice(0, 2).toUpperCase()}
+              <TableHeader>
+                <TableRow className="border-border/60 hover:bg-transparent">
+                  <TableHead>Client</TableHead>
+                  <TableHead>Services</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Monthly</TableHead>
+                  <TableHead>Next billing</TableHead>
+                  <TableHead>Since</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filtered.map((c) => (
+                  <TableRow
+                    key={c.id}
+                    className="border-border/60 cursor-pointer"
+                    onClick={() => openClientProfile(c)}
+                  >
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary text-xs font-semibold">
+                          {c.company_name.slice(0, 2).toUpperCase()}
+                        </div>
+                        <div className="flex flex-col leading-tight">
+                          <span className="font-medium">{c.company_name}</span>
+                          {c.contact_name && (
+                            <span className="text-[11px] text-muted-foreground">
+                              {c.contact_name}
+                            </span>
+                          )}
+                        </div>
                       </div>
-                      <div className="flex flex-col leading-tight">
-                        <span className="font-medium">{c.company_name}</span>
-                        {c.contact_name && (
-                          <span className="text-[11px] text-muted-foreground">
-                            {c.contact_name}
-                          </span>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1.5">
+                        {(c.services ?? []).map((s) => (
+                          <Badge key={s} variant="secondary" className="font-normal">
+                            {s}
+                          </Badge>
+                        ))}
+                        {(!c.services || c.services.length === 0) && (
+                          <span className="text-xs text-muted-foreground">—</span>
                         )}
                       </div>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-wrap gap-1.5">
-                      {(c.services ?? []).map((s) => (
-                        <Badge key={s} variant="secondary" className="font-normal">
-                          {s}
-                        </Badge>
-                      ))}
-                      {(!c.services || c.services.length === 0) && (
-                        <span className="text-xs text-muted-foreground">—</span>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge
-                      variant="outline"
-                      className={
-                        c.status === "active"
-                          ? "bg-success/15 text-success border-success/30"
-                          : "bg-muted text-muted-foreground"
-                      }
-                    >
-                      <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-current" />
-                      {c.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right font-mono font-medium">
-                    ${Number(c.mrr).toLocaleString()}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {c.next_billing_date
-                      ? new Date(c.next_billing_date).toLocaleDateString("en-US", {
-                          month: "short",
-                          day: "numeric",
-                        })
-                      : "—"}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {new Date(c.created_at).toLocaleDateString("en-US", {
-                      month: "short",
-                      year: "numeric",
-                    })}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="inline-flex items-center gap-1">
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          openEdit(c);
-                        }}
-                        title="Edit client"
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        variant="outline"
+                        className={
+                          c.status === "active"
+                            ? "bg-success/15 text-success border-success/30"
+                            : "bg-muted text-muted-foreground"
+                        }
                       >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        disabled={decommissioningClientId === c.id}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          void toggleActive(c);
-                        }}
-                        title={c.status === "active" ? "Pause client" : "Reactivate client"}
-                      >
-                        {decommissioningClientId === c.id ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Power className="h-4 w-4" />
-                        )}
-                      </Button>
-                      {(c.bot_status_url || (c.services ?? []).includes(BOT_TOGGLE_SERVICE)) && (
+                        <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-current" />
+                        {c.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right font-mono font-medium">
+                      ${Number(c.mrr).toLocaleString()}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {c.next_billing_date
+                        ? new Date(c.next_billing_date).toLocaleDateString("en-US", {
+                            month: "short",
+                            day: "numeric",
+                          })
+                        : "—"}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {new Date(c.created_at).toLocaleDateString("en-US", {
+                        month: "short",
+                        year: "numeric",
+                      })}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="inline-flex items-center gap-1">
                         <Button
                           size="icon"
                           variant="ghost"
                           onClick={(event) => {
                             event.stopPropagation();
-                            openClientProfile(c);
+                            openEdit(c);
                           }}
-                          title="Open bot controls"
-                          className={
-                            c.bot_activo
-                              ? "text-success hover:text-success"
-                              : "text-destructive hover:text-destructive"
-                          }
+                          title="Edit client"
                         >
-                          {c.bot_activo ? (
-                            <Zap className="h-4 w-4" />
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          disabled={decommissioningClientId === c.id}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            void toggleActive(c);
+                          }}
+                          title={c.status === "active" ? "Pause client" : "Reactivate client"}
+                        >
+                          {decommissioningClientId === c.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
                           ) : (
-                            <ZapOff className="h-4 w-4" />
+                            <Power className="h-4 w-4" />
                           )}
                         </Button>
-                      )}
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          openDeleteClient(c);
-                        }}
-                        title="Delete client"
-                        className="text-destructive hover:text-destructive"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-              {filtered.length === 0 && (
-                <TableRow>
-                  <TableCell
-                    colSpan={7}
-                    className="py-10 text-center text-sm text-muted-foreground"
+                        {(c.bot_status_url || (c.services ?? []).includes(BOT_TOGGLE_SERVICE)) && (
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              openClientProfile(c);
+                            }}
+                            title="Open bot controls"
+                            className={
+                              c.bot_activo
+                                ? "text-success hover:text-success"
+                                : "text-destructive hover:text-destructive"
+                            }
+                          >
+                            {c.bot_activo ? (
+                              <Zap className="h-4 w-4" />
+                            ) : (
+                              <ZapOff className="h-4 w-4" />
+                            )}
+                          </Button>
+                        )}
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            openDeleteClient(c);
+                          }}
+                          title="Delete client"
+                          className="text-destructive hover:text-destructive"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {filtered.length === 0 && (
+                  <TableRow>
+                    <TableCell
+                      colSpan={7}
+                      className="py-10 text-center text-sm text-muted-foreground"
+                    >
+                      {totalClientsCount === 0 && !query.trim()
+                        ? "No clients yet. Click “Add New Client” to onboard your first account."
+                        : "No clients match your search."}
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+            {totalClientsCount > 0 && (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-border/60 px-4 py-3 text-xs text-muted-foreground">
+                <div>
+                  Showing{" "}
+                  <span className="font-medium text-foreground">
+                    {Math.min((page - 1) * pageSize + 1, totalClientsCount)}
+                  </span>{" "}
+                  to{" "}
+                  <span className="font-medium text-foreground">
+                    {Math.min(page * pageSize, totalClientsCount)}
+                  </span>{" "}
+                  of <span className="font-medium text-foreground">{totalClientsCount}</span>{" "}
+                  clients
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="mr-2">
+                    Page {page} of {Math.max(1, Math.ceil(totalClientsCount / pageSize))}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 px-2"
+                    disabled={page <= 1 || loading}
+                    onClick={() => handlePageChange(page - 1)}
                   >
-                    {totalClientsCount === 0 && !query.trim()
-                      ? "No clients yet. Click “Add New Client” to onboard your first account."
-                      : "No clients match your search."}
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-          {totalClientsCount > 0 && (
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-border/60 px-4 py-3 text-xs text-muted-foreground">
-              <div>
-                Showing <span className="font-medium text-foreground">{Math.min((page - 1) * pageSize + 1, totalClientsCount)}</span> to{" "}
-                <span className="font-medium text-foreground">{Math.min(page * pageSize, totalClientsCount)}</span> of{" "}
-                <span className="font-medium text-foreground">{totalClientsCount}</span> clients
+                    <ChevronLeft className="h-4 w-4" />
+                    <span className="sr-only">Previous Page</span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 px-2"
+                    disabled={page >= Math.ceil(totalClientsCount / pageSize) || loading}
+                    onClick={() => handlePageChange(page + 1)}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                    <span className="sr-only">Next Page</span>
+                  </Button>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="mr-2">
-                  Page {page} of {Math.max(1, Math.ceil(totalClientsCount / pageSize))}
-                </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 px-2"
-                  disabled={page <= 1 || loading}
-                  onClick={() => handlePageChange(page - 1)}
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                  <span className="sr-only">Previous Page</span>
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 px-2"
-                  disabled={page >= Math.ceil(totalClientsCount / pageSize) || loading}
-                  onClick={() => handlePageChange(page + 1)}
-                >
-                  <ChevronRight className="h-4 w-4" />
-                  <span className="sr-only">Next Page</span>
-                </Button>
-              </div>
-            </div>
-          )}
-        </>
+            )}
+          </>
         )}
       </Card>
 
@@ -1531,7 +1548,12 @@ function Clients() {
                           </div>
                           {dashboard.url && (
                             <div className="flex gap-2">
-                              <Button size="sm" variant="outline" className="shrink-0 gap-2" asChild>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="shrink-0 gap-2"
+                                asChild
+                              >
                                 <a href={dashboard.url} target="_blank" rel="noreferrer">
                                   <ExternalLink className="h-4 w-4" />
                                   Abrir
@@ -1543,7 +1565,9 @@ function Clients() {
                                 className="shrink-0 gap-1.5"
                                 onClick={async () => {
                                   try {
-                                    const { data: { session } } = await supabase.auth.getSession();
+                                    const {
+                                      data: { session },
+                                    } = await supabase.auth.getSession();
                                     const res = await fetch("/api/impersonate", {
                                       method: "POST",
                                       headers: {
@@ -1797,162 +1821,202 @@ function Clients() {
               <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Cargando configuración real…
             </div>
           ) : (
-          <form onSubmit={saveBotEdit} className="flex min-h-0 flex-1 flex-col overflow-hidden">
-            <Tabs defaultValue="general" className="flex min-h-0 flex-1 flex-col">
-              <TabsList className="mx-6 mt-5 grid w-auto grid-cols-3">
-                <TabsTrigger value="general">General</TabsTrigger>
-                <TabsTrigger value="operation">Operación</TabsTrigger>
-                <TabsTrigger value="prompts">Prompts</TabsTrigger>
-              </TabsList>
+            <form onSubmit={saveBotEdit} className="flex min-h-0 flex-1 flex-col overflow-hidden">
+              <Tabs defaultValue="general" className="flex min-h-0 flex-1 flex-col">
+                <TabsList className="mx-6 mt-5 grid w-auto grid-cols-3">
+                  <TabsTrigger value="general">General</TabsTrigger>
+                  <TabsTrigger value="operation">Operación</TabsTrigger>
+                  <TabsTrigger value="prompts">Prompts</TabsTrigger>
+                </TabsList>
 
-              <TabsContent value="general" className="mt-4 min-h-0 flex-1 space-y-5 overflow-y-auto px-6 pb-6">
-                <div className="rounded-lg border border-border/60 bg-muted/20 p-4">
-                  <h3 className="font-medium">Identidad y contexto</h3>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Define quién es el bot y añade una corrección puntual solo cuando sea necesaria.
-                  </p>
-                </div>
-            <div className="space-y-2">
-              <Label>Nombre del bot</Label>
-              <Input
-                value={botEditDraft.name}
-                onChange={(e) => setBotEditDraft((d) => ({ ...d, name: e.target.value }))}
-                required
-              />
-            </div>
-            <div className="space-y-5">
-              <div className="space-y-2">
-                <Label>Función principal</Label>
-                <Select
-                  value={botEditDraft.behavior}
-                  onValueChange={(value) => setBotEditDraft((d) => ({ ...d, behavior: value as BotBehavior }))}
+                <TabsContent
+                  value="general"
+                  className="mt-4 min-h-0 flex-1 space-y-5 overflow-y-auto px-6 pb-6"
                 >
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="sales">Ventas y atención</SelectItem>
-                    <SelectItem value="technical_support">Soporte técnico</SelectItem>
-                    <SelectItem value="personal_assistant">Asistente personal</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Prompt extra (opcional)</Label>
-                <Textarea
-                  value={botEditDraft.companyInfo}
-                  onChange={(e) => setBotEditDraft((d) => ({ ...d, companyInfo: e.target.value }))}
-                  placeholder="Una excepción, corrección temporal o instrucción nueva que quieras añadir…"
-                  rows={6}
-                />
-                <p className="text-xs text-muted-foreground">
-                  El contexto y las instrucciones usados al crear el bot ya están fusionados en su Prompt principal.
-                </p>
-              </div>
-            </div>
-              </TabsContent>
-
-              <TabsContent value="operation" className="mt-4 min-h-0 flex-1 overflow-y-auto px-6 pb-6">
-
-            {botEditBot?.kind === "assistant" && (
-              <section className="space-y-5">
-                <div>
-                  <h3 className="font-medium">Operación del asistente de correo</h3>
-                  <p className="mt-1 text-xs text-muted-foreground">Configura cuándo trabaja, qué puede enviar y con qué identidad responde.</p>
-                </div>
-                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="rounded-lg border border-border/60 bg-muted/20 p-4">
+                    <h3 className="font-medium">Identidad y contexto</h3>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Define quién es el bot y añade una corrección puntual solo cuando sea
+                      necesaria.
+                    </p>
+                  </div>
                   <div className="space-y-2">
-                    <Label htmlFor="assistant-interval">Revisa cada (minutos)</Label>
+                    <Label>Nombre del bot</Label>
                     <Input
-                      id="assistant-interval"
-                      type="number"
-                      min={1}
-                      max={1440}
-                      value={botEditDraft.intervaloMinutos}
-                      onChange={(e) => setBotEditDraft((d) => ({ ...d, intervaloMinutos: e.target.value }))}
+                      value={botEditDraft.name}
+                      onChange={(e) => setBotEditDraft((d) => ({ ...d, name: e.target.value }))}
                       required
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="assistant-report">Reporte diario</Label>
-                    <Input
-                      id="assistant-report"
-                      type="time"
-                      value={botEditDraft.horaReporte}
-                      onChange={(e) => setBotEditDraft((d) => ({ ...d, horaReporte: e.target.value }))}
-                      required
-                    />
+                  <div className="space-y-5">
+                    <div className="space-y-2">
+                      <Label>Función principal</Label>
+                      <Select
+                        value={botEditDraft.behavior}
+                        onValueChange={(value) =>
+                          setBotEditDraft((d) => ({ ...d, behavior: value as BotBehavior }))
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="sales">Ventas y atención</SelectItem>
+                          <SelectItem value="technical_support">Soporte técnico</SelectItem>
+                          <SelectItem value="personal_assistant">Asistente personal</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Prompt extra (opcional)</Label>
+                      <Textarea
+                        value={botEditDraft.companyInfo}
+                        onChange={(e) =>
+                          setBotEditDraft((d) => ({ ...d, companyInfo: e.target.value }))
+                        }
+                        placeholder="Una excepción, corrección temporal o instrucción nueva que quieras añadir…"
+                        rows={6}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        El contexto y las instrucciones usados al crear el bot ya están fusionados
+                        en su Prompt principal.
+                      </p>
+                    </div>
                   </div>
-                </div>
-                <div className="flex items-start justify-between gap-4 rounded-md bg-muted/30 p-3">
-                  <div>
-                    <Label htmlFor="assistant-auto">Enviar automáticamente lo rutinario</Label>
-                    <p className="mt-1 text-xs text-muted-foreground">Lo delicado seguirá quedando como borrador para revisión.</p>
-                  </div>
-                  <Switch
-                    id="assistant-auto"
-                    checked={botEditDraft.enviarAutomatico}
-                    onCheckedChange={(checked) => setBotEditDraft((d) => ({ ...d, enviarAutomatico: checked }))}
-                  />
-                </div>
-                <div className="flex items-start justify-between gap-4 rounded-md bg-muted/30 p-3">
-                  <div>
-                    <Label htmlFor="assistant-owner-voice">Responder a nombre del titular</Label>
-                    <p className="mt-1 text-xs text-muted-foreground">Si se desactiva, se identificará como asistente.</p>
-                  </div>
-                  <Switch
-                    id="assistant-owner-voice"
-                    checked={botEditDraft.actuaComoTitular}
-                    onCheckedChange={(checked) => setBotEditDraft((d) => ({ ...d, actuaComoTitular: checked }))}
-                  />
-                </div>
-                {botEditDraft.actuaComoTitular && (
-                  <div className="space-y-2">
-                    <Label htmlFor="assistant-owner-name">Nombre para la firma</Label>
-                    <Input
-                      id="assistant-owner-name"
-                      value={botEditDraft.nombreTitular}
-                      onChange={(e) => setBotEditDraft((d) => ({ ...d, nombreTitular: e.target.value }))}
-                      placeholder="Joseph Antonio"
-                      required
-                    />
-                  </div>
-                )}
-              </section>
-            )}
-            {botEditBot?.kind !== "assistant" && (
-              <div className="rounded-lg border border-dashed border-border/60 p-8 text-center text-sm text-muted-foreground">
-                Este tipo de bot no tiene parámetros operativos adicionales.
-              </div>
-            )}
-              </TabsContent>
+                </TabsContent>
 
-              <TabsContent value="prompts" className="mt-4 min-h-0 flex-1 space-y-5 overflow-y-auto px-6 pb-6">
-                <div className="rounded-lg border border-border/60 bg-muted/20 p-4">
-                  <h3 className="font-medium">Instrucciones del bot</h3>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Este es el único prompt principal editable después de crear el bot. Contiene el contexto y las instrucciones iniciales ya fusionados.
+                <TabsContent
+                  value="operation"
+                  className="mt-4 min-h-0 flex-1 overflow-y-auto px-6 pb-6"
+                >
+                  {botEditBot?.kind === "assistant" && (
+                    <section className="space-y-5">
+                      <div>
+                        <h3 className="font-medium">Operación del asistente de correo</h3>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Configura cuándo trabaja, qué puede enviar y con qué identidad responde.
+                        </p>
+                      </div>
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label htmlFor="assistant-interval">Revisa cada (minutos)</Label>
+                          <Input
+                            id="assistant-interval"
+                            type="number"
+                            min={1}
+                            max={1440}
+                            value={botEditDraft.intervaloMinutos}
+                            onChange={(e) =>
+                              setBotEditDraft((d) => ({ ...d, intervaloMinutos: e.target.value }))
+                            }
+                            required
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="assistant-report">Reporte diario</Label>
+                          <Input
+                            id="assistant-report"
+                            type="time"
+                            value={botEditDraft.horaReporte}
+                            onChange={(e) =>
+                              setBotEditDraft((d) => ({ ...d, horaReporte: e.target.value }))
+                            }
+                            required
+                          />
+                        </div>
+                      </div>
+                      <div className="flex items-start justify-between gap-4 rounded-md bg-muted/30 p-3">
+                        <div>
+                          <Label htmlFor="assistant-auto">
+                            Enviar automáticamente lo rutinario
+                          </Label>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            Lo delicado seguirá quedando como borrador para revisión.
+                          </p>
+                        </div>
+                        <Switch
+                          id="assistant-auto"
+                          checked={botEditDraft.enviarAutomatico}
+                          onCheckedChange={(checked) =>
+                            setBotEditDraft((d) => ({ ...d, enviarAutomatico: checked }))
+                          }
+                        />
+                      </div>
+                      <div className="flex items-start justify-between gap-4 rounded-md bg-muted/30 p-3">
+                        <div>
+                          <Label htmlFor="assistant-owner-voice">
+                            Responder a nombre del titular
+                          </Label>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            Si se desactiva, se identificará como asistente.
+                          </p>
+                        </div>
+                        <Switch
+                          id="assistant-owner-voice"
+                          checked={botEditDraft.actuaComoTitular}
+                          onCheckedChange={(checked) =>
+                            setBotEditDraft((d) => ({ ...d, actuaComoTitular: checked }))
+                          }
+                        />
+                      </div>
+                      {botEditDraft.actuaComoTitular && (
+                        <div className="space-y-2">
+                          <Label htmlFor="assistant-owner-name">Nombre para la firma</Label>
+                          <Input
+                            id="assistant-owner-name"
+                            value={botEditDraft.nombreTitular}
+                            onChange={(e) =>
+                              setBotEditDraft((d) => ({ ...d, nombreTitular: e.target.value }))
+                            }
+                            placeholder="Joseph Antonio"
+                            required
+                          />
+                        </div>
+                      )}
+                    </section>
+                  )}
+                  {botEditBot?.kind !== "assistant" && (
+                    <div className="rounded-lg border border-dashed border-border/60 p-8 text-center text-sm text-muted-foreground">
+                      Este tipo de bot no tiene parámetros operativos adicionales.
+                    </div>
+                  )}
+                </TabsContent>
+
+                <TabsContent
+                  value="prompts"
+                  className="mt-4 min-h-0 flex-1 space-y-5 overflow-y-auto px-6 pb-6"
+                >
+                  <div className="rounded-lg border border-border/60 bg-muted/20 p-4">
+                    <h3 className="font-medium">Instrucciones del bot</h3>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Este es el único prompt principal editable después de crear el bot. Contiene
+                      el contexto y las instrucciones iniciales ya fusionados.
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Prompt principal</Label>
+                    <Textarea
+                      value={botEditDraft.extraInstructions}
+                      onChange={(e) =>
+                        setBotEditDraft((d) => ({ ...d, extraInstructions: e.target.value }))
+                      }
+                      placeholder="Contexto, reglas, tono, límites y conocimiento del negocio…"
+                      rows={18}
+                    />
+                  </div>
+                  <p className="rounded-lg border border-border/60 bg-muted/20 p-3 text-xs text-muted-foreground">
+                    Las reglas base de seguridad y especialización se aplican automáticamente y no
+                    se duplican aquí para evitar que se borren por accidente.
                   </p>
-                </div>
-            <div className="space-y-2">
-              <Label>Prompt principal</Label>
-              <Textarea
-                value={botEditDraft.extraInstructions}
-                onChange={(e) => setBotEditDraft((d) => ({ ...d, extraInstructions: e.target.value }))}
-                placeholder="Contexto, reglas, tono, límites y conocimiento del negocio…"
-                rows={18}
-              />
-            </div>
-                <p className="rounded-lg border border-border/60 bg-muted/20 p-3 text-xs text-muted-foreground">
-                  Las reglas base de seguridad y especialización se aplican automáticamente y no se duplican aquí para evitar que se borren por accidente.
-                </p>
-              </TabsContent>
-            </Tabs>
+                </TabsContent>
+              </Tabs>
 
-            <DialogFooter className="border-t border-border/60 bg-background px-6 py-4">
-              <Button type="submit" disabled={savingBotEdit}>
-                {savingBotEdit ? <Loader2 className="h-4 w-4 animate-spin" /> : "Guardar cambios"}
-              </Button>
-            </DialogFooter>
-          </form>
+              <DialogFooter className="border-t border-border/60 bg-background px-6 py-4">
+                <Button type="submit" disabled={savingBotEdit}>
+                  {savingBotEdit ? <Loader2 className="h-4 w-4 animate-spin" /> : "Guardar cambios"}
+                </Button>
+              </DialogFooter>
+            </form>
           )}
         </DialogContent>
       </Dialog>
@@ -2391,9 +2455,7 @@ function resolveDashboardUrl(
     typeof window !== "undefined" &&
     (window.location.hostname === "127.0.0.1" || window.location.hostname === "localhost");
 
-  let defaultBase = isLocal
-    ? "http://127.0.0.1:5174"
-    : `https://stage-${slug}-messaging.fly.dev`;
+  const defaultBase = isLocal ? "http://127.0.0.1:5174" : `https://stage-${slug}-messaging.fly.dev`;
 
   let apiUrl = defaultBase;
   try {

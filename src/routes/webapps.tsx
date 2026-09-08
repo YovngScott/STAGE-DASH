@@ -65,18 +65,49 @@ interface Client {
   company_name: string;
 }
 
-interface WebTemplate { id: string; name: string; version: string; description: string; }
-interface WebDeployment {
-  id: string; client_id: string; template_id: string; state: string; progress: number; phase: string;
-  config: { companyName?: string }; public_url: string | null; error: string | null; previous_release: string | null;
+interface WebTemplate {
+  id: string;
+  name: string;
+  version: string;
+  description: string;
 }
-interface FactoryPlatform { ready: boolean; plan: string | null; projectCount: number; projectLimit: number | null; capacityAvailable: boolean; tokenExpiresAt: string | null; }
+interface WebDeployment {
+  id: string;
+  client_id: string;
+  template_id: string;
+  state: string;
+  progress: number;
+  phase: string;
+  config: { companyName?: string };
+  public_url: string | null;
+  error: string | null;
+  previous_release: string | null;
+}
+interface FactoryPlatform {
+  ready: boolean;
+  plan: string | null;
+  projectCount: number;
+  projectLimit: number | null;
+  capacityAvailable: boolean;
+  tokenExpiresAt: string | null;
+}
 
 const emptyFactory = {
-  clientId: "", templateId: "workshop-management", companyName: "", legalName: "", phone: "", email: "",
-  address: "", country: "República Dominicana", currency: "DOP", timezone: "America/Santo_Domingo",
-  brandPrimary: "#c62828", brandInk: "#172033", receiptLegalText: "",
-  adminEmail: "", adminPin: "",
+  clientId: "",
+  templateId: "workshop-management",
+  companyName: "",
+  legalName: "",
+  phone: "",
+  email: "",
+  address: "",
+  country: "República Dominicana",
+  currency: "DOP",
+  timezone: "America/Santo_Domingo",
+  brandPrimary: "#c62828",
+  brandInk: "#172033",
+  receiptLegalText: "",
+  adminEmail: "",
+  adminPin: "",
 };
 
 const emptyDraft = {
@@ -116,7 +147,13 @@ function WebApps() {
     const { data } = await supabase.auth.getSession();
     const token = data.session?.access_token;
     if (!token) throw new Error("Tu sesión venció.");
-    const response = await fetch("/api/webapp-factory", { ...init, headers: { ...(init?.body ? { "content-type": "application/json" } : {}), authorization: `Bearer ${token}` } });
+    const response = await fetch("/api/webapp-factory", {
+      ...init,
+      headers: {
+        ...(init?.body ? { "content-type": "application/json" } : {}),
+        authorization: `Bearer ${token}`,
+      },
+    });
     const body = await response.json();
     if (!response.ok) throw new Error(body.error || `Error ${response.status}`);
     return body;
@@ -126,11 +163,15 @@ function WebApps() {
     setLoading(true);
     const [{ data, error }, clientsRes, factoryRes] = await Promise.all([
       supabase
-      .from("web_apps")
-      .select("id,name,url,hosting_provider,tech_stack,status,monthly_hosting_cost,client_id")
-      .order("created_at", { ascending: true }),
+        .from("web_apps")
+        .select("id,name,url,hosting_provider,tech_stack,status,monthly_hosting_cost,client_id")
+        .order("created_at", { ascending: true }),
       supabase.from("clients").select("id,company_name").order("company_name"),
-      factoryFetch().catch((factoryError) => ({ error: factoryError instanceof Error ? factoryError.message : String(factoryError), templates: [], deployments: [] })),
+      factoryFetch().catch((factoryError) => ({
+        error: factoryError instanceof Error ? factoryError.message : String(factoryError),
+        templates: [],
+        deployments: [],
+      })),
     ]);
     if (error) toast.error(error.message);
     else setApps((data ?? []) as WebApp[]);
@@ -147,26 +188,42 @@ function WebApps() {
   }, []);
 
   useEffect(() => {
-    if (!deployments.some((item) => ["queued", "running", "preflight", "rolling_back"].includes(item.state))) return;
+    if (
+      !deployments.some((item) =>
+        ["queued", "running", "preflight", "rolling_back"].includes(item.state),
+      )
+    )
+      return;
     const timer = setInterval(() => void load(), 4000);
     return () => clearInterval(timer);
   }, [deployments]);
 
   const openFactory = () => {
-    setFactory({ ...emptyFactory, clientId: clients[0]?.id ?? "", templateId: templates[0]?.id ?? "workshop-management" });
+    setFactory({
+      ...emptyFactory,
+      clientId: clients[0]?.id ?? "",
+      templateId: templates[0]?.id ?? "workshop-management",
+    });
     setFactoryOpen(true);
   };
 
   const replicate = async () => {
     setFactorySaving(true);
     try {
-      await factoryFetch({ method: "POST", body: JSON.stringify({ action: "replicate", input: factory }) });
-      toast.success("Réplica iniciada. Stage creará repositorio, base, secretos, Fly y acceso automáticamente.");
+      await factoryFetch({
+        method: "POST",
+        body: JSON.stringify({ action: "replicate", input: factory }),
+      });
+      toast.success(
+        "Réplica iniciada. Stage creará repositorio, base, secretos, Fly y acceso automáticamente.",
+      );
       setFactoryOpen(false);
       await load();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "No se pudo iniciar la réplica.");
-    } finally { setFactorySaving(false); }
+    } finally {
+      setFactorySaving(false);
+    }
   };
 
   const rollback = async (id: string) => {
@@ -174,7 +231,9 @@ function WebApps() {
       await factoryFetch({ method: "POST", body: JSON.stringify({ action: "rollback", id }) });
       toast.success("Rollback verificado correctamente.");
       await load();
-    } catch (error) { toast.error(error instanceof Error ? error.message : "Falló el rollback."); }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Falló el rollback.");
+    }
   };
 
   const openNew = () => {
@@ -224,10 +283,7 @@ function WebApps() {
 
   const remove = async () => {
     if (!confirmDelete) return;
-    const { error } = await supabase
-      .from("web_apps")
-      .delete()
-      .eq("id", confirmDelete.id);
+    const { error } = await supabase.from("web_apps").delete().eq("id", confirmDelete.id);
     if (error) return toast.error(error.message);
     toast.success(`${confirmDelete.name} fue eliminada`);
     setConfirmDelete(null);
@@ -241,23 +297,30 @@ function WebApps() {
           <p className="text-xs uppercase tracking-widest text-muted-foreground">
             Proyectos personalizados
           </p>
-          <h2 className="mt-1 text-2xl font-semibold tracking-tight">
-            Aplicaciones web
-          </h2>
+          <h2 className="mt-1 text-2xl font-semibold tracking-tight">Aplicaciones web</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            {apps.length} proyectos · administra y replica las aplicaciones de tus clientes desde aquí.
+            {apps.length} proyectos · administra y replica las aplicaciones de tus clientes desde
+            aquí.
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" className="gap-2" onClick={openNew}><Plus className="h-4 w-4" /> Registrar existente</Button>
-          <Button className="gap-2" onClick={openFactory}><Copy className="h-4 w-4" /> Replicar para nuevo cliente</Button>
+          <Button variant="outline" className="gap-2" onClick={openNew}>
+            <Plus className="h-4 w-4" /> Registrar existente
+          </Button>
+          <Button className="gap-2" onClick={openFactory}>
+            <Copy className="h-4 w-4" /> Replicar para nuevo cliente
+          </Button>
         </div>
       </div>
 
       {factoryPlatform && !factoryPlatform.capacityAvailable && (
         <Card className="border-warning/35 bg-warning/5 p-4 text-sm">
           <p className="font-medium text-warning">Publicación de nuevas réplicas pausada</p>
-          <p className="mt-1 text-muted-foreground">Supabase {factoryPlatform.plan || ""} utiliza {factoryPlatform.projectCount} de {factoryPlatform.projectLimit ?? "—"} proyectos. Puedes diseñar y probar plantillas; Stage no creará recursos hasta que exista capacidad.</p>
+          <p className="mt-1 text-muted-foreground">
+            Supabase {factoryPlatform.plan || ""} utiliza {factoryPlatform.projectCount} de{" "}
+            {factoryPlatform.projectLimit ?? "—"} proyectos. Puedes diseñar y probar plantillas;
+            Stage no creará recursos hasta que exista capacidad.
+          </p>
         </Card>
       )}
 
@@ -266,14 +329,34 @@ function WebApps() {
           {deployments.slice(0, 4).map((item) => (
             <Card key={item.id} className="border-border/60 p-4">
               <div className="flex items-start justify-between gap-3">
-                <div><p className="text-sm font-medium">{item.config?.companyName || item.template_id}</p><p className="mt-1 text-xs text-muted-foreground">{item.phase}</p></div>
+                <div>
+                  <p className="text-sm font-medium">
+                    {item.config?.companyName || item.template_id}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">{item.phase}</p>
+                </div>
                 <Badge variant="outline">{item.state}</Badge>
               </div>
-              <div className="mt-3 h-2 overflow-hidden rounded-full bg-muted"><div className="h-full bg-primary transition-all" style={{ width: `${item.progress}%` }} /></div>
+              <div className="mt-3 h-2 overflow-hidden rounded-full bg-muted">
+                <div
+                  className="h-full bg-primary transition-all"
+                  style={{ width: `${item.progress}%` }}
+                />
+              </div>
               {item.error && <p className="mt-2 text-xs text-destructive">{item.error}</p>}
               <div className="mt-3 flex justify-end gap-2">
-                {item.public_url && <Button size="sm" variant="outline" asChild><a href={item.public_url} target="_blank" rel="noreferrer"><ExternalLink className="mr-1 h-3.5 w-3.5" /> Abrir</a></Button>}
-                {item.previous_release && <Button size="sm" variant="outline" onClick={() => void rollback(item.id)}><RotateCcw className="mr-1 h-3.5 w-3.5" /> Rollback</Button>}
+                {item.public_url && (
+                  <Button size="sm" variant="outline" asChild>
+                    <a href={item.public_url} target="_blank" rel="noreferrer">
+                      <ExternalLink className="mr-1 h-3.5 w-3.5" /> Abrir
+                    </a>
+                  </Button>
+                )}
+                {item.previous_release && (
+                  <Button size="sm" variant="outline" onClick={() => void rollback(item.id)}>
+                    <RotateCcw className="mr-1 h-3.5 w-3.5" /> Rollback
+                  </Button>
+                )}
               </div>
             </Card>
           ))}
@@ -305,9 +388,7 @@ function WebApps() {
                     <Globe2 className="h-5 w-5" />
                   </div>
                   <div>
-                    <h3 className="text-base font-semibold tracking-tight">
-                      {a.name}
-                    </h3>
+                    <h3 className="text-base font-semibold tracking-tight">{a.name}</h3>
                     {a.url && (
                       <a
                         href={a.url}
@@ -321,10 +402,7 @@ function WebApps() {
                     )}
                   </div>
                 </div>
-                <Badge
-                  variant="outline"
-                  className={statusStyles[a.status] ?? statusStyles.live}
-                >
+                <Badge variant="outline" className={statusStyles[a.status] ?? statusStyles.live}>
                   <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-current" />
                   {a.status}
                 </Badge>
@@ -348,12 +426,7 @@ function WebApps() {
                 </span>
               </div>
               <div className="mt-4 flex justify-end gap-1">
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={() => openEdit(a)}
-                  title="Editar"
-                >
+                <Button size="icon" variant="ghost" onClick={() => openEdit(a)} title="Editar">
                   <Pencil className="h-4 w-4" />
                 </Button>
                 <Button
@@ -374,10 +447,10 @@ function WebApps() {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>
-              {editing ? `Editar ${editing.name}` : "Nueva aplicación web"}
-            </DialogTitle>
-            <DialogDescription>Aplicación local o externa asociada con un cliente.</DialogDescription>
+            <DialogTitle>{editing ? `Editar ${editing.name}` : "Nueva aplicación web"}</DialogTitle>
+            <DialogDescription>
+              Aplicación local o externa asociada con un cliente.
+            </DialogDescription>
           </DialogHeader>
           <form onSubmit={save} className="space-y-4">
             <div className="space-y-2">
@@ -385,9 +458,7 @@ function WebApps() {
               <Input
                 id="w-name"
                 value={draft.name}
-                onChange={(e) =>
-                  setDraft((d) => ({ ...d, name: e.target.value }))
-                }
+                onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
                 required
               />
             </div>
@@ -398,9 +469,7 @@ function WebApps() {
                 type="url"
                 placeholder="https://example.com"
                 value={draft.url}
-                onChange={(e) =>
-                  setDraft((d) => ({ ...d, url: e.target.value }))
-                }
+                onChange={(e) => setDraft((d) => ({ ...d, url: e.target.value }))}
               />
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -410,9 +479,7 @@ function WebApps() {
                   id="w-host"
                   placeholder="Local, Cloudflare, VPS..."
                   value={draft.hosting_provider}
-                  onChange={(e) =>
-                    setDraft((d) => ({ ...d, hosting_provider: e.target.value }))
-                  }
+                  onChange={(e) => setDraft((d) => ({ ...d, hosting_provider: e.target.value }))}
                 />
               </div>
               <div className="space-y-2">
@@ -458,9 +525,7 @@ function WebApps() {
                 id="w-stack"
                 placeholder="Next.js, Supabase, Stripe"
                 value={draft.tech_stack}
-                onChange={(e) =>
-                  setDraft((d) => ({ ...d, tech_stack: e.target.value }))
-                }
+                onChange={(e) => setDraft((d) => ({ ...d, tech_stack: e.target.value }))}
               />
             </div>
             <div className="space-y-2">
@@ -493,29 +558,168 @@ function WebApps() {
         <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Replicar plantilla para nuevo cliente</DialogTitle>
-            <DialogDescription>Solo completa lo que cambia. Stage heredará módulos y seguridad, probará todo y publicará sin código.</DialogDescription>
+            <DialogDescription>
+              Solo completa lo que cambia. Stage heredará módulos y seguridad, probará todo y
+              publicará sin código.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-5">
             <div className="grid gap-3 md:grid-cols-2">
-              <div className="space-y-2"><Label>Cliente</Label><Select value={factory.clientId} onValueChange={(value) => setFactory((current) => ({ ...current, clientId: value }))}><SelectTrigger><SelectValue placeholder="Elegir cliente" /></SelectTrigger><SelectContent>{clients.map((client) => <SelectItem key={client.id} value={client.id}>{client.company_name}</SelectItem>)}</SelectContent></Select></div>
-              <div className="space-y-2"><Label>Plantilla</Label><Select value={factory.templateId} onValueChange={(value) => setFactory((current) => ({ ...current, templateId: value }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{templates.map((template) => <SelectItem key={template.id} value={template.id}>{template.name} · v{template.version}</SelectItem>)}</SelectContent></Select></div>
+              <div className="space-y-2">
+                <Label>Cliente</Label>
+                <Select
+                  value={factory.clientId}
+                  onValueChange={(value) =>
+                    setFactory((current) => ({ ...current, clientId: value }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Elegir cliente" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {clients.map((client) => (
+                      <SelectItem key={client.id} value={client.id}>
+                        {client.company_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Plantilla</Label>
+                <Select
+                  value={factory.templateId}
+                  onValueChange={(value) =>
+                    setFactory((current) => ({ ...current, templateId: value }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {templates.map((template) => (
+                      <SelectItem key={template.id} value={template.id}>
+                        {template.name} · v{template.version}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-            <div className="rounded-lg border border-success/25 bg-success/5 p-3 text-xs text-muted-foreground"><ShieldCheck className="mr-2 inline h-4 w-4 text-success" />Incluye casos, cotizaciones, piezas, inventario, citas, reportes, usuarios, landing, RLS, Storage, health checks y rollback.</div>
+            <div className="rounded-lg border border-success/25 bg-success/5 p-3 text-xs text-muted-foreground">
+              <ShieldCheck className="mr-2 inline h-4 w-4 text-success" />
+              Incluye casos, cotizaciones, piezas, inventario, citas, reportes, usuarios, landing,
+              RLS, Storage, health checks y rollback.
+            </div>
             <div className="grid gap-3 md:grid-cols-2">
-              {([['companyName','Nombre comercial'],['legalName','Razón social'],['phone','Teléfono'],['email','Correo'],['address','Dirección'],['country','País'],['currency','Moneda'],['timezone','Zona horaria']] as const).map(([key,label]) => <div key={key} className="space-y-2"><Label>{label}</Label><Input type={key === 'email' ? 'email' : 'text'} value={factory[key]} onChange={(event) => setFactory((current) => ({ ...current, [key]: event.target.value }))} /></div>)}
+              {(
+                [
+                  ["companyName", "Nombre comercial"],
+                  ["legalName", "Razón social"],
+                  ["phone", "Teléfono"],
+                  ["email", "Correo"],
+                  ["address", "Dirección"],
+                  ["country", "País"],
+                  ["currency", "Moneda"],
+                  ["timezone", "Zona horaria"],
+                ] as const
+              ).map(([key, label]) => (
+                <div key={key} className="space-y-2">
+                  <Label>{label}</Label>
+                  <Input
+                    type={key === "email" ? "email" : "text"}
+                    value={factory[key]}
+                    onChange={(event) =>
+                      setFactory((current) => ({ ...current, [key]: event.target.value }))
+                    }
+                  />
+                </div>
+              ))}
             </div>
-            <div className="grid gap-3 md:grid-cols-2"><div className="space-y-2"><Label>Color principal</Label><Input type="color" value={factory.brandPrimary} onChange={(event) => setFactory((current) => ({ ...current, brandPrimary: event.target.value }))} /></div><div className="space-y-2"><Label>Color de texto</Label><Input type="color" value={factory.brandInk} onChange={(event) => setFactory((current) => ({ ...current, brandInk: event.target.value }))} /></div></div>
-            <div className="space-y-2"><Label>Texto legal del recibo</Label><Input value={factory.receiptLegalText} onChange={(event) => setFactory((current) => ({ ...current, receiptLegalText: event.target.value }))} /></div>
-            <div className="rounded-lg border border-border/60 p-4"><p className="text-sm font-medium">Acceso inicial del cliente</p><p className="mt-1 text-xs text-muted-foreground">El correo queda como contacto del administrador. El PIN se usa para el primer acceso y no se almacena en Stage.</p><div className="mt-3 grid gap-3 md:grid-cols-2"><div className="space-y-2"><Label>Correo administrador</Label><Input type="email" value={factory.adminEmail} onChange={(event) => setFactory((current) => ({ ...current, adminEmail: event.target.value }))} /></div><div className="space-y-2"><Label>PIN inicial (4 dígitos)</Label><Input type="password" inputMode="numeric" maxLength={4} autoComplete="new-password" value={factory.adminPin} onChange={(event) => setFactory((current) => ({ ...current, adminPin: event.target.value.replace(/\D/g, "").slice(0, 4) }))} /></div></div></div>
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Color principal</Label>
+                <Input
+                  type="color"
+                  value={factory.brandPrimary}
+                  onChange={(event) =>
+                    setFactory((current) => ({ ...current, brandPrimary: event.target.value }))
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Color de texto</Label>
+                <Input
+                  type="color"
+                  value={factory.brandInk}
+                  onChange={(event) =>
+                    setFactory((current) => ({ ...current, brandInk: event.target.value }))
+                  }
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Texto legal del recibo</Label>
+              <Input
+                value={factory.receiptLegalText}
+                onChange={(event) =>
+                  setFactory((current) => ({ ...current, receiptLegalText: event.target.value }))
+                }
+              />
+            </div>
+            <div className="rounded-lg border border-border/60 p-4">
+              <p className="text-sm font-medium">Acceso inicial del cliente</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                El correo queda como contacto del administrador. El PIN se usa para el primer acceso
+                y no se almacena en Stage.
+              </p>
+              <div className="mt-3 grid gap-3 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Correo administrador</Label>
+                  <Input
+                    type="email"
+                    value={factory.adminEmail}
+                    onChange={(event) =>
+                      setFactory((current) => ({ ...current, adminEmail: event.target.value }))
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>PIN inicial (4 dígitos)</Label>
+                  <Input
+                    type="password"
+                    inputMode="numeric"
+                    maxLength={4}
+                    autoComplete="new-password"
+                    value={factory.adminPin}
+                    onChange={(event) =>
+                      setFactory((current) => ({
+                        ...current,
+                        adminPin: event.target.value.replace(/\D/g, "").slice(0, 4),
+                      }))
+                    }
+                  />
+                </div>
+              </div>
+            </div>
           </div>
-          <DialogFooter><Button variant="outline" onClick={() => setFactoryOpen(false)}>Cancelar</Button><Button onClick={() => void replicate()} disabled={factorySaving}>{factorySaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Copy className="mr-2 h-4 w-4" />} Crear réplica</Button></DialogFooter>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setFactoryOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={() => void replicate()} disabled={factorySaving}>
+              {factorySaving ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Copy className="mr-2 h-4 w-4" />
+              )}{" "}
+              Crear réplica
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <AlertDialog
-        open={!!confirmDelete}
-        onOpenChange={(o) => !o && setConfirmDelete(null)}
-      >
+      <AlertDialog open={!!confirmDelete} onOpenChange={(o) => !o && setConfirmDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>¿Eliminar aplicación web?</AlertDialogTitle>

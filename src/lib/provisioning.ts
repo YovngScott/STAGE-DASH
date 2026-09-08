@@ -397,10 +397,7 @@ async function runProvision(jobId: string, input: ProvisionInput): Promise<void>
     await appendProvisionJobLog(jobId, "Health check respondió OK. Contenedor activo y en línea.");
 
     // 7. Cierre con éxito
-    await supabaseAdmin
-      .from("client_bots")
-      .update({ status: "active" })
-      .eq("slug", input.slug);
+    await supabaseAdmin.from("client_bots").update({ status: "active" }).eq("slug", input.slug);
 
     await supabaseAdmin
       .from("client_dashboards")
@@ -439,9 +436,7 @@ export function makeFlyAppName(slug: string, kind: BotKind): string {
     .slice(0, 63);
 }
 
-export async function getActiveProvisionBySlug(
-  slug: string,
-): Promise<ProvisionJobRecord | null> {
+export async function getActiveProvisionBySlug(slug: string): Promise<ProvisionJobRecord | null> {
   const { data } = await supabaseAdmin
     .from("provision_jobs")
     .select("id, tenant_slug, status, logs, fly_app_name, created_at, updated_at")
@@ -539,9 +534,7 @@ export function readInfrastructure(groqOverride?: string, proveedorCorreo?: Prov
     throw new Error(`Faltan variables locales: ${missing.join(", ")}. Reinicia el Owner Console.`);
 
   let flyToken =
-    process.env.STAGE_FLY_API_TOKEN ||
-    process.env.FLY_API_TOKEN ||
-    process.env.FLY_ACCESS_TOKEN;
+    process.env.STAGE_FLY_API_TOKEN || process.env.FLY_API_TOKEN || process.env.FLY_ACCESS_TOKEN;
 
   if (!flyToken?.trim()) {
     throw new Error("Falta STAGE_FLY_API_TOKEN o FLY_API_TOKEN en process.env.");

@@ -2,7 +2,6 @@ import { createFileRoute } from "@tanstack/react-router";
 import type {} from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { authorizeOwner } from "@/lib/auth-owner.server";
 import {
   buildDashboardUrl,
   getActiveProvisionBySlug,
@@ -100,14 +99,29 @@ export const Route = createFileRoute("/api/bot-builder")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const denied = await authorizeOwner(request);
-        if (denied) return denied;
+        const authHeader = request.headers.get("authorization") ?? "";
+        const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
+        if (!token) {
+          return Response.json({ error: "No autorizado." }, { status: 401 });
+        }
 
         let body: BotBuilderRequest;
         try {
           body = await request.json();
         } catch {
           return Response.json({ error: "Body invalido." }, { status: 400 });
+        }
+
+        const { data: userData, error: userError } = await supabase.auth.getUser(token);
+        if (userError || !userData.user) {
+          return Response.json({ error: "No autorizado." }, { status: 401 });
+        }
+        const { data: isOwner } = await supabase.rpc("has_role", {
+          _user_id: userData.user.id,
+          _role: "owner",
+        });
+        if (!isOwner) {
+          return Response.json({ error: "No autorizado." }, { status: 401 });
         }
 
         const clientId = String(body.clientId ?? "");
@@ -143,7 +157,6 @@ export const Route = createFileRoute("/api/bot-builder")({
 
         const behavior = normalizeBotBehavior(body.tenant.behavior);
         const botType: BotType = body.botType ?? "messaging";
-
 
         // El asistente se valida en el servidor además del formulario: sin
         // correo no hay bandeja que triar y el bot quedaría inerte.
@@ -196,10 +209,22 @@ export const Route = createFileRoute("/api/bot-builder")({
         const validTime = (value: unknown, fallback: string) =>
           /^([01]\d|2[0-3]):[0-5]\d$/.test(String(value ?? "")) ? String(value) : fallback;
         const businessDays = Array.isArray(body.tenant.schedule?.businessDays)
-          ? [...new Set(body.tenant.schedule.businessDays.map(Number).filter((day) => Number.isInteger(day) && day >= 0 && day <= 6))]
+          ? [
+              ...new Set(
+                body.tenant.schedule.businessDays
+                  .map(Number)
+                  .filter((day) => Number.isInteger(day) && day >= 0 && day <= 6),
+              ),
+            ]
           : [1, 2, 3, 4, 5];
         const holidays = Array.isArray(body.tenant.schedule?.holidays)
-          ? [...new Set(body.tenant.schedule.holidays.map(String).filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date)))].sort()
+          ? [
+              ...new Set(
+                body.tenant.schedule.holidays
+                  .map(String)
+                  .filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date)),
+              ),
+            ].sort()
           : [];
 
         let tenantConfig: TenantConfigDraft = {
@@ -220,7 +245,10 @@ export const Route = createFileRoute("/api/bot-builder")({
           whatsapp: {
             provider: body.tenant.whatsapp?.provider === "meta_cloud" ? "meta_cloud" : "baileys",
             phoneNumberId: String(body.tenant.whatsapp?.phoneNumberId ?? "").replace(/\D/g, ""),
-            businessAccountId: String(body.tenant.whatsapp?.businessAccountId ?? "").replace(/\D/g, ""),
+            businessAccountId: String(body.tenant.whatsapp?.businessAccountId ?? "").replace(
+              /\D/g,
+              "",
+            ),
             apiVersion: /^v\d+\.\d+$/.test(String(body.tenant.whatsapp?.apiVersion ?? ""))
               ? String(body.tenant.whatsapp!.apiVersion)
               : "v23.0",
@@ -232,7 +260,10 @@ export const Route = createFileRoute("/api/bot-builder")({
             quietStart: validTime(body.tenant.schedule?.quietStart, "20:00"),
             quietEnd: validTime(body.tenant.schedule?.quietEnd, "08:00"),
             holidays,
-            appointmentReminderTime: validTime(body.tenant.schedule?.appointmentReminderTime, "09:00"),
+            appointmentReminderTime: validTime(
+              body.tenant.schedule?.appointmentReminderTime,
+              "09:00",
+            ),
             dailyReportTime: validTime(
               body.tenant.schedule?.dailyReportTime,
               asistente?.horaReporte ?? "20:00",

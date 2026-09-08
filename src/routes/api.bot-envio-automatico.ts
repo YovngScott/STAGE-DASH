@@ -2,7 +2,6 @@ import { createFileRoute } from "@tanstack/react-router";
 import type {} from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { authorizeOwner } from "@/lib/auth-owner.server";
 
 /**
  * Interruptor del envío automático de un bot asistente, desde Client Manager.
@@ -28,8 +27,19 @@ export const Route = createFileRoute("/api/bot-envio-automatico")({
 });
 
 async function manejar(request: Request, metodo: "GET" | "POST") {
-  const denied = await authorizeOwner(request);
-  if (denied) return denied;
+  const authHeader = request.headers.get("authorization") ?? "";
+  const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
+  if (!token) return Response.json({ error: "No autorizado." }, { status: 401 });
+
+  const { data: userData, error: userError } = await supabase.auth.getUser(token);
+  if (userError || !userData.user)
+    return Response.json({ error: "No autorizado." }, { status: 401 });
+
+  const { data: isOwner } = await supabase.rpc("has_role", {
+    _user_id: userData.user.id,
+    _role: "owner",
+  });
+  if (!isOwner) return Response.json({ error: "No autorizado." }, { status: 401 });
 
   // En GET los parámetros vienen por la URL; en POST, en el cuerpo.
   const url = new URL(request.url);
@@ -60,7 +70,10 @@ async function manejar(request: Request, metodo: "GET" | "POST") {
     return Response.json({ error: `No se pudo leer el bot: ${botError.message}` }, { status: 500 });
   }
   if (bot?.kind !== "assistant") {
-    return Response.json({ error: "El envío automático solo aplica a bots asistente." }, { status: 400 });
+    return Response.json(
+      { error: "El envío automático solo aplica a bots asistente." },
+      { status: 400 },
+    );
   }
 
   const base = (bot?.bot_status_url ?? "").trim().replace(/\/$/, "");
@@ -68,7 +81,10 @@ async function manejar(request: Request, metodo: "GET" | "POST") {
   // quedado obsoleto tras una rotación.
   const secreto = process.env.STAGE_PLATFORM_ADMIN_SECRET?.trim() || bot?.bot_secret || "";
   if (!base || !secreto) {
-    return Response.json({ error: "Este bot no tiene endpoint o secreto configurado." }, { status: 400 });
+    return Response.json(
+      { error: "Este bot no tiene endpoint o secreto configurado." },
+      { status: 400 },
+    );
   }
 
   // bot_status_url apunta a .../config/bot-activo; el interruptor del envío

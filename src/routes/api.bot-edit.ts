@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { authorizeOwner } from "@/lib/auth-owner.server";
 import { type BotKind, type TenantConfigDraft } from "@/lib/provisioning";
 import { composeTenantPrompt, normalizeBotBehavior, type BotBehavior } from "@/lib/bot-prompts";
 import {
@@ -243,6 +242,18 @@ export const Route = createFileRoute("/api/bot-edit")({
   },
 });
 
+async function authorizeOwner(request: Request): Promise<Response | null> {
+  const auth = request.headers.get("authorization") ?? "";
+  const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
+  if (!token) return Response.json({ error: "No autorizado." }, { status: 401 });
+  const { data: user, error } = await supabase.auth.getUser(token);
+  if (error || !user.user) return Response.json({ error: "No autorizado." }, { status: 401 });
+  const { data: owner } = await supabase.rpc("has_role", {
+    _user_id: user.user.id,
+    _role: "owner",
+  });
+  return owner ? null : Response.json({ error: "No autorizado." }, { status: 401 });
+}
 
 async function readBot(botId: string): Promise<BotRow | Response> {
   const { data, error } = await supabaseAdmin
