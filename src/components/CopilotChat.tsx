@@ -78,6 +78,184 @@ const SUGGESTED_PROMPTS = [
   },
 ];
 
+function renderInlineFormatted(text: string): React.ReactNode[] {
+  const tokens: React.ReactNode[] = [];
+  let remaining = text;
+  let key = 0;
+
+  while (remaining.length > 0) {
+    // 1. Inline code: `code`
+    const codeMatch = remaining.match(/^(.*?)`([^`]+)`(.*)$/s);
+    // 2. Bold: **bold**
+    const boldMatch = remaining.match(/^(.*?)\*\*([^*]+)\*\*(.*)$/s);
+    // 3. Link: [text](url)
+    const linkMatch = remaining.match(/^(.*?)\[([^\]]+)\]\(([^)]+)\)(.*)$/s);
+    // 4. Italic: *italic* (solo si no es parte de bold)
+    const italicMatch = remaining.match(/^(.*?)\*([^*]+)\*(.*)$/s);
+
+    type MatchCandidate = { type: "code" | "bold" | "link" | "italic"; index: number; match: RegExpMatchArray };
+    const candidates: MatchCandidate[] = [];
+
+    if (codeMatch && codeMatch.index !== undefined) {
+      candidates.push({ type: "code", index: codeMatch[1].length, match: codeMatch });
+    }
+    if (boldMatch && boldMatch.index !== undefined) {
+      candidates.push({ type: "bold", index: boldMatch[1].length, match: boldMatch });
+    }
+    if (linkMatch && linkMatch.index !== undefined) {
+      candidates.push({ type: "link", index: linkMatch[1].length, match: linkMatch });
+    }
+    if (italicMatch && italicMatch.index !== undefined && !boldMatch) {
+      candidates.push({ type: "italic", index: italicMatch[1].length, match: italicMatch });
+    }
+
+    if (candidates.length === 0) {
+      tokens.push(<span key={key++}>{remaining}</span>);
+      break;
+    }
+
+    // Ordenar por el inicio más temprano
+    candidates.sort((a, b) => a.index - b.index);
+    const best = candidates[0];
+
+    const prefix = best.match[1];
+    if (prefix) {
+      tokens.push(<span key={key++}>{prefix}</span>);
+    }
+
+    if (best.type === "code") {
+      tokens.push(
+        <code
+          key={key++}
+          className="rounded bg-black/60 px-1.5 py-0.5 font-mono text-[11px] text-indigo-300 border border-white/10 select-all"
+        >
+          {best.match[2]}
+        </code>
+      );
+      remaining = best.match[3] || "";
+    } else if (best.type === "bold") {
+      tokens.push(
+        <strong key={key++} className="font-semibold text-white">
+          {renderInlineFormatted(best.match[2])}
+        </strong>
+      );
+      remaining = best.match[3] || "";
+    } else if (best.type === "link") {
+      tokens.push(
+        <a
+          key={key++}
+          href={best.match[3]}
+          target="_blank"
+          rel="noreferrer"
+          className="text-indigo-400 hover:text-indigo-300 underline underline-offset-2"
+        >
+          {best.match[2]}
+        </a>
+      );
+      remaining = best.match[4] || "";
+    } else if (best.type === "italic") {
+      tokens.push(
+        <em key={key++} className="italic text-gray-300">
+          {renderInlineFormatted(best.match[2])}
+        </em>
+      );
+      remaining = best.match[3] || "";
+    }
+  }
+
+  return tokens;
+}
+
+function FormattedMarkdown({ content }: { content: string }) {
+  if (!content) return null;
+
+  const lines = content.split("\n");
+  const elements: React.ReactNode[] = [];
+  let currentList: React.ReactNode[] = [];
+  let listKey = 0;
+
+  const flushList = () => {
+    if (currentList.length > 0) {
+      elements.push(
+        <ul key={`list-${listKey++}`} className="my-2 space-y-1.5 pl-0.5">
+          {currentList}
+        </ul>
+      );
+      currentList = [];
+    }
+  };
+
+  for (let i = 0; i < lines.length; i++) {
+    const rawLine = lines[i];
+    const line = rawLine.trim();
+
+    if (!line) {
+      flushList();
+      continue;
+    }
+
+    // Encabezado 3: ### Titulo
+    if (line.startsWith("### ")) {
+      flushList();
+      elements.push(
+        <h4 key={`h3-${i}`} className="text-xs font-bold uppercase tracking-wider text-indigo-300 mt-3 mb-1.5 border-b border-white/10 pb-1">
+          {renderInlineFormatted(line.slice(4))}
+        </h4>
+      );
+      continue;
+    }
+
+    // Encabezado 2: ## Titulo
+    if (line.startsWith("## ")) {
+      flushList();
+      elements.push(
+        <h3 key={`h2-${i}`} className="text-sm font-bold text-white mt-3 mb-1.5">
+          {renderInlineFormatted(line.slice(3))}
+        </h3>
+      );
+      continue;
+    }
+
+    // Items con viñeta: * o -
+    const bulletMatch = line.match(/^(\*|-)\s+(.*)$/);
+    if (bulletMatch) {
+      currentList.push(
+        <li key={`li-${i}`} className="flex items-start gap-2 text-sm leading-relaxed">
+          <span className="h-1.5 w-1.5 rounded-full bg-indigo-400 mt-2 shrink-0 opacity-80" />
+          <span className="flex-1 text-gray-200">{renderInlineFormatted(bulletMatch[2])}</span>
+        </li>
+      );
+      continue;
+    }
+
+    // Items numerados: 1. Item
+    const numMatch = line.match(/^(\d+)\.\s+(.*)$/);
+    if (numMatch) {
+      currentList.push(
+        <li key={`num-${i}`} className="flex items-start gap-2 text-sm leading-relaxed">
+          <span className="inline-flex items-center justify-center h-4 w-4 rounded-full bg-indigo-950/60 border border-indigo-500/30 text-[10px] font-mono text-indigo-300 shrink-0 mt-0.5">
+            {numMatch[1]}
+          </span>
+          <span className="flex-1 text-gray-200">{renderInlineFormatted(numMatch[2])}</span>
+        </li>
+      );
+      continue;
+    }
+
+    // Párrafo estándar
+    flushList();
+    elements.push(
+      <p key={`p-${i}`} className="my-1 leading-relaxed text-gray-200 text-sm">
+        {renderInlineFormatted(line)}
+      </p>
+    );
+  }
+
+  flushList();
+
+  return <div className="space-y-0.5">{elements}</div>;
+}
+
 export function CopilotChat() {
   const { text } = useLanguage();
   const navigate = useNavigate();
@@ -409,7 +587,11 @@ export function CopilotChat() {
                       : "bg-[#11131c]/90 text-gray-200 border border-white/10 rounded-tl-sm"
                   }`}
                 >
-                  <div className="whitespace-pre-wrap break-words">{msg.content}</div>
+                  {isUser ? (
+                    <div className="whitespace-pre-wrap break-words">{msg.content}</div>
+                  ) : (
+                    <FormattedMarkdown content={msg.content} />
+                  )}
 
                   {/* Visualización de Herramienta: provisionar_bot_cliente */}
                   {msg.functionCall && msg.functionCall.name === "provisionar_bot_cliente" && (
