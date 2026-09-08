@@ -22,6 +22,8 @@ import {
   Send,
   FileEdit,
   Eye,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import {
   Table,
@@ -74,22 +76,25 @@ export const Route = createFileRoute("/clients")({
 // client's linked bot (bot_status_url/bot_secret) on/off — the messaging
 // service IS the bot from the client's point of view.
 const BOT_TOGGLE_SERVICE = "AI Messaging Suite";
+const PAGE_SIZE = 25;
+const CLIENT_TABLE_COLUMNS =
+  "id, company_name, contact_name, services, status, mrr, next_billing_date, created_at, bot_status_url, bot_activo";
 
 interface Client {
   id: string;
   company_name: string;
   contact_name: string | null;
-  email: string | null;
-  phone: string | null;
+  email?: string | null;
+  phone?: string | null;
   status: string;
   mrr: number;
-  billing_cycle: string;
+  billing_cycle?: string;
   next_billing_date: string | null;
   services: string[] | null;
-  notes: string | null;
+  notes?: string | null;
   created_at: string;
   bot_status_url: string | null;
-  bot_secret: string | null;
+  bot_secret?: string | null;
   bot_activo: boolean;
 }
 
@@ -211,6 +216,11 @@ function Clients() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize] = useState(PAGE_SIZE);
+  const [totalClientsCount, setTotalClientsCount] = useState(0);
+  const [totalMrrValue, setTotalMrrValue] = useState(0);
+  const isFirstMount = useRef(true);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Client | null>(null);
   const [draft, setDraft] = useState({ ...emptyDraft });
@@ -286,22 +296,62 @@ function Clients() {
     setUserDraft({ ...emptyUserDraft });
   };
 
-  const load = async () => {
+  const load = async (pageToLoad = page, queryToSearch = query) => {
     setLoading(true);
-    const [cRes, pRes] = await Promise.all([
-      supabase.from("clients").select("*").order("created_at", { ascending: true }),
+    const from = (pageToLoad - 1) * pageSize;
+    const to = from + pageSize - 1;
+
+    let clientsQuery = supabase
+      .from("clients")
+      .select(CLIENT_TABLE_COLUMNS, { count: "exact" })
+      .order("created_at", { ascending: true })
+      .range(from, to);
+
+    if (queryToSearch.trim()) {
+      clientsQuery = clientsQuery.ilike("company_name", `%${queryToSearch.trim()}%`);
+    }
+
+    const [cRes, pRes, statsRes] = await Promise.all([
+      clientsQuery,
       supabase.from("products").select("id,name,monthly_cost").order("name"),
+      supabase.from("clients").select("mrr, status"),
     ]);
-    if (cRes.error) toast.error(cRes.error.message);
-    else setClients((cRes.data ?? []) as Client[]);
+
+    if (cRes.error) {
+      toast.error(cRes.error.message);
+    } else {
+      setClients((cRes.data ?? []) as Client[]);
+      setTotalClientsCount(cRes.count ?? 0);
+    }
     if (pRes.error) toast.error(pRes.error.message);
     else setProducts((pRes.data ?? []) as Product[]);
+
+    if (!statsRes.error && statsRes.data) {
+      const active = statsRes.data.filter((r) => r.status === "active");
+      const mrrSum = active.reduce((sum, r) => sum + Number(r.mrr || 0), 0);
+      setTotalMrrValue(mrrSum);
+    }
+
     setLoading(false);
   };
 
   useEffect(() => {
-    void load();
-  }, []);
+    if (isFirstMount.current) {
+      isFirstMount.current = false;
+      void load(1, query);
+      return;
+    }
+    const timer = setTimeout(() => {
+      setPage(1);
+      void load(1, query);
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [query]);
+
+  const handlePageChange = (newPage: number) => {
+    setPage(newPage);
+    void load(newPage, query);
+  };
 
   const loadClientResources = async (client: Client) => {
     setResourcesLoading(true);
@@ -375,9 +425,14 @@ function Clients() {
     setResourcesLoading(false);
   };
 
-  const openClientProfile = (client: Client) => {
+  const openClientProfile = async (client: Client) => {
     activeClientIdRef.current = client.id;
-    setSelectedClient(client);
+    let full = client;
+    if (client.email === undefined || client.phone === undefined) {
+      const { data } = await supabase.from("clients").select("*").eq("id", client.id).single();
+      if (data) full = data as Client;
+    }
+    setSelectedClient(full);
     // Clear the previous profile synchronously. In particular, retaining its
     // first bot here could assign a newly created user to the wrong tenant.
     setBots([]);
@@ -386,20 +441,17 @@ function Clients() {
     setEmailAccounts([]);
     setDashboardUsers([]);
     setUserDraft({
-      tenantSlug: extractSlugFromBotUrl(client.bot_status_url ?? "") || "",
-      email: client.email ?? "",
+      tenantSlug: extractSlugFromBotUrl(full.bot_status_url ?? "") || "",
+      email: full.email ?? "",
       password: "",
-      displayName: client.contact_name ?? "",
+      displayName: full.contact_name ?? "",
     });
-    void loadClientResources(client);
+    void loadClientResources(full);
   };
 
-  const filtered = useMemo(
-    () => clients.filter((c) => c.company_name.toLowerCase().includes(query.toLowerCase())),
-    [clients, query],
-  );
+  const filtered = clients;
 
-  const totalMrr = clients.reduce((s, c) => s + (c.status === "active" ? Number(c.mrr) : 0), 0);
+  const totalMrr = totalMrrValue;
 
   const sumServices = (services: string[]) =>
     services.reduce((s, name) => s + (products.find((p) => p.name === name)?.monthly_cost ?? 0), 0);
@@ -409,22 +461,27 @@ function Clients() {
     setDraft({ ...emptyDraft });
     setOpen(true);
   };
-  const openEdit = (c: Client) => {
-    setEditing(c);
-    const day = c.next_billing_date ? new Date(c.next_billing_date).getUTCDate() : 5;
+  const openEdit = async (c: Client) => {
+    let full = c;
+    if (c.billing_cycle === undefined || c.notes === undefined || c.phone === undefined) {
+      const { data } = await supabase.from("clients").select("*").eq("id", c.id).single();
+      if (data) full = data as Client;
+    }
+    setEditing(full);
+    const day = full.next_billing_date ? new Date(full.next_billing_date).getUTCDate() : 5;
     setDraft({
-      company_name: c.company_name,
-      contact_name: c.contact_name ?? "",
-      email: c.email ?? "",
-      phone: c.phone ?? "",
-      status: c.status,
-      mrr: Number(c.mrr),
-      billing_cycle: c.billing_cycle,
+      company_name: full.company_name,
+      contact_name: full.contact_name ?? "",
+      email: full.email ?? "",
+      phone: full.phone ?? "",
+      status: full.status,
+      mrr: Number(full.mrr),
+      billing_cycle: full.billing_cycle ?? "monthly",
       next_billing_day: day,
-      services: Array.isArray(c.services) ? c.services : [],
-      notes: c.notes ?? "",
-      bot_status_url: c.bot_status_url ?? "",
-      bot_secret: c.bot_secret ?? "",
+      services: Array.isArray(full.services) ? full.services : [],
+      notes: full.notes ?? "",
+      bot_status_url: full.bot_status_url ?? "",
+      bot_secret: full.bot_secret ?? "",
     });
     setOpen(true);
   };
@@ -1063,7 +1120,7 @@ function Clients() {
           <p className="text-xs uppercase tracking-widest text-muted-foreground">B2B Accounts</p>
           <h2 className="mt-1 text-2xl font-semibold tracking-tight">Client Manager</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            {clients.length} clients · ${totalMrr.toLocaleString()} MRR contracted
+            {totalClientsCount} clients · ${totalMrr.toLocaleString()} MRR contracted
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -1090,7 +1147,8 @@ function Clients() {
             <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading clients…
           </div>
         ) : (
-          <Table>
+          <>
+            <Table>
             <TableHeader>
               <TableRow className="border-border/60 hover:bg-transparent">
                 <TableHead>Client</TableHead>
@@ -1239,7 +1297,7 @@ function Clients() {
                     colSpan={7}
                     className="py-10 text-center text-sm text-muted-foreground"
                   >
-                    {clients.length === 0
+                    {totalClientsCount === 0 && !query.trim()
                       ? "No clients yet. Click “Add New Client” to onboard your first account."
                       : "No clients match your search."}
                   </TableCell>
@@ -1247,6 +1305,41 @@ function Clients() {
               )}
             </TableBody>
           </Table>
+          {totalClientsCount > 0 && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-border/60 px-4 py-3 text-xs text-muted-foreground">
+              <div>
+                Showing <span className="font-medium text-foreground">{Math.min((page - 1) * pageSize + 1, totalClientsCount)}</span> to{" "}
+                <span className="font-medium text-foreground">{Math.min(page * pageSize, totalClientsCount)}</span> of{" "}
+                <span className="font-medium text-foreground">{totalClientsCount}</span> clients
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="mr-2">
+                  Page {page} of {Math.max(1, Math.ceil(totalClientsCount / pageSize))}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 px-2"
+                  disabled={page <= 1 || loading}
+                  onClick={() => handlePageChange(page - 1)}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  <span className="sr-only">Previous Page</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 px-2"
+                  disabled={page >= Math.ceil(totalClientsCount / pageSize) || loading}
+                  onClick={() => handlePageChange(page + 1)}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                  <span className="sr-only">Next Page</span>
+                </Button>
+              </div>
+            </div>
+          )}
+        </>
         )}
       </Card>
 
@@ -2294,41 +2387,50 @@ function resolveDashboardUrl(
   slug: string,
   botStatusUrl: string | null | undefined,
 ) {
-  let apiUrl = "https://wiltech-bot.fly.dev";
+  const isLocal =
+    typeof window !== "undefined" &&
+    (window.location.hostname === "127.0.0.1" || window.location.hostname === "localhost");
+
+  let defaultBase = isLocal
+    ? "http://127.0.0.1:5174"
+    : `https://stage-${slug}-messaging.fly.dev`;
+
+  let apiUrl = defaultBase;
   try {
     if (botStatusUrl) apiUrl = new URL(botStatusUrl).origin;
   } catch {
-    // The fallback keeps older bot records usable while their connection data
-    // is completed from Client Manager.
+    // El fallback mantiene accesibles los bots mientras se configura su endpoint en Fly.
   }
 
   try {
     if (storedUrl) {
       const persisted = new URL(storedUrl);
-      if (persisted.protocol === "https:" && persisted.hostname !== "127.0.0.1" && persisted.hostname !== "localhost") {
+      if (
+        persisted.protocol === "https:" ||
+        (isLocal && (persisted.hostname === "127.0.0.1" || persisted.hostname === "localhost"))
+      ) {
         persisted.searchParams.set("tenant", slug);
         persisted.searchParams.set("api", apiUrl);
         return persisted.toString();
       }
     }
   } catch {
-    // Invalid or historical local URLs fall through to the bot's public Fly origin.
+    // En caso de URLs no válidas se usa la base calculada.
   }
 
+  const base = isLocal ? "http://127.0.0.1:5174" : apiUrl;
   const params = new URLSearchParams({ tenant: slug, api: apiUrl });
-  return `${apiUrl}/?${params.toString()}`;
+  return `${base}/?${params.toString()}`;
 }
 
 function buildFallbackBots(client: Client): ClientBot[] {
-  // Only historical clients with an actual saved endpoint get a fallback.
-  // A service subscription by itself is not a bot; otherwise a deleted bot
-  // would reappear as a fake local dashboard after its records are removed.
+  // Solo los clientes con un endpoint registrado reciben fallback.
   if (!client.bot_status_url) return [];
 
   const slug = extractSlugFromBotUrl(client.bot_status_url ?? "") || knownTenantSlug(client);
   const endpoint =
     client.bot_status_url ||
-    (slug ? `https://wiltech-bot.fly.dev/api/${slug}/config/bot-activo` : null);
+    (slug ? `https://stage-${slug}-messaging.fly.dev/api/${slug}/config/bot-activo` : null);
 
   return [
     {
@@ -2340,7 +2442,7 @@ function buildFallbackBots(client: Client): ClientBot[] {
       product_name: BOT_TOGGLE_SERVICE,
       status: client.bot_activo ? "active" : "draft",
       bot_status_url: endpoint,
-      bot_secret: client.bot_secret,
+      bot_secret: client.bot_secret ?? null,
       dashboard_url: null,
       github_commit_url: null,
       created_at: client.created_at,

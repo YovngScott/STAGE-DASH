@@ -24,8 +24,12 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiWebappFactoryRouteImport } from './routes/api.webapp-factory'
 import { Route as ApiQualityCenterRouteImport } from './routes/api.quality-center'
 import { Route as ApiProvisionStatusRouteImport } from './routes/api.provision-status'
+import { Route as ApiMagicOnboardRouteImport } from './routes/api.magic-onboard'
 import { Route as ApiImpersonateRouteImport } from './routes/api.impersonate'
+import { Route as ApiCopilotRouteImport } from './routes/api.copilot'
 import { Route as ApiClientAdminUserRouteImport } from './routes/api.client-admin-user'
+import { Route as ApiCatalogStockRouteImport } from './routes/api.catalog-stock'
+import { Route as ApiCatalogImportRouteImport } from './routes/api.catalog-import'
 import { Route as ApiBotWhatsappRouteImport } from './routes/api.bot-whatsapp'
 import { Route as ApiBotToggleRouteImport } from './routes/api.bot-toggle'
 import { Route as ApiBotLifecycleRouteImport } from './routes/api.bot-lifecycle'
@@ -33,6 +37,7 @@ import { Route as ApiBotHealthRouteImport } from './routes/api.bot-health'
 import { Route as ApiBotEnvioAutomaticoRouteImport } from './routes/api.bot-envio-automatico'
 import { Route as ApiBotEditRouteImport } from './routes/api.bot-edit'
 import { Route as ApiBotBuilderRouteImport } from './routes/api.bot-builder'
+import { Route as ApiWebhooksLeadsRouteImport } from './routes/api.webhooks.leads'
 
 const WebsiteRoute = WebsiteRouteImport.update({
   id: '/website',
@@ -109,14 +114,34 @@ const ApiProvisionStatusRoute = ApiProvisionStatusRouteImport.update({
   path: '/api/provision-status',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiMagicOnboardRoute = ApiMagicOnboardRouteImport.update({
+  id: '/api/magic-onboard',
+  path: '/api/magic-onboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiImpersonateRoute = ApiImpersonateRouteImport.update({
   id: '/api/impersonate',
   path: '/api/impersonate',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCopilotRoute = ApiCopilotRouteImport.update({
+  id: '/api/copilot',
+  path: '/api/copilot',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiClientAdminUserRoute = ApiClientAdminUserRouteImport.update({
   id: '/api/client-admin-user',
   path: '/api/client-admin-user',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiCatalogStockRoute = ApiCatalogStockRouteImport.update({
+  id: '/api/catalog-stock',
+  path: '/api/catalog-stock',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiCatalogImportRoute = ApiCatalogImportRouteImport.update({
+  id: '/api/catalog-import',
+  path: '/api/catalog-import',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiBotWhatsappRoute = ApiBotWhatsappRouteImport.update({
@@ -154,6 +179,11 @@ const ApiBotBuilderRoute = ApiBotBuilderRouteImport.update({
   path: '/api/bot-builder',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiWebhooksLeadsRoute = ApiWebhooksLeadsRouteImport.update({
+  id: '/api/webhooks/leads',
+  path: '/api/webhooks/leads',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -175,11 +205,16 @@ export interface FileRoutesByFullPath {
   '/api/bot-lifecycle': typeof ApiBotLifecycleRoute
   '/api/bot-toggle': typeof ApiBotToggleRoute
   '/api/bot-whatsapp': typeof ApiBotWhatsappRoute
+  '/api/catalog-import': typeof ApiCatalogImportRoute
+  '/api/catalog-stock': typeof ApiCatalogStockRoute
   '/api/client-admin-user': typeof ApiClientAdminUserRoute
+  '/api/copilot': typeof ApiCopilotRoute
   '/api/impersonate': typeof ApiImpersonateRoute
+  '/api/magic-onboard': typeof ApiMagicOnboardRoute
   '/api/provision-status': typeof ApiProvisionStatusRoute
   '/api/quality-center': typeof ApiQualityCenterRoute
   '/api/webapp-factory': typeof ApiWebappFactoryRoute
+  '/api/webhooks/leads': typeof ApiWebhooksLeadsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -201,11 +236,16 @@ export interface FileRoutesByTo {
   '/api/bot-lifecycle': typeof ApiBotLifecycleRoute
   '/api/bot-toggle': typeof ApiBotToggleRoute
   '/api/bot-whatsapp': typeof ApiBotWhatsappRoute
+  '/api/catalog-import': typeof ApiCatalogImportRoute
+  '/api/catalog-stock': typeof ApiCatalogStockRoute
   '/api/client-admin-user': typeof ApiClientAdminUserRoute
+  '/api/copilot': typeof ApiCopilotRoute
   '/api/impersonate': typeof ApiImpersonateRoute
+  '/api/magic-onboard': typeof ApiMagicOnboardRoute
   '/api/provision-status': typeof ApiProvisionStatusRoute
   '/api/quality-center': typeof ApiQualityCenterRoute
   '/api/webapp-factory': typeof ApiWebappFactoryRoute
+  '/api/webhooks/leads': typeof ApiWebhooksLeadsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -228,11 +268,16 @@ export interface FileRoutesById {
   '/api/bot-lifecycle': typeof ApiBotLifecycleRoute
   '/api/bot-toggle': typeof ApiBotToggleRoute
   '/api/bot-whatsapp': typeof ApiBotWhatsappRoute
+  '/api/catalog-import': typeof ApiCatalogImportRoute
+  '/api/catalog-stock': typeof ApiCatalogStockRoute
   '/api/client-admin-user': typeof ApiClientAdminUserRoute
+  '/api/copilot': typeof ApiCopilotRoute
   '/api/impersonate': typeof ApiImpersonateRoute
+  '/api/magic-onboard': typeof ApiMagicOnboardRoute
   '/api/provision-status': typeof ApiProvisionStatusRoute
   '/api/quality-center': typeof ApiQualityCenterRoute
   '/api/webapp-factory': typeof ApiWebappFactoryRoute
+  '/api/webhooks/leads': typeof ApiWebhooksLeadsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -256,11 +301,16 @@ export interface FileRouteTypes {
     | '/api/bot-lifecycle'
     | '/api/bot-toggle'
     | '/api/bot-whatsapp'
+    | '/api/catalog-import'
+    | '/api/catalog-stock'
     | '/api/client-admin-user'
+    | '/api/copilot'
     | '/api/impersonate'
+    | '/api/magic-onboard'
     | '/api/provision-status'
     | '/api/quality-center'
     | '/api/webapp-factory'
+    | '/api/webhooks/leads'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -282,11 +332,16 @@ export interface FileRouteTypes {
     | '/api/bot-lifecycle'
     | '/api/bot-toggle'
     | '/api/bot-whatsapp'
+    | '/api/catalog-import'
+    | '/api/catalog-stock'
     | '/api/client-admin-user'
+    | '/api/copilot'
     | '/api/impersonate'
+    | '/api/magic-onboard'
     | '/api/provision-status'
     | '/api/quality-center'
     | '/api/webapp-factory'
+    | '/api/webhooks/leads'
   id:
     | '__root__'
     | '/'
@@ -308,11 +363,16 @@ export interface FileRouteTypes {
     | '/api/bot-lifecycle'
     | '/api/bot-toggle'
     | '/api/bot-whatsapp'
+    | '/api/catalog-import'
+    | '/api/catalog-stock'
     | '/api/client-admin-user'
+    | '/api/copilot'
     | '/api/impersonate'
+    | '/api/magic-onboard'
     | '/api/provision-status'
     | '/api/quality-center'
     | '/api/webapp-factory'
+    | '/api/webhooks/leads'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -335,11 +395,16 @@ export interface RootRouteChildren {
   ApiBotLifecycleRoute: typeof ApiBotLifecycleRoute
   ApiBotToggleRoute: typeof ApiBotToggleRoute
   ApiBotWhatsappRoute: typeof ApiBotWhatsappRoute
+  ApiCatalogImportRoute: typeof ApiCatalogImportRoute
+  ApiCatalogStockRoute: typeof ApiCatalogStockRoute
   ApiClientAdminUserRoute: typeof ApiClientAdminUserRoute
+  ApiCopilotRoute: typeof ApiCopilotRoute
   ApiImpersonateRoute: typeof ApiImpersonateRoute
+  ApiMagicOnboardRoute: typeof ApiMagicOnboardRoute
   ApiProvisionStatusRoute: typeof ApiProvisionStatusRoute
   ApiQualityCenterRoute: typeof ApiQualityCenterRoute
   ApiWebappFactoryRoute: typeof ApiWebappFactoryRoute
+  ApiWebhooksLeadsRoute: typeof ApiWebhooksLeadsRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -449,6 +514,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiProvisionStatusRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/magic-onboard': {
+      id: '/api/magic-onboard'
+      path: '/api/magic-onboard'
+      fullPath: '/api/magic-onboard'
+      preLoaderRoute: typeof ApiMagicOnboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/impersonate': {
       id: '/api/impersonate'
       path: '/api/impersonate'
@@ -456,11 +528,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiImpersonateRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/copilot': {
+      id: '/api/copilot'
+      path: '/api/copilot'
+      fullPath: '/api/copilot'
+      preLoaderRoute: typeof ApiCopilotRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/client-admin-user': {
       id: '/api/client-admin-user'
       path: '/api/client-admin-user'
       fullPath: '/api/client-admin-user'
       preLoaderRoute: typeof ApiClientAdminUserRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/catalog-stock': {
+      id: '/api/catalog-stock'
+      path: '/api/catalog-stock'
+      fullPath: '/api/catalog-stock'
+      preLoaderRoute: typeof ApiCatalogStockRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/catalog-import': {
+      id: '/api/catalog-import'
+      path: '/api/catalog-import'
+      fullPath: '/api/catalog-import'
+      preLoaderRoute: typeof ApiCatalogImportRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/bot-whatsapp': {
@@ -512,6 +605,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiBotBuilderRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/webhooks/leads': {
+      id: '/api/webhooks/leads'
+      path: '/api/webhooks/leads'
+      fullPath: '/api/webhooks/leads'
+      preLoaderRoute: typeof ApiWebhooksLeadsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -535,11 +635,16 @@ const rootRouteChildren: RootRouteChildren = {
   ApiBotLifecycleRoute: ApiBotLifecycleRoute,
   ApiBotToggleRoute: ApiBotToggleRoute,
   ApiBotWhatsappRoute: ApiBotWhatsappRoute,
+  ApiCatalogImportRoute: ApiCatalogImportRoute,
+  ApiCatalogStockRoute: ApiCatalogStockRoute,
   ApiClientAdminUserRoute: ApiClientAdminUserRoute,
+  ApiCopilotRoute: ApiCopilotRoute,
   ApiImpersonateRoute: ApiImpersonateRoute,
+  ApiMagicOnboardRoute: ApiMagicOnboardRoute,
   ApiProvisionStatusRoute: ApiProvisionStatusRoute,
   ApiQualityCenterRoute: ApiQualityCenterRoute,
   ApiWebappFactoryRoute: ApiWebappFactoryRoute,
+  ApiWebhooksLeadsRoute: ApiWebhooksLeadsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

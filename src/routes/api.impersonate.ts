@@ -73,7 +73,9 @@ export const Route = createFileRoute("/api/impersonate")({
               ? deriveHost(bot_status_url)
               : dashboard_url
                 ? deriveHost(dashboard_url)
-                : "https://wiltech-bot.fly.dev";
+                : (process.env.STAGE_LOCAL_CLIENT_DASHBOARD_URL
+                    ? process.env.STAGE_LOCAL_CLIENT_DASHBOARD_URL.replace(/\/+$/, "")
+                    : `https://stage-${tenantSlug}-messaging.fly.dev`);
             finalRedirectTo = `${host}/?tenant=${tenantSlug}&api=${host}`;
           }
 
@@ -143,12 +145,15 @@ function getMessagingAdmin(): MessagingAdmin {
 }
 
 function deriveHost(url: string | null): string {
-  if (!url) return "https://wiltech-bot.fly.dev";
+  const fallback = (process.env.STAGE_LOCAL_CLIENT_DASHBOARD_URL
+    ? process.env.STAGE_LOCAL_CLIENT_DASHBOARD_URL.replace(/\/+$/, "")
+    : "http://127.0.0.1:5174");
+  if (!url) return fallback;
   try {
     const parsed = new URL(url);
     return parsed.origin;
   } catch {
-    return "https://wiltech-bot.fly.dev";
+    return fallback;
   }
 }
 

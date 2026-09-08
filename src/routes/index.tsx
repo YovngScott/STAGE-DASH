@@ -51,19 +51,9 @@ export const Route = createFileRoute("/")({
 interface Client {
   id: string;
   company_name: string;
-  contact_name: string | null;
-  email: string | null;
-  phone: string | null;
   status: string;
   mrr: number;
-  billing_cycle: string;
-  next_billing_date: string | null;
   services: string[] | null;
-  notes: string | null;
-  created_at: string;
-  bot_status_url: string | null;
-  bot_secret: string | null;
-  bot_activo: boolean;
 }
 
 interface LedgerEntry {
@@ -104,6 +94,8 @@ function monthLabel(dateStr: string, locale: string) {
 function Dashboard() {
   const { language, locale, text } = useLanguage();
   const [clients, setClients] = useState<Client[]>([]);
+  const [totalCount, setTotalCount] = useState<number | null>(null);
+  const [activeCount, setActiveCount] = useState<number | null>(null);
   const [entries, setEntries] = useState<LedgerEntry[]>([]);
   const [bots, setBots] = useState<BotHealth[]>([]);
   const [loading, setLoading] = useState(true);
@@ -119,8 +111,13 @@ function Dashboard() {
         data: { session },
       } = await supabase.auth.getSession();
 
-      const [cRes, lRes, hRes] = await Promise.all([
-        supabase.from("clients").select("*").order("created_at", { ascending: true }),
+      const [cRes, totalRes, activeRes, lRes, hRes] = await Promise.all([
+        supabase
+          .from("clients")
+          .select("id, company_name, status, mrr, services")
+          .order("created_at", { ascending: true }),
+        supabase.from("clients").select("*", { count: "exact", head: true }),
+        supabase.from("clients").select("*", { count: "exact", head: true }).eq("status", "active"),
         supabase.from("ledger_entries").select("id,date,amount,kind,category"),
         fetch("/api/bot-health", {
           method: "POST",
@@ -129,6 +126,12 @@ function Dashboard() {
       ]);
 
       if (!cRes.error) setClients((cRes.data ?? []) as Client[]);
+      if (totalRes.count !== null && totalRes.count !== undefined) {
+        setTotalCount(totalRes.count);
+      }
+      if (activeRes.count !== null && activeRes.count !== undefined) {
+        setActiveCount(activeRes.count);
+      }
       if (!lRes.error) setEntries((lRes.data ?? []) as LedgerEntry[]);
       if (hRes && hRes.bots) setBots(hRes.bots as BotHealth[]);
     } catch (e) {
@@ -144,6 +147,8 @@ function Dashboard() {
   }, []);
 
   const activeClients = useMemo(() => clients.filter((c) => c.status === "active"), [clients]);
+  const displayActiveCount = activeCount ?? activeClients.length;
+  const displayTotalCount = totalCount ?? clients.length;
   const mrr = activeClients.reduce((s, c) => s + Number(c.mrr), 0);
   
   // Costos API consolidados
@@ -204,7 +209,12 @@ function Dashboard() {
         data: { session },
       } = await supabase.auth.getSession();
       const bot = bots.find((b) => b.slug === slug);
-      const host = bot?.host || "https://wiltech-bot.fly.dev";
+      const isLocal =
+        typeof window !== "undefined" &&
+        (window.location.hostname === "127.0.0.1" || window.location.hostname === "localhost");
+      const host =
+        bot?.host ||
+        (isLocal ? "http://127.0.0.1:5174" : `https://stage-${slug}-messaging.fly.dev`);
       const dashboardUrl = `${host}/?tenant=${slug}&api=${host}`;
 
       const res = await fetch("/api/impersonate", {
@@ -319,8 +329,8 @@ function Dashboard() {
           value={`$${mrr.toLocaleString()}`}
           delta={
             language === "es"
-              ? `De ${activeClients.length} cliente${activeClients.length === 1 ? "" : "s"} activo${activeClients.length === 1 ? "" : "s"}`
-              : `From ${activeClients.length} active client${activeClients.length === 1 ? "" : "s"}`
+              ? `De ${displayActiveCount} cliente${displayActiveCount === 1 ? "" : "s"} activo${displayActiveCount === 1 ? "" : "s"}`
+              : `From ${displayActiveCount} active client${displayActiveCount === 1 ? "" : "s"}`
           }
           trend="up"
           icon={DollarSign}
@@ -335,8 +345,8 @@ function Dashboard() {
         />
         <KpiCard
           label={text("Clientes activos", "Active Clients")}
-          value={String(activeClients.length)}
-          delta={text(`${clients.length} registrados`, `${clients.length} registered`)}
+          value={String(displayActiveCount)}
+          delta={text(`${displayTotalCount} registrados`, `${displayTotalCount} registered`)}
           trend="up"
           icon={Users}
         />
