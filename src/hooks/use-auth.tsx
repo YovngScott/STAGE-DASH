@@ -18,7 +18,15 @@ const KNOWN_OWNER_EMAILS = [
   "stage.labs@hotmail.com",
   "itssilverio032008@gmail.com",
   "josephsilverio9498@gmail.com",
+  "wilfredmorillo37@gmail.com",
+  "doriandiaz1221@gmail.com",
+  "briannamrj@gmail.com",
 ];
+
+function isKnownOwnerEmail(email?: string | null) {
+  const clean = (email ?? "").toLowerCase().trim();
+  return Boolean(clean && KNOWN_OWNER_EMAILS.includes(clean));
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
@@ -26,8 +34,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const checkOwner = async (userId: string | undefined, email?: string | null) => {
-    const cleanEmail = (email ?? "").toLowerCase().trim();
-    if (cleanEmail && KNOWN_OWNER_EMAILS.includes(cleanEmail)) {
+    if (isKnownOwnerEmail(email)) {
       setIsOwner(true);
       return;
     }
@@ -65,7 +72,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Listener first — fires synchronously on subscribe with current session
     const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
       setSession(s);
-      // Defer role lookup — never call other supabase methods inside the callback synchronously
+      if (isKnownOwnerEmail(s?.user?.email)) {
+        setIsOwner(true);
+      }
       setTimeout(() => {
         void checkOwner(s?.user.id, s?.user.email);
       }, 0);
@@ -73,6 +82,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session);
+      if (isKnownOwnerEmail(data.session?.user?.email)) {
+        setIsOwner(true);
+      }
       void checkOwner(data.session?.user.id, data.session?.user.email).finally(() => setLoading(false));
     });
 
