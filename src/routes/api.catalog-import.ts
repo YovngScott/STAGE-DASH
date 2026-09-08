@@ -1,16 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { authorizeOwner } from "@/lib/auth-owner.server";
 import { extractPrices } from "@/lib/catalog/document-extract.server";
 import { toServicio } from "@/lib/catalog/catalog-migration";
 
 export const Route = createFileRoute("/api/catalog-import")({
   server: { handlers: { POST: async ({ request }) => {
-    const auth = request.headers.get("authorization") ?? "";
-    const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
-    const { data: user } = await supabaseAdmin.auth.getUser(token);
-    if (!user.user) return Response.json({ error: "No autorizado." }, { status: 401 });
-    const { data: owner } = await supabaseAdmin.rpc("has_role", { _user_id: user.user.id, _role: "owner" });
-    if (!owner) return Response.json({ error: "No autorizado." }, { status: 403 });
+    const denied = await authorizeOwner(request);
+    if (denied) return denied;
     const form = await request.formData();
     const tenantId = String(form.get("tenantId") ?? "");
     const file = form.get("file");

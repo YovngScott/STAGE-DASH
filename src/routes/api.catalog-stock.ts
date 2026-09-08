@@ -1,14 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { authorizeOwner } from "@/lib/auth-owner.server";
 
 export const Route = createFileRoute("/api/catalog-stock")({
   server: { handlers: { PATCH: async ({ request }) => {
-    const auth = request.headers.get("authorization") ?? "";
-    const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
-    const { data: user } = await supabaseAdmin.auth.getUser(token);
-    if (!user.user) return Response.json({ error: "No autorizado." }, { status: 401 });
-    const { data: owner } = await supabaseAdmin.rpc("has_role", { _user_id: user.user.id, _role: "owner" });
-    if (!owner) return Response.json({ error: "No autorizado." }, { status: 403 });
+    const denied = await authorizeOwner(request);
+    if (denied) return denied;
     const body = await request.json().catch(() => null) as { tenantId?: string; serviceId?: string; stock?: number; precio?: number } | null;
     if (!body?.tenantId || !body.serviceId || (body.stock === undefined && body.precio === undefined)) return Response.json({ error: "tenantId, serviceId y stock o precio son obligatorios." }, { status: 400 });
     if (!/^[0-9a-f-]{36}$/i.test(body.tenantId) || !/^[0-9a-f-]{36}$/i.test(body.serviceId)) return Response.json({ error: "Identificadores inválidos." }, { status: 400 });

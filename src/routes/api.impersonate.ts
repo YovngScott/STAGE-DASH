@@ -3,6 +3,7 @@ import type {} from "@tanstack/react-start";
 import { createClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { authorizeOwner } from "@/lib/auth-owner.server";
 
 const MESSAGING_SUPABASE_URL =
   process.env.STAGE_MESSAGING_SUPABASE_URL || "https://vulyyztktylldfnuvzbn.supabase.co";
@@ -13,7 +14,7 @@ export const Route = createFileRoute("/api/impersonate")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const ownerError = await requireOwner(request);
+        const ownerError = await authorizeOwner(request);
         if (ownerError) return ownerError;
 
         let body: { clientId?: string; tenantSlug?: string; redirectTo?: string };
@@ -128,15 +129,6 @@ export const Route = createFileRoute("/api/impersonate")({
   },
 });
 
-async function requireOwner(request: Request): Promise<Response | null> {
-  const authHeader = request.headers.get("authorization") ?? "";
-  const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
-  if (!token) return Response.json({ error: "No autorizado." }, { status: 401 });
-  const { data: userData, error: userError } = await supabase.auth.getUser(token);
-  if (userError || !userData.user) return Response.json({ error: "No autorizado." }, { status: 401 });
-  const { data: isOwner } = await supabase.rpc("has_role", { _user_id: userData.user.id, _role: "owner" });
-  return isOwner ? null : Response.json({ error: "No autorizado." }, { status: 401 });
-}
 
 function getMessagingAdmin(): MessagingAdmin {
   const key = process.env.STAGE_MESSAGING_SUPABASE_SERVICE_ROLE_KEY;

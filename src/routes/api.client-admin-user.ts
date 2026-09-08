@@ -3,6 +3,7 @@ import type {} from "@tanstack/react-start";
 import { createClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { authorizeOwner } from "@/lib/auth-owner.server";
 
 const MESSAGING_SUPABASE_URL =
   process.env.STAGE_MESSAGING_SUPABASE_URL || "https://vulyyztktylldfnuvzbn.supabase.co";
@@ -29,7 +30,7 @@ export const Route = createFileRoute("/api/client-admin-user")({
   server: {
     handlers: {
       GET: async ({ request }) => {
-        const ownerError = await requireOwner(request);
+        const ownerError = await authorizeOwner(request);
         if (ownerError) return ownerError;
 
         const url = new URL(request.url);
@@ -68,7 +69,7 @@ export const Route = createFileRoute("/api/client-admin-user")({
       },
 
       POST: async ({ request }) => {
-        const ownerError = await requireOwner(request);
+        const ownerError = await authorizeOwner(request);
         if (ownerError) return ownerError;
         const body = await parseBody(request);
         if (body instanceof Response) return body;
@@ -130,7 +131,7 @@ export const Route = createFileRoute("/api/client-admin-user")({
       },
 
       PATCH: async ({ request }) => {
-        const ownerError = await requireOwner(request);
+        const ownerError = await authorizeOwner(request);
         if (ownerError) return ownerError;
         const body = await parseBody(request);
         if (body instanceof Response) return body;
@@ -138,10 +139,16 @@ export const Route = createFileRoute("/api/client-admin-user")({
         const clientId = String(body.clientId ?? "").trim();
         const tenantSlug = normalizeSlug(body.tenantSlug);
         const userId = String(body.userId ?? "").trim();
-        const email = normalizeEmail(body.email);
-        const password = String(body.password ?? "").trim();
-        if (!clientId || !tenantSlug || !userId || !email || (password && password.length < 8)) {
-          return Response.json({ error: "Datos de usuario inválidos." }, { status: 400 });
+        const password = typeof body.password === "string" ? body.password.trim() : "";
+        const displayName = typeof body.displayName === "string" ? body.displayName.trim() : undefined;
+        if (!clientId || !tenantSlug || !userId || (!password && displayName === undefined)) {
+          return Response.json(
+            { error: "Faltan clientId, tenantSlug, userId o datos para actualizar." },
+            { status: 400 },
+          );
+        }
+        if (password && password.length < 8) {
+          return Response.json({ error: "La nueva clave debe tener al menos 8 caracteres." }, { status: 400 });
         }
 
         try {
@@ -149,26 +156,23 @@ export const Route = createFileRoute("/api/client-admin-user")({
           const messagingAdmin = getMessagingAdmin();
           const tenantId = await resolveTenantId(messagingAdmin, tenantSlug);
           await assertTenantMembership(messagingAdmin, tenantId, userId);
-          const displayName = String(body.displayName ?? "").trim();
-          const update: Record<string, unknown> = {
-            email,
-            email_confirm: true,
-            user_metadata: { display_name: displayName },
-          };
-          if (password) update.password = password;
-          const { data, error } = await messagingAdmin.auth.admin.updateUserById(userId, update);
-          if (error || !data.user) throw new Error(error?.message ?? "No se pudo actualizar el usuario.");
 
-          await supabaseAdmin.from("client_email_accounts").delete().eq("client_id", clientId).eq("auth_user_id", userId);
-          await trackClientAccount({ clientId, userId, email, displayName });
-          return Response.json({ ok: true, user: serializeAuthUser(data.user) });
+          const attributes: { password?: string; user_metadata?: { display_name?: string } } = {};
+          if (password) attributes.password = password;
+          if (displayName !== undefined) attributes.user_metadata = { display_name: displayName };
+          const updated = await messagingAdmin.auth.admin.updateUserById(userId, attributes);
+          if (updated.error) throw new Error(updated.error.message);
+          const user = updated.data.user;
+          if (!user) throw new Error("No se pudo actualizar el usuario.");
+          await trackClientAccount({ clientId, userId: user.id, email: user.email ?? "", displayName });
+          return Response.json({ ok: true, user: serializeAuthUser(user) });
         } catch (error) {
           return Response.json({ error: messageFrom(error) }, { status: 502 });
         }
       },
 
       DELETE: async ({ request }) => {
-        const ownerError = await requireOwner(request);
+        const ownerError = await authorizeOwner(request);
         if (ownerError) return ownerError;
         const body = await parseBody(request);
         if (body instanceof Response) return body;
@@ -212,16 +216,6 @@ export const Route = createFileRoute("/api/client-admin-user")({
     },
   },
 });
-
-async function requireOwner(request: Request): Promise<Response | null> {
-  const authHeader = request.headers.get("authorization") ?? "";
-  const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
-  if (!token) return Response.json({ error: "No autorizado." }, { status: 401 });
-  const { data: userData, error: userError } = await supabase.auth.getUser(token);
-  if (userError || !userData.user) return Response.json({ error: "No autorizado." }, { status: 401 });
-  const { data: isOwner } = await supabase.rpc("has_role", { _user_id: userData.user.id, _role: "owner" });
-  return isOwner ? null : Response.json({ error: "No autorizado." }, { status: 401 });
-}
 
 async function parseBody(request: Request): Promise<DashboardUserBody | Response> {
   try {

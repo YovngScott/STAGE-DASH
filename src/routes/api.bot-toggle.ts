@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import type {} from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { authorizeOwner } from "@/lib/auth-owner.server";
 
 // Server-only bridge: the browser never talks to a client's separate bot
 // backend (and its shared secret) directly. It calls this route with the
@@ -15,11 +16,8 @@ export const Route = createFileRoute("/api/bot-toggle")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const authHeader = request.headers.get("authorization") ?? "";
-        const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
-        if (!token) {
-          return Response.json({ error: "No autorizado." }, { status: 401 });
-        }
+        const denied = await authorizeOwner(request);
+        if (denied) return denied;
 
         let body: {
           clientId?: string;
@@ -40,18 +38,6 @@ export const Route = createFileRoute("/api/bot-toggle")({
         const activo = Boolean(body.activo);
         if (!clientId && !botId && (!body.botStatusUrl || !body.botSecret)) {
           return Response.json({ error: "Falta clientId, botId o credenciales locales del bot." }, { status: 400 });
-        }
-
-        const { data: userData, error: userError } = await supabase.auth.getUser(token);
-        if (userError || !userData.user) {
-          return Response.json({ error: "No autorizado." }, { status: 401 });
-        }
-        const { data: isOwner } = await supabase.rpc("has_role", {
-          _user_id: userData.user.id,
-          _role: "owner",
-        });
-        if (!isOwner) {
-          return Response.json({ error: "No autorizado." }, { status: 401 });
         }
 
         // Las credenciales nunca deben venir del navegador: además de ser un

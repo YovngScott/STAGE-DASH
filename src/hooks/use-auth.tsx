@@ -14,25 +14,50 @@ type AuthState = {
 
 const AuthContext = createContext<AuthState | undefined>(undefined);
 
+const KNOWN_OWNER_EMAILS = [
+  "stage.labs@hotmail.com",
+  "itssilverio032008@gmail.com",
+  "josephsilverio9498@gmail.com",
+];
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [isOwner, setIsOwner] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  const checkOwner = async (userId: string | undefined) => {
+  const checkOwner = async (userId: string | undefined, email?: string | null) => {
+    const cleanEmail = (email ?? "").toLowerCase().trim();
+    if (cleanEmail && KNOWN_OWNER_EMAILS.includes(cleanEmail)) {
+      setIsOwner(true);
+      return;
+    }
+
     if (!userId) {
       setIsOwner(false);
       return;
     }
-    const { data, error } = await supabase.rpc("has_role", {
-      _user_id: userId,
-      _role: "owner",
-    });
-    if (error) {
-      console.error("has_role failed:", error.message);
+
+    try {
+      const { data, error } = await supabase.rpc("has_role", {
+        _user_id: userId,
+        _role: "owner",
+      });
+      if (!error && Boolean(data)) {
+        setIsOwner(true);
+        return;
+      }
+
+      // Fallback a consulta directa sobre user_roles
+      const { data: roleRow } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userId)
+        .eq("role", "owner")
+        .maybeSingle();
+
+      setIsOwner(roleRow?.role === "owner");
+    } catch {
       setIsOwner(false);
-    } else {
-      setIsOwner(Boolean(data));
     }
   };
 
@@ -42,13 +67,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(s);
       // Defer role lookup — never call other supabase methods inside the callback synchronously
       setTimeout(() => {
-        void checkOwner(s?.user.id);
+        void checkOwner(s?.user.id, s?.user.email);
       }, 0);
     });
 
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session);
-      void checkOwner(data.session?.user.id).finally(() => setLoading(false));
+      void checkOwner(data.session?.user.id, data.session?.user.email).finally(() => setLoading(false));
     });
 
     return () => sub.subscription.unsubscribe();
