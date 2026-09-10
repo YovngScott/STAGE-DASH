@@ -169,8 +169,8 @@ function formatServiceValue(value: unknown): string {
 
 /**
  * Ejecutor de modelo para validaciones del Centro de Calidad.
- * Utiliza prioritariamente Gemini 1.5 Flash (@google/generative-ai) para alta cuota
- * de tokens por minuto (TPM), evitando bloqueos por rate-limit.
+ * Utiliza prioritariamente la cascada resiliente de Gemini Flash (@google/generative-ai),
+ * con contingencia automática hacia Groq si la clave está disponible.
  */
 async function runModel(
   record: QualityRecord,
@@ -179,7 +179,18 @@ async function runModel(
   const geminiKey = (process.env.STAGE_GEMINI_API_KEY || process.env.GEMINI_API_KEY || "").trim();
 
   if (geminiKey) {
-    return runModelGemini(record, question, geminiKey);
+    try {
+      return await runModelGemini(record, question, geminiKey);
+    } catch (geminiError: any) {
+      console.warn(`[quality-engine] Fallo en cascada Gemini: ${geminiError?.message}`);
+      const groqApiKey =
+        process.env.STAGE_TEST_GROQ_API_KEY?.trim() || process.env.STAGE_DEFAULT_GROQ_API_KEY?.trim();
+      if (groqApiKey) {
+        console.warn("[quality-engine] Activando proveedor de contingencia Groq...");
+        return await runModelGroq(record, question, groqApiKey);
+      }
+      throw geminiError;
+    }
   }
 
   const groqApiKey =
@@ -189,12 +200,12 @@ async function runModel(
   }
 
   throw new Error(
-    "Falta STAGE_GEMINI_API_KEY en las variables de entorno para ejecutar el validador automático con Gemini 1.5 Flash.",
+    "Falta STAGE_GEMINI_API_KEY o STAGE_TEST_GROQ_API_KEY en las variables de entorno para ejecutar el validador automático del Centro de Calidad.",
   );
 }
 
 /**
- * Validador con Gemini 1.5 Flash y Backoff Exponencial (2s a 5s).
+ * Validador con Cascada Resiliente de Gemini Flash y Fallback Automático.
  */
 async function runModelGemini(
   record: QualityRecord,
@@ -206,12 +217,16 @@ async function runModelGemini(
 
   const modelsToTry = [
     process.env.STAGE_GEMINI_MODEL,
+    "gemini-flash-lite-latest",
+    "gemini-flash-latest",
+    "gemini-3.6-flash",
+    "gemini-3.8-flash",
+    "gemini-3.1-flash-lite",
     "gemini-3.5-flash",
     "gemini-3.5-flash-lite",
-    "gemini-1.5-flash",
   ].filter(Boolean) as string[];
 
-  const maxRetries = 3;
+  const maxRetries = 2;
   let lastError: any = null;
 
   for (const modelName of modelsToTry) {
@@ -266,23 +281,36 @@ async function runModelGemini(
         const status = err?.status || err?.code;
         const msg = String(err?.message || "").toLowerCase();
 
-        // Si el modelo retorna 404 (retirado o no disponible en este tier), probar siguiente modelo de la lista
-        if (status === 404 || msg.includes("not found") || msg.includes("no longer available")) {
+        // Si el modelo retorna 404 (retirado o no disponible en este tier), probar siguiente modelo de inmediato sin reintentos
+        if (
+          status === 404 ||
+          msg.includes("not found") ||
+          msg.includes("no longer available") ||
+          msg.includes("is not found for api version")
+        ) {
           console.warn(
-            `[quality-engine:gemini] Modelo ${modelName} no disponible (404), probando siguiente modelo...`,
+            `[quality-engine:gemini] Modelo ${modelName} no disponible (404), probando siguiente modelo de la cascada...`,
           );
           break;
         }
 
-        const isRateLimit =
-          status === 429 ||
-          msg.includes("rate limit") ||
-          msg.includes("resource exhausted") ||
-          msg.includes("quota");
+        // Si la cuota del modelo fue agotada por completo (429 resource_exhausted / quota exceeded), alternar sin demora
+        if (
+          msg.includes("resource_exhausted") ||
+          msg.includes("quota") ||
+          msg.includes("exceeded your current quota")
+        ) {
+          console.warn(
+            `[quality-engine:gemini] Cuota agotada en ${modelName}, alternando al siguiente modelo disponible...`,
+          );
+          break;
+        }
+
+        const isRateLimit = status === 429 || msg.includes("rate limit");
         const isTransient = isRateLimit || status === 500 || status === 503;
 
         if (attempt < maxRetries && isTransient) {
-          const delayMs = Math.min(2000 * Math.pow(1.5, attempt - 1), 5000);
+          const delayMs = Math.min(1000 * Math.pow(1.5, attempt - 1), 3000);
           console.warn(
             `[quality-engine:gemini] Reintento ${attempt}/${maxRetries} en ${modelName} tras fallo temporal (${err?.message}). Esperando ${delayMs}ms...`,
           );

@@ -106,44 +106,15 @@ export const Route = createFileRoute("/api/magic-onboard")({
           }
 
           const genAI = new GoogleGenerativeAI(apiKey);
-          const model = genAI.getGenerativeModel({
-            model: "gemini-1.5-flash",
-            generationConfig: {
-              responseMimeType: "application/json",
-              responseSchema: {
-                type: SchemaType.OBJECT,
-                properties: {
-                  name: {
-                    type: SchemaType.STRING,
-                    description: "Nombre oficial o comercial del negocio o empresa.",
-                  },
-                  phone: {
-                    type: SchemaType.STRING,
-                    description:
-                      "Número de teléfono o WhatsApp principal en formato internacional E.164 (ej. +18095551234). Si no se encuentra, usa '+18090000000'.",
-                  },
-                  prompt: {
-                    type: SchemaType.STRING,
-                    description:
-                      "Resumen conciso del negocio, reglas de atención, productos y políticas operativas clave (máximo 3 líneas).",
-                  },
-                  businessHours: {
-                    type: SchemaType.STRING,
-                    description:
-                      "Horario de atención al público (ej. Lunes a viernes de 9:00 AM a 6:00 PM).",
-                  },
-                  services: {
-                    type: SchemaType.ARRAY,
-                    items: {
-                      type: SchemaType.STRING,
-                    },
-                    description: "Lista de servicios o productos principales identificados.",
-                  },
-                },
-                required: ["name", "phone", "prompt", "businessHours", "services"],
-              },
-            },
-          });
+          const CANDIDATE_MODELS = [
+            process.env.STAGE_GEMINI_MODEL,
+            "gemini-flash-lite-latest",
+            "gemini-flash-latest",
+            "gemini-3.6-flash",
+            "gemini-3.8-flash",
+            "gemini-3.1-flash-lite",
+            "gemini-3.5-flash",
+          ].filter(Boolean) as string[];
 
           const instructionPrompt = `Analiza la siguiente información de una empresa o sitio web y extrae los datos clave para configurar su bot de atención y automatización de clientes:
 
@@ -158,8 +129,62 @@ Instrucciones:
 4. "businessHours": Extrae el horario de atención o asigna "Lunes a viernes de 9:00 AM a 6:00 PM" si no se especifica.
 5. "services": Extrae entre 2 y 8 servicios o productos principales ofrecidos.`;
 
-          const result = await model.generateContent(instructionPrompt);
-          const responseText = result.response.text();
+          let responseText = "";
+          let lastModelError: any = null;
+
+          for (const modelName of CANDIDATE_MODELS) {
+            try {
+              const model = genAI.getGenerativeModel({
+                model: modelName,
+                generationConfig: {
+                  responseMimeType: "application/json",
+                  responseSchema: {
+                    type: SchemaType.OBJECT,
+                    properties: {
+                      name: {
+                        type: SchemaType.STRING,
+                        description: "Nombre oficial o comercial del negocio o empresa.",
+                      },
+                      phone: {
+                        type: SchemaType.STRING,
+                        description:
+                          "Número de teléfono o WhatsApp principal en formato internacional E.164 (ej. +18095551234). Si no se encuentra, usa '+18090000000'.",
+                      },
+                      prompt: {
+                        type: SchemaType.STRING,
+                        description:
+                          "Resumen conciso del negocio, reglas de atención, productos y políticas operativas clave (máximo 3 líneas).",
+                      },
+                      businessHours: {
+                        type: SchemaType.STRING,
+                        description:
+                          "Horario de atención al público (ej. Lunes a viernes de 9:00 AM a 6:00 PM).",
+                      },
+                      services: {
+                        type: SchemaType.ARRAY,
+                        items: {
+                          type: SchemaType.STRING,
+                        },
+                        description: "Lista de servicios o productos principales identificados.",
+                      },
+                    },
+                    required: ["name", "phone", "prompt", "businessHours", "services"],
+                  },
+                },
+              });
+
+              const result = await model.generateContent(instructionPrompt);
+              responseText = result.response.text();
+              if (responseText) break;
+            } catch (err: any) {
+              lastModelError = err;
+              console.warn(`[magic-onboard] Fallo en modelo ${modelName}: ${err?.message}, probando siguiente...`);
+            }
+          }
+
+          if (!responseText) {
+            throw new Error(lastModelError?.message || "No se pudo generar el contenido con los modelos de Gemini.");
+          }
 
           let parsedData: {
             name: string;

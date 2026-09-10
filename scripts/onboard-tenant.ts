@@ -213,7 +213,7 @@ export function generateTenantConfig(
   normalized: NonNullable<ValidationResult["normalized"]>,
 ) {
   const defaultModelName =
-    normalized.model === "groq" ? "llama-3.3-70b-versatile" : "gemini-1.5-flash";
+    normalized.model === "groq" ? "llama-3.3-70b-versatile" : "gemini-flash-latest";
 
   return {
     slug: normalized.slug,

@@ -101,7 +101,7 @@ async function getOrCreateQualityRecord(slugOrId: string) {
       zonaHoraria: "America/Santo_Domingo",
       preferredModel: {
         provider: "gemini",
-        modelName: "gemini-1.5-flash",
+        modelName: "gemini-flash-latest",
       },
       whatsapp: {
         provider: "baileys",
