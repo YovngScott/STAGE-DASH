@@ -646,7 +646,7 @@ export const Route = createFileRoute("/api/copilot")({
             // Segundo turno hacia Gemini para formular la respuesta en lenguaje natural
             let conversationalReply = "";
             try {
-              const secondTurnPrompt = `[Resultado de la herramienta '${call.name}']: ${JSON.stringify(toolExecutionResult)}. Proporciona un mensaje de respuesta claro, profesional y estructurado en español confirmando los detalles de la acción realizada. REGLA ESTRICTA: NO uses asteriscos en tu respuesta.`;
+              const secondTurnPrompt = `[Resultado de la herramienta '${call.name}']: ${JSON.stringify(toolExecutionResult)}. Proporciona un mensaje de respuesta claro, profesional y estructurado en español comunicando el resultado. Si la acción falló (success: false) o hubo un error en Supabase / base de datos, indícalo de forma explícita y transparente explicando el error técnico y qué se requiere para solucionarlo (ej. credenciales service_role válidas), sin afirmar bajo ninguna circunstancia que el aprovisionamiento fue exitoso. REGLA ESTRICTA: NO uses asteriscos en tu respuesta.`;
               const { data: secondTurnResult } = await executeWithModelCascade(
                 (c) => c.sendMessage(secondTurnPrompt),
                 "segundo turno (confirmación de herramienta)",
@@ -654,7 +654,11 @@ export const Route = createFileRoute("/api/copilot")({
               conversationalReply = secondTurnResult.response.text();
             } catch (secondTurnError) {
               console.warn("[Copilot Brain] Error en segundo turno:", secondTurnError);
-              conversationalReply = toolExecutionResult.message || `Acción '${call.name}' ejecutada con éxito.`;
+              conversationalReply =
+                toolExecutionResult.message ||
+                (toolExecutionResult.success !== false
+                  ? `Acción '${call.name}' ejecutada con éxito.`
+                  : `Error al ejecutar '${call.name}'.`);
             }
 
             return Response.json({

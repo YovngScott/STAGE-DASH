@@ -657,6 +657,38 @@ export async function executeSupabaseProvision(
 }
 
 /**
+ * Elimina los archivos generados en disco en caso de rollback atómico.
+ */
+export function removeTenantFiles(files?: {
+  configPath?: string;
+  sqlPath?: string;
+  templateConfigPath?: string;
+}) {
+  if (!files) return;
+  try {
+    if (files.configPath && fs.existsSync(files.configPath)) {
+      fs.unlinkSync(files.configPath);
+    }
+  } catch {
+    // ignore
+  }
+  try {
+    if (files.sqlPath && fs.existsSync(files.sqlPath)) {
+      fs.unlinkSync(files.sqlPath);
+    }
+  } catch {
+    // ignore
+  }
+  try {
+    if (files.templateConfigPath && fs.existsSync(files.templateConfigPath)) {
+      fs.unlinkSync(files.templateConfigPath);
+    }
+  } catch {
+    // ignore
+  }
+}
+
+/**
  * Guarda los archivos generados en el disco.
  */
 export function saveTenantFiles(
@@ -710,6 +742,7 @@ export interface ProvisionResult {
  * 1. Valida los datos y normaliza slug y teléfono E.164.
  * 2. Genera los archivos de configuración JSON y migración SQL.
  * 3. Ejecuta el upsert en la base de datos de Supabase si está disponible.
+ * 4. Si la base de datos falla, ejecuta rollback de archivos y retorna success: false.
  */
 export async function provisionTenant(
   inputData: Partial<TenantInputData>,
@@ -748,16 +781,23 @@ export async function provisionTenant(
 
   if (options.executeSupabase !== false) {
     supabaseResult = await executeSupabaseProvision(fullData, normalized);
-  }
 
-  const baseMsg = `Tenant '${normalized.slug}' (${fullData.name}) aprovisionado exitosamente en Stage AI Labs.`;
-  const finalMsg = supabaseResult.success
-    ? `${baseMsg} ${supabaseResult.message}`
-    : `${baseMsg} ${supabaseResult.message}`;
+    // Si la transacción en base de datos falló, ejecutar rollback atómico de archivos y retornar fallo
+    if (!supabaseResult.success) {
+      removeTenantFiles(files);
+      return {
+        success: false,
+        message: `Fallo de aprovisionamiento en base de datos: ${supabaseResult.message}`,
+        data: fullData,
+        normalized,
+        supabase: supabaseResult,
+      };
+    }
+  }
 
   return {
     success: true,
-    message: finalMsg,
+    message: `Tenant '${normalized.slug}' (${fullData.name}) aprovisionado exitosamente en Stage AI Labs. ${supabaseResult.message}`,
     data: fullData,
     normalized,
     files,
