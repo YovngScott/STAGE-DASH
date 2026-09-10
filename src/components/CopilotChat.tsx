@@ -47,7 +47,7 @@ const INITIAL_GREETING: ChatMessage = {
   id: "greeting",
   role: "copilot",
   content:
-    "¡Hola! Soy el **Agente Autónomo de Infraestructura de Stage AI Labs**.\n\nTengo control completo sobre la flota de bots y servicios de la plataforma. Puedes pedirme en lenguaje natural:\n* 📋 *«Lista todos los bots activos y sus teléfonos»*\n* 🚀 *«Aprovisiona un bot para Domínguez Auto Pintura (+1 809 555 0199), taller de desabolladura y pintura horneada»*\n* ✏️ *«Cambia el WhatsApp de Clínica Dental Sonrisas a +1 809 555 9999»*\n* ⚡ *«Haz un test de conexión al bot de Domínguez Auto Pintura»*",
+    "¡Hola! Soy el Agente Autónomo de Infraestructura de Stage AI Labs LLC, tu asistente especializado en la gestión y administración de nuestra plataforma de bots de inteligencia artificial.\n\nPuedo ayudarte a gestionar toda la infraestructura de clientes en tiempo real con nuestras herramientas integradas:\n\n1. Listar y Consultar Bots («list_bots»): Puedo mostrarte todos los bots y clientes activos en nuestra infraestructura, consultando sus IDs, slugs, números de teléfono y estados operativos.\n2. Provisionar Nuevos Bots («provisionar_bot_cliente»): Puedo dar de alta nuevos clientes y bots en nuestra base de datos (Supabase), configurando su prompt de negocio, reglas, presupuestos de tokens, límites de costos ($) y generando sus artefactos de producción.\n3. Actualizar Bots («update_bot»): Puedo modificar los parámetros de cualquier bot existente, como cambiar su número de WhatsApp, actualizar sus instrucciones/prompt o cambiar su estado comercial (activo, inactivo, pausado).\n4. Eliminar Bots («delete_bot»): Puedo dar de baja o eliminar bots de la base de datos de manera controlada cuando sea necesario.\n5. Probar Conectividad («test_bot»): Puedo enviar pings o mensajes de simulación a cualquier bot para verificar su latencia, conectividad y respuesta en tiempo real.\n\n¿En qué te puedo ayudar hoy? Si deseas ver la lista actual de bots, solo pídemelo.",
   timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
 };
 
@@ -78,35 +78,35 @@ const SUGGESTED_PROMPTS = [
   },
 ];
 
+function cleanAsterisks(text: string): string {
+  if (!text) return "";
+  return text
+    .replace(/\*\*(.*?)\*\*/g, "$1")
+    .replace(/\*(.*?)\*/g, "$1")
+    .replace(/\*/g, "");
+}
+
 function renderInlineFormatted(text: string): React.ReactNode[] {
+  // Limpia cualquier asterisco residual para garantizar un texto visualmente impecable
+  const cleaned = cleanAsterisks(text);
   const tokens: React.ReactNode[] = [];
-  let remaining = text;
+  let remaining = cleaned;
   let key = 0;
 
   while (remaining.length > 0) {
     // 1. Inline code: `code`
     const codeMatch = remaining.match(/^(.*?)`([^`]+)`(.*)$/s);
-    // 2. Bold: **bold**
-    const boldMatch = remaining.match(/^(.*?)\*\*([^*]+)\*\*(.*)$/s);
-    // 3. Link: [text](url)
+    // 2. Link: [text](url)
     const linkMatch = remaining.match(/^(.*?)\[([^\]]+)\]\(([^)]+)\)(.*)$/s);
-    // 4. Italic: *italic* (solo si no es parte de bold)
-    const italicMatch = remaining.match(/^(.*?)\*([^*]+)\*(.*)$/s);
 
-    type MatchCandidate = { type: "code" | "bold" | "link" | "italic"; index: number; match: RegExpMatchArray };
+    type MatchCandidate = { type: "code" | "link"; index: number; match: RegExpMatchArray };
     const candidates: MatchCandidate[] = [];
 
     if (codeMatch && codeMatch.index !== undefined) {
       candidates.push({ type: "code", index: codeMatch[1].length, match: codeMatch });
     }
-    if (boldMatch && boldMatch.index !== undefined) {
-      candidates.push({ type: "bold", index: boldMatch[1].length, match: boldMatch });
-    }
     if (linkMatch && linkMatch.index !== undefined) {
       candidates.push({ type: "link", index: linkMatch[1].length, match: linkMatch });
-    }
-    if (italicMatch && italicMatch.index !== undefined && !boldMatch) {
-      candidates.push({ type: "italic", index: italicMatch[1].length, match: italicMatch });
     }
 
     if (candidates.length === 0) {
@@ -114,7 +114,6 @@ function renderInlineFormatted(text: string): React.ReactNode[] {
       break;
     }
 
-    // Ordenar por el inicio más temprano
     candidates.sort((a, b) => a.index - b.index);
     const best = candidates[0];
 
@@ -133,13 +132,6 @@ function renderInlineFormatted(text: string): React.ReactNode[] {
         </code>
       );
       remaining = best.match[3] || "";
-    } else if (best.type === "bold") {
-      tokens.push(
-        <strong key={key++} className="font-semibold text-white">
-          {renderInlineFormatted(best.match[2])}
-        </strong>
-      );
-      remaining = best.match[3] || "";
     } else if (best.type === "link") {
       tokens.push(
         <a
@@ -153,13 +145,6 @@ function renderInlineFormatted(text: string): React.ReactNode[] {
         </a>
       );
       remaining = best.match[4] || "";
-    } else if (best.type === "italic") {
-      tokens.push(
-        <em key={key++} className="italic text-gray-300">
-          {renderInlineFormatted(best.match[2])}
-        </em>
-      );
-      remaining = best.match[3] || "";
     }
   }
 

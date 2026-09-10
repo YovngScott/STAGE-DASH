@@ -175,7 +175,16 @@ Reglas Estrictas:
 - Cuando el usuario pregunte por los bots ("muéstrame los bots", "lista de bots", "qué bots tenemos", "bots activos"), llama INMEDIATAMENTE a 'list_bots'.
 - Cuando el usuario pida cambiar un teléfono o nombre, usa 'update_bot'.
 - Cuando el usuario pida crear un bot, usa 'provisionar_bot_cliente'.
-- Responde siempre en español con tono profesional de ingeniería de software.`;
+- Responde siempre en español con tono profesional de ingeniería de software.
+- PROHIBICIÓN ABSOLUTA DE ASTERISCOS: ESTÁ TERMINANTEMENTE PROHIBIDO usar asteriscos (* o **) en tus respuestas. NUNCA uses negrita ni cursiva con asteriscos (**texto** o *texto*). Para títulos, listas o énfasis utiliza texto limpio, numeración (1., 2.), viñetas simples (-) o mayúsculas, pero CERO asteriscos.`;
+
+function cleanAsterisksFromText(text: string): string {
+  if (!text) return "";
+  return text
+    .replace(/\*\*(.*?)\*\*/g, "$1")
+    .replace(/\*(.*?)\*/g, "$1")
+    .replace(/\*/g, "");
+}
 
 interface IncomingMessage {
   role?: string;
@@ -637,7 +646,7 @@ export const Route = createFileRoute("/api/copilot")({
             // Segundo turno hacia Gemini para formular la respuesta en lenguaje natural
             let conversationalReply = "";
             try {
-              const secondTurnPrompt = `[Resultado de la herramienta '${call.name}']: ${JSON.stringify(toolExecutionResult)}. Proporciona un mensaje de respuesta claro, profesional y estructurado en español confirmando los detalles de la acción realizada.`;
+              const secondTurnPrompt = `[Resultado de la herramienta '${call.name}']: ${JSON.stringify(toolExecutionResult)}. Proporciona un mensaje de respuesta claro, profesional y estructurado en español confirmando los detalles de la acción realizada. REGLA ESTRICTA: NO uses asteriscos en tu respuesta.`;
               const { data: secondTurnResult } = await executeWithModelCascade(
                 (c) => c.sendMessage(secondTurnPrompt),
                 "segundo turno (confirmación de herramienta)",
@@ -650,7 +659,7 @@ export const Route = createFileRoute("/api/copilot")({
 
             return Response.json({
               success: Boolean(toolExecutionResult.success !== false),
-              reply: conversationalReply,
+              reply: cleanAsterisksFromText(conversationalReply),
               functionCall: {
                 name: call.name,
                 args: call.args,
@@ -663,7 +672,7 @@ export const Route = createFileRoute("/api/copilot")({
           const replyText = response.text();
           return Response.json({
             success: true,
-            reply: replyText,
+            reply: cleanAsterisksFromText(replyText),
           });
         } catch (error) {
           console.error("[Copilot Brain] Error en /api/copilot:", error);
