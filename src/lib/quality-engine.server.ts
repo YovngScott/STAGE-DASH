@@ -306,6 +306,20 @@ async function runModelGemini(
           break;
         }
 
+        // Si el modelo experimenta picos de demanda (503 Service Unavailable / high demand), alternar de inmediato
+        if (
+          status === 503 ||
+          msg.includes("503") ||
+          msg.includes("high demand") ||
+          msg.includes("service unavailable") ||
+          msg.includes("spikes in demand")
+        ) {
+          console.warn(
+            `[quality-engine:gemini] Modelo ${modelName} saturado temporalmente (503), alternando al siguiente modelo de la cascada...`,
+          );
+          break;
+        }
+
         const isRateLimit = status === 429 || msg.includes("rate limit");
         const isTransient = isRateLimit || status === 500 || status === 503;
 
