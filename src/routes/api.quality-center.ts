@@ -43,58 +43,191 @@ type ActionBody = {
   };
 };
 
+async function getOrCreateQualityRecord(slugOrId: string) {
+  const clean = slugOrId.trim();
+  if (!clean) return null;
+
+  // 1. Intentar cargar registro existente de calidad desde GitHub
+  let record = await loadQualityRecord(clean).catch(() => null);
+  if (record) return record;
+
+  // 2. Buscar en Supabase client_bots por slug o por id (UUID)
+  const { data: bot } = await supabaseAdmin
+    .from("client_bots")
+    .select("id,slug,name,kind,status,client_id,product_name")
+    .or(`slug.eq.${clean},id.eq.${clean}`)
+    .maybeSingle();
+
+  if (!bot) return null;
+
+  const actualSlug = bot.slug || clean;
+  if (actualSlug !== clean) {
+    record = await loadQualityRecord(actualSlug).catch(() => null);
+    if (record) return record;
+  }
+
+  // 3. Buscar configuración del tenant en GitHub o en disco local
+  let tenant = await readPublishedTenant(actualSlug);
+
+  const { data: client } = await supabaseAdmin
+    .from("clients")
+    .select("company_name,phone,email,notes,services,mrr")
+    .eq("id", bot.client_id)
+    .maybeSingle();
+
+  // 4. Si el tenant aún no existe en GitHub ni en disco, sintetizar configuración base desde DB
+  if (!tenant) {
+    const companyName = client?.company_name || bot.name || actualSlug;
+    const phone = client?.phone || "";
+    const cleanPhone = phone.replace(/[^\d+]/g, "");
+    const phoneDigits = cleanPhone.replace(/^\+/, "");
+    const kind = (bot.kind || "messaging") as "assistant" | "messaging" | "voice";
+
+    tenant = {
+      slug: actualSlug,
+      kind,
+      nombreBot: bot.name || `Asistente de ${companyName}`,
+      nombre: companyName,
+      descripcion: `Asistente virtual y atención automatizada vía WhatsApp para ${companyName}.`,
+      direccion: "Atención remota / República Dominicana",
+      horario: "Lunes a viernes, 09:00–18:00",
+      contacto: cleanPhone ? (cleanPhone.startsWith("+") ? cleanPhone : `+${cleanPhone}`) : "",
+      whatsappJid: phoneDigits ? `${phoneDigits}@s.whatsapp.net` : "",
+      redes: "",
+      servicios: Array.isArray(client?.services)
+        ? client.services.join(", ")
+        : `Servicios oficiales de ${companyName}`,
+      moneda: "USD",
+      zonaHoraria: "America/Santo_Domingo",
+      preferredModel: {
+        provider: "gemini",
+        modelName: "gemini-1.5-flash",
+      },
+      whatsapp: {
+        provider: "baileys",
+        phoneNumberId: "",
+        businessAccountId: "",
+        apiVersion: "v23.0",
+      },
+      schedule: {
+        businessDays: [1, 2, 3, 4, 5],
+        businessStart: "09:00",
+        businessEnd: "18:00",
+        quietStart: "20:00",
+        quietEnd: "08:00",
+        holidays: [],
+        appointmentReminderTime: "09:00",
+        dailyReportTime: "18:00",
+      },
+      adminEmails: client?.email ? [client.email] : ["owner@stagelabs.com"],
+      behavior: "sales",
+      policy: {
+        canQuoteByChat: false,
+        requireAppointmentConfirmation: true,
+        requireHumanForCommitments: true,
+      },
+      companyInfo: client?.notes || `Información de operaciones y servicios de ${companyName}.`,
+      extraInstructions:
+        "Responde siempre de forma cordial, concisa y profesional. Si el cliente solicita información no confirmada, escala amablemente la conversación a un agente humano.",
+      promptExtra: "",
+      googleCalendarId: "primary",
+      insuranceAutomationEnabled: false,
+      knowledgeBase: {
+        sourceName: `Base de Conocimiento - ${companyName}`,
+        content: "",
+        lastSyncedAt: new Date().toISOString(),
+      },
+      asistente:
+        kind === "assistant"
+          ? {
+              correo: `info@${actualSlug}.com`,
+              proveedor: "gmail",
+              whatsappAlertas: phoneDigits,
+              umbralConfianza: 0.35,
+              horaReporte: "18:00",
+              intervaloMinutos: 10,
+              maxPorCorrida: 25,
+              actuaComoTitular: false,
+              nombreTitular: companyName,
+              enviarAutomatico: false,
+              categorias: {
+                Ventas: "Consultas comerciales y cotizaciones",
+                Soporte: "Dudas y asistencia técnica",
+                General: "Asuntos administrativos de rutina",
+              },
+            }
+          : null,
+    };
+
+    try {
+      await writePublishedTenant(
+        actualSlug,
+        tenant,
+        `Crear configuración inicial de tenant para ${actualSlug}`,
+      );
+    } catch (writeTenantErr) {
+      console.warn(
+        `[Quality Center] Aviso: No se pudo escribir tenant en GitHub (${writeTenantErr instanceof Error ? writeTenantErr.message : String(writeTenantErr)})`,
+      );
+    }
+  }
+
+  record = newQualityRecord({
+    slug: actualSlug,
+    clientId: bot.client_id,
+    clientName: client?.company_name ?? tenant.nombre ?? actualSlug,
+    productName: bot.product_name ?? null,
+    botType: (bot.kind ?? tenant.kind ?? "messaging") as
+      "assistant" | "messaging" | "voice",
+    groqModel: "openai/gpt-oss-120b",
+    updateClient: false,
+    tenantConfig: tenant,
+  });
+  record.state = bot.status === "active" ? "active" : "draft";
+  record.publishedAt = bot.status === "active" ? new Date().toISOString() : null;
+
+  try {
+    await saveQualityRecord(record, `Importar ${actualSlug} al Centro de Calidad`);
+  } catch (saveRecErr) {
+    console.warn(
+      `[Quality Center] Aviso: No se pudo guardar registro de calidad en GitHub (${saveRecErr instanceof Error ? saveRecErr.message : String(saveRecErr)})`,
+    );
+  }
+
+  return record;
+}
+
 export const Route = createFileRoute("/api/quality-center")({
   server: {
     handlers: {
       GET: async ({ request }) => {
         const denied = await authorizeOwner(request);
         if (denied) return denied;
-        const slug = new URL(request.url).searchParams.get("slug")?.trim();
+        const rawParam =
+          new URL(request.url).searchParams.get("slug")?.trim() ||
+          new URL(request.url).searchParams.get("id")?.trim() ||
+          new URL(request.url).searchParams.get("botId")?.trim();
         try {
-          if (slug) {
-            let record = await loadQualityRecord(slug);
+          if (rawParam) {
+            const record = await getOrCreateQualityRecord(rawParam);
             if (!record) {
-              const { data: bot } = await supabaseAdmin
-                .from("client_bots")
-                .select("slug,kind,status,client_id,product_name")
-                .eq("slug", slug)
-                .maybeSingle();
-              const tenant = bot ? await readPublishedTenant(slug) : null;
-              if (!bot || !tenant)
-                return Response.json({ error: "Bot no encontrado." }, { status: 404 });
-              const { data: client } = await supabaseAdmin
-                .from("clients")
-                .select("company_name")
-                .eq("id", bot.client_id)
-                .maybeSingle();
-              record = newQualityRecord({
-                slug,
-                clientId: bot.client_id,
-                clientName: client?.company_name ?? tenant.nombre,
-                productName: bot.product_name ?? null,
-                botType: (bot.kind ?? tenant.kind ?? "messaging") as
-                  "assistant" | "messaging" | "voice",
-                groqModel: "openai/gpt-oss-120b",
-                updateClient: false,
-                tenantConfig: tenant,
-              });
-              record.state = bot.status === "active" ? "active" : "draft";
-              record.publishedAt = bot.status === "active" ? new Date().toISOString() : null;
-              await saveQualityRecord(record, `Importar ${slug} al Centro de Calidad`);
+              return Response.json({ error: "Bot no encontrado." }, { status: 404 });
             }
+
+            const targetSlug = record.slug;
             const [versions, backups] = await Promise.all([
-              listSnapshots(slug, "version"),
-              listSnapshots(slug, "backup"),
+              listSnapshots(targetSlug, "version").catch(() => []),
+              listSnapshots(targetSlug, "backup").catch(() => []),
             ]);
             return Response.json({
               record,
-              versions,
-              backups,
+              versions: versions ?? [],
+              backups: backups ?? [],
               canPublish: qualityGatePassed(record),
             });
           }
 
-          const records = await listQualityRecords();
+          const records = await listQualityRecords().catch(() => []);
           const { data: bots } = await supabaseAdmin
             .from("client_bots")
             .select("id,name,slug,kind,status,client_id,bot_status_url")
@@ -119,7 +252,10 @@ export const Route = createFileRoute("/api/quality-center")({
             return Response.json({ ok: true, ...result });
           }
 
-          const record = await loadQualityRecord(slug);
+          let record = await loadQualityRecord(slug).catch(() => null);
+          if (!record) {
+            record = await getOrCreateQualityRecord(slug);
+          }
           if (!record) return Response.json({ error: "Borrador no encontrado." }, { status: 404 });
 
           if (body.action === "manual_test") {

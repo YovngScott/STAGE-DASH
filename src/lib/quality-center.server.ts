@@ -1,4 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { destroyApp, getApp } from "@/lib/fly-client";
 import { makeFlyAppName, type BotKind } from "@/lib/provisioning";
@@ -423,8 +425,34 @@ export function validateSnapshot(snapshot: StoredSnapshot) {
   return { ok: validSlug && validChecksum && validShape, validSlug, validChecksum, validShape };
 }
 
-export async function readPublishedTenant(slug: string) {
-  return getJson<TenantConfigDraft>(`backend/config/tenants/${slug}.json`);
+export async function readPublishedTenant(slug: string): Promise<TenantConfigDraft | null> {
+  const cleanSlug = slug.trim().toLowerCase();
+  // 1. Intentar leer desde GitHub
+  try {
+    const fromGithub = await getJson<TenantConfigDraft>(`backend/config/tenants/${cleanSlug}.json`);
+    if (fromGithub) return fromGithub;
+  } catch {
+    // Si GitHub falla o da 404, intentar alternativas locales
+  }
+
+  // 2. Fallback a archivos locales en disco
+  const possibleLocalPaths = [
+    path.join(process.cwd(), "generated-tenants", `${cleanSlug}.json`),
+    path.resolve(process.cwd(), "..", "Stage-Bot-Template", "backend", "config", "tenants", `${cleanSlug}.json`),
+    path.resolve(process.cwd(), "Stage-Bot-Template", "backend", "config", "tenants", `${cleanSlug}.json`),
+  ];
+  for (const p of possibleLocalPaths) {
+    try {
+      if (fs.existsSync(p)) {
+        const content = fs.readFileSync(p, "utf-8");
+        return JSON.parse(content) as TenantConfigDraft;
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  return null;
 }
 
 export async function writePublishedTenant(
