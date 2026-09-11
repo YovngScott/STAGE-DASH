@@ -47,10 +47,12 @@ function resolveDashboardServiceRoleKey(): string {
     }
   }
 
-  return (
-    process.env.STAGE_DASHBOARD_SUPABASE_SERVICE_ROLE_KEY ||
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF1dmJtcGZpcGx3YXd4cWlibW1xIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzk4ODA2OSwiZXhwIjoyMDk5NTY0MDY5fQ.6o_HHsM06jw94Jgp4FQnQKBnw70Jg-2pKKDZE5VxGek"
-  );
+  const dashboardKey = process.env.STAGE_DASHBOARD_SUPABASE_SERVICE_ROLE_KEY;
+  if (dashboardKey?.startsWith("ey")) return dashboardKey;
+
+  // Mantiene el arranque de SSR estable, pero falla cerradamente al primer
+  // acceso privilegiado en vez de esconder una credencial en el repositorio.
+  return "missing-service-role-key";
 }
 
 export const supabaseAdmin = createClient(SUPABASE_URL, resolveDashboardServiceRoleKey(), {

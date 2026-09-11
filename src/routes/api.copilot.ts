@@ -5,8 +5,25 @@ import {
   SchemaType,
   type Content,
 } from "@google/generative-ai";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { provisionTenant, type TenantInputData } from "../../scripts/onboard-tenant.ts";
+import { isStageOwner, supabaseAdmin } from "@/integrations/supabase/client.server";
+import {
+  generateTenantConfig,
+  provisionTenant,
+  type TenantInputData,
+} from "../../scripts/onboard-tenant.ts";
+import {
+  inspectProvisionPreflight,
+  startProvision,
+  type TenantConfigDraft,
+} from "@/lib/provisioning";
+import {
+  mandatoryTestsPassed,
+  newQualityRecord,
+  preflightPassed,
+  saveQualityRecord,
+  writePublishedTenant,
+} from "@/lib/quality-center.server";
+import { runMandatoryQualityTests } from "@/lib/quality-engine.server";
 
 /**
  * Esquema de herramientas (Function Calling) para el Agente Autónomo de Infraestructura.
@@ -225,6 +242,91 @@ function sanitizeConversationHistory(rawMessages: IncomingMessage[]): Content[] 
  * Ejecutores de Backend para las Herramientas del Agente Autónomo
  */
 
+async function provisionAndPublishAutonomously(input: Partial<TenantInputData>) {
+  // El alta en Supabase deja un borrador; nunca se marca activo antes de
+  // completar la batería de pruebas y el preflight de infraestructura.
+  const provisioned = await provisionTenant(input, { executeSupabase: true });
+  if (!provisioned.success || !provisioned.data || !provisioned.normalized) return provisioned;
+
+  const clientId = provisioned.supabase?.clientId;
+  if (!clientId) {
+    return { success: false, error: "El borrador no devolvió un clientId verificable." };
+  }
+
+  const tenantConfig = generateTenantConfig(
+    provisioned.data,
+    provisioned.normalized,
+  ) as unknown as TenantConfigDraft;
+  const botType = provisioned.normalized.kind;
+  const record = newQualityRecord({
+    slug: provisioned.normalized.slug,
+    clientId,
+    clientName: provisioned.data.name,
+    productName: botType === "assistant" ? "Virtual Assistant" : "AI Messaging Suite",
+    botType,
+    groqModel: "openai/gpt-oss-120b",
+    groqKeyMode: "automatic",
+    updateClient: false,
+    tenantConfig,
+  });
+
+  record.tests = await runMandatoryQualityTests(record);
+  record.preflightChecks = await inspectProvisionPreflight(
+    undefined,
+    record.tenantConfig.asistente?.proveedor,
+  );
+  record.preflightAt = new Date().toISOString();
+
+  if (!mandatoryTestsPassed(record) || !preflightPassed(record)) {
+    record.state = "draft";
+    record.lastError = "El borrador no superó las pruebas obligatorias o el preflight.";
+    await saveQualityRecord(record, `Bloquear publicación automática de ${record.slug}`);
+    return {
+      success: false,
+      slug: record.slug,
+      quality: {
+        total: record.tests.length,
+        passed: record.tests.filter((test) => test.passed).length,
+      },
+      error: record.lastError,
+      qualityUrl: `/quality-center?slug=${encodeURIComponent(record.slug)}`,
+    };
+  }
+
+  // La aprobación automática queda fechada y auditada: equivale a la política
+  // explícita del owner, no a que el modelo afirme haber probado algo.
+  record.manualApprovedAt = new Date().toISOString();
+  const commitUrl = await writePublishedTenant(
+    record.slug,
+    record.tenantConfig,
+    `Publicar configuración aprobada automáticamente de ${record.slug}`,
+  );
+  const jobId = await startProvision({
+    clientId,
+    clientName: record.clientName,
+    slug: record.slug,
+    kind: record.botType,
+    productName: record.productName,
+    tenantConfig: record.tenantConfig,
+    githubCommitUrl: commitUrl,
+    groqModel: record.groqModel,
+  });
+  record.state = "publishing";
+  record.provisionJobId = jobId;
+  record.lastError = null;
+  await saveQualityRecord(record, `Iniciar publicación automática de ${record.slug}`);
+
+  return {
+    success: true,
+    slug: record.slug,
+    quality: { total: record.tests.length, passed: record.tests.length },
+    jobId,
+    state: "publishing",
+    message: "Borrador aprobado automáticamente, guardado en GitHub y enviado a aprovisionamiento.",
+    qualityUrl: `/quality-center?slug=${encodeURIComponent(record.slug)}`,
+  };
+}
+
 async function handleListBots(statusFilter?: string) {
   try {
     const { data: bots, error: botsErr } = await supabaseAdmin
@@ -336,10 +438,7 @@ async function handleUpdateBot(args: {
         clientUpdates.bot_activo = args.status === "active";
       }
       if (Object.keys(clientUpdates).length > 0) {
-        await supabaseAdmin
-          .from("clients")
-          .update(clientUpdates)
-          .eq("id", targetBot.client_id);
+        await supabaseAdmin.from("clients").update(clientUpdates).eq("id", targetBot.client_id);
       }
     }
 
@@ -384,6 +483,19 @@ async function handleDeleteBot(args: { bot_id: string; confirmation?: string }) 
     }
 
     const targetBot = botRows[0];
+
+    const confirmation = String(args.confirmation || "")
+      .trim()
+      .toLowerCase();
+    if (
+      confirmation !== "confirmar" &&
+      confirmation !== String(targetBot.slug || "").toLowerCase()
+    ) {
+      return {
+        success: false,
+        error: `Para eliminar '${targetBot.slug}' debes confirmar con el slug exacto o la palabra confirmar.`,
+      };
+    }
 
     // Eliminar de client_bots
     const { error: delErr } = await supabaseAdmin
@@ -480,6 +592,8 @@ export const Route = createFileRoute("/api/copilot")({
     handlers: {
       POST: async ({ request }) => {
         try {
+          const denied = await authorizeOwner(request);
+          if (denied) return denied;
           const body = (await request.json().catch(() => ({}))) as {
             messages?: IncomingMessage[];
             message?: string;
@@ -610,7 +724,10 @@ export const Route = createFileRoute("/api/copilot")({
           if (functionCalls && functionCalls.length > 0) {
             const call = functionCalls[0];
             const rawArgs = (call.args || {}) as Record<string, any>;
-            let toolExecutionResult: Record<string, any> = { success: false, message: "Herramienta desconocida" };
+            let toolExecutionResult: Record<string, any> = {
+              success: false,
+              message: "Herramienta desconocida",
+            };
 
             console.log(`[Copilot Brain] Invocando herramienta '${call.name}' con args:`, rawArgs);
 
@@ -619,18 +736,14 @@ export const Route = createFileRoute("/api/copilot")({
                 slug: typeof rawArgs.slug === "string" ? rawArgs.slug.trim() : undefined,
                 name: typeof rawArgs.name === "string" ? rawArgs.name.trim() : undefined,
                 phone: typeof rawArgs.phone === "string" ? rawArgs.phone.trim() : undefined,
-                monthlyTokens:
-                  typeof rawArgs.tokens === "number" ? rawArgs.tokens : 10_000_000,
-                monthlyBudgetUsd:
-                  typeof rawArgs.budget === "number" ? rawArgs.budget : 50,
+                monthlyTokens: typeof rawArgs.tokens === "number" ? rawArgs.tokens : 10_000_000,
+                monthlyBudgetUsd: typeof rawArgs.budget === "number" ? rawArgs.budget : 50,
                 prompt: typeof rawArgs.prompt === "string" ? rawArgs.prompt.trim() : "",
                 model: "gemini",
                 kind: "messaging",
               };
 
-              toolExecutionResult = await provisionTenant(provisionArgs, {
-                executeSupabase: true,
-              });
+              toolExecutionResult = await provisionAndPublishAutonomously(provisionArgs);
             } else if (call.name === "list_bots") {
               toolExecutionResult = await handleListBots(rawArgs.status);
             } else if (call.name === "update_bot") {
@@ -695,3 +808,14 @@ export const Route = createFileRoute("/api/copilot")({
     },
   },
 });
+
+async function authorizeOwner(request: Request): Promise<Response | null> {
+  const auth = request.headers.get("authorization") ?? "";
+  const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
+  if (!token) return Response.json({ success: false, error: "No autorizado." }, { status: 401 });
+  const { data, error } = await supabaseAdmin.auth.getUser(token);
+  if (error || !data.user)
+    return Response.json({ success: false, error: "No autorizado." }, { status: 401 });
+  const owner = await isStageOwner(data.user.id);
+  return owner ? null : Response.json({ success: false, error: "No autorizado." }, { status: 403 });
+}

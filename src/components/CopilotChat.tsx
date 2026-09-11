@@ -29,6 +29,7 @@ import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
 import { useLanguage } from "@/hooks/use-language";
 import { useNavigate } from "@tanstack/react-router";
+import { supabase } from "@/integrations/supabase/client";
 
 const STORAGE_KEY = "stage_copilot_chat_history_v1";
 
@@ -130,7 +131,7 @@ function renderInlineFormatted(text: string): React.ReactNode[] {
           className="rounded bg-black/60 px-1.5 py-0.5 font-mono text-[11px] text-indigo-300 border border-white/10 select-all"
         >
           {best.match[2]}
-        </code>
+        </code>,
       );
       remaining = best.match[3] || "";
     } else if (best.type === "link") {
@@ -143,7 +144,7 @@ function renderInlineFormatted(text: string): React.ReactNode[] {
           className="text-indigo-400 hover:text-indigo-300 underline underline-offset-2"
         >
           {best.match[2]}
-        </a>
+        </a>,
       );
       remaining = best.match[4] || "";
     }
@@ -165,7 +166,7 @@ function FormattedMarkdown({ content }: { content: string }) {
       elements.push(
         <ul key={`list-${listKey++}`} className="my-2 space-y-1.5 pl-0.5">
           {currentList}
-        </ul>
+        </ul>,
       );
       currentList = [];
     }
@@ -184,9 +185,12 @@ function FormattedMarkdown({ content }: { content: string }) {
     if (line.startsWith("### ")) {
       flushList();
       elements.push(
-        <h4 key={`h3-${i}`} className="text-xs font-bold uppercase tracking-wider text-indigo-300 mt-3 mb-1.5 border-b border-white/10 pb-1">
+        <h4
+          key={`h3-${i}`}
+          className="text-xs font-bold uppercase tracking-wider text-indigo-300 mt-3 mb-1.5 border-b border-white/10 pb-1"
+        >
           {renderInlineFormatted(line.slice(4))}
-        </h4>
+        </h4>,
       );
       continue;
     }
@@ -197,7 +201,7 @@ function FormattedMarkdown({ content }: { content: string }) {
       elements.push(
         <h3 key={`h2-${i}`} className="text-sm font-bold text-white mt-3 mb-1.5">
           {renderInlineFormatted(line.slice(3))}
-        </h3>
+        </h3>,
       );
       continue;
     }
@@ -209,7 +213,7 @@ function FormattedMarkdown({ content }: { content: string }) {
         <li key={`li-${i}`} className="flex items-start gap-2 text-sm leading-relaxed">
           <span className="h-1.5 w-1.5 rounded-full bg-indigo-400 mt-2 shrink-0 opacity-80" />
           <span className="flex-1 text-gray-200">{renderInlineFormatted(bulletMatch[2])}</span>
-        </li>
+        </li>,
       );
       continue;
     }
@@ -223,7 +227,7 @@ function FormattedMarkdown({ content }: { content: string }) {
             {numMatch[1]}
           </span>
           <span className="flex-1 text-gray-200">{renderInlineFormatted(numMatch[2])}</span>
-        </li>
+        </li>,
       );
       continue;
     }
@@ -233,7 +237,7 @@ function FormattedMarkdown({ content }: { content: string }) {
     elements.push(
       <p key={`p-${i}`} className="my-1 leading-relaxed text-gray-200 text-sm">
         {renderInlineFormatted(line)}
-      </p>
+      </p>,
     );
   }
 
@@ -324,9 +328,16 @@ export function CopilotChat() {
 
       setStatusText("Ejecutando herramientas y consultando Supabase...");
 
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+      if (!accessToken) throw new Error("Tu sesión expiró. Inicia sesión de nuevo.");
+
       const response = await fetch("/api/copilot", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
         body: JSON.stringify({ messages: payloadMessages }),
       });
 
@@ -353,7 +364,8 @@ export function CopilotChat() {
           );
         } else {
           toast.error(
-            data.functionCall.result?.message || "Error al aprovisionar el bot en la base de datos.",
+            data.functionCall.result?.message ||
+              "Error al aprovisionar el bot en la base de datos.",
           );
         }
       } else if (data.functionCall?.name === "update_bot") {
@@ -587,7 +599,9 @@ export function CopilotChat() {
                 </div>
               )}
 
-              <div className={`flex flex-col space-y-1.5 max-w-[90%] sm:max-w-[80%] ${isUser ? "items-end" : "items-start"}`}>
+              <div
+                className={`flex flex-col space-y-1.5 max-w-[90%] sm:max-w-[80%] ${isUser ? "items-end" : "items-start"}`}
+              >
                 <div
                   className={`rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-md backdrop-blur-md ${
                     isUser
@@ -602,196 +616,229 @@ export function CopilotChat() {
                   )}
 
                   {/* Visualización de Herramienta: provisionar_bot_cliente */}
-                  {msg.functionCall && msg.functionCall.name === "provisionar_bot_cliente" && (() => {
-                    const isSuccess = msg.functionCall.result?.success !== false;
-                    const errorDetail = msg.functionCall.result?.message || msg.functionCall.result?.error;
+                  {msg.functionCall &&
+                    msg.functionCall.name === "provisionar_bot_cliente" &&
+                    (() => {
+                      const isSuccess = msg.functionCall.result?.success !== false;
+                      const errorDetail =
+                        msg.functionCall.result?.message || msg.functionCall.result?.error;
 
-                    return (
+                      return (
+                        <div className="mt-3 pt-3 border-t border-white/10 space-y-2.5">
+                          <div className="flex items-center justify-between gap-2">
+                            {isSuccess ? (
+                              <Badge
+                                variant="outline"
+                                className="bg-emerald-950/50 text-emerald-400 border-emerald-500/30 text-[11px] font-semibold flex items-center gap-1.5 py-0.5"
+                              >
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                                {text("Aprovisionamiento Exitoso", "Provisioning Completed")}
+                              </Badge>
+                            ) : (
+                              <Badge
+                                variant="outline"
+                                className="bg-rose-950/50 text-rose-400 border-rose-500/30 text-[11px] font-semibold flex items-center gap-1.5 py-0.5"
+                              >
+                                <AlertCircle className="w-3.5 h-3.5 text-rose-400" />
+                                {text("Error de Aprovisionamiento", "Provisioning Error")}
+                              </Badge>
+                            )}
+                            <span className="text-[11px] text-gray-400 font-mono">
+                              tool: provisionar_bot_cliente
+                            </span>
+                          </div>
+
+                          {!isSuccess && errorDetail && (
+                            <div className="text-xs bg-rose-950/40 border border-rose-500/30 text-rose-200 rounded-xl p-3 font-mono leading-relaxed">
+                              <span className="font-semibold text-rose-400">
+                                Detalle del error:{" "}
+                              </span>
+                              {errorDetail}
+                            </div>
+                          )}
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs bg-black/40 rounded-xl p-3 border border-white/5 font-mono">
+                            <div>
+                              <span className="text-gray-400">Tenant Slug: </span>
+                              <span className="text-indigo-300 font-semibold">
+                                {msg.functionCall.args.slug}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-gray-400">Empresa: </span>
+                              <span className="text-white">{msg.functionCall.args.name}</span>
+                            </div>
+                            <div>
+                              <span className="text-gray-400">WhatsApp: </span>
+                              <span className="text-emerald-300 font-semibold">
+                                {msg.functionCall.args.phone}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-gray-400">Cuota: </span>
+                              <span className="text-violet-300">
+                                {msg.functionCall.args.tokens?.toLocaleString()} tokens ($
+                                {msg.functionCall.args.budget} USD)
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-2 pt-1">
+                            <div
+                              className={`inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-md border ${
+                                isSuccess
+                                  ? "text-gray-400 bg-white/5 border-white/5"
+                                  : "text-rose-400/90 bg-rose-950/20 border-rose-500/20"
+                              }`}
+                            >
+                              <Database
+                                className={`w-3 h-3 ${isSuccess ? "text-emerald-400" : "text-rose-400"}`}
+                              />
+                              <span>
+                                {isSuccess
+                                  ? "Supabase DB: public.tenants & runtime_policies"
+                                  : "Supabase DB: Fallo de inserción"}
+                              </span>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() =>
+                                copyToClipboard(msg.functionCall?.args.slug || "", "Slug")
+                              }
+                              className="text-[11px] h-6 px-2 text-gray-400 hover:text-white hover:bg-white/10 gap-1 ml-auto"
+                            >
+                              <Copy className="w-3 h-3" />
+                              Copiar Slug
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                  {/* Visualización de Herramienta: list_bots */}
+                  {msg.functionCall &&
+                    msg.functionCall.name === "list_bots" &&
+                    msg.functionCall.result?.bots && (
                       <div className="mt-3 pt-3 border-t border-white/10 space-y-2.5">
                         <div className="flex items-center justify-between gap-2">
-                          {isSuccess ? (
-                            <Badge
-                              variant="outline"
-                              className="bg-emerald-950/50 text-emerald-400 border-emerald-500/30 text-[11px] font-semibold flex items-center gap-1.5 py-0.5"
-                            >
-                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                              {text("Aprovisionamiento Exitoso", "Provisioning Completed")}
-                            </Badge>
-                          ) : (
-                            <Badge
-                              variant="outline"
-                              className="bg-rose-950/50 text-rose-400 border-rose-500/30 text-[11px] font-semibold flex items-center gap-1.5 py-0.5"
-                            >
-                              <AlertCircle className="w-3.5 h-3.5 text-rose-400" />
-                              {text("Error de Aprovisionamiento", "Provisioning Error")}
-                            </Badge>
-                          )}
+                          <Badge
+                            variant="outline"
+                            className="bg-indigo-950/50 text-indigo-400 border-indigo-500/30 text-[11px] font-semibold flex items-center gap-1.5 py-0.5"
+                          >
+                            <ListFilter className="w-3.5 h-3.5 text-indigo-400" />
+                            {`Flota de Bots (${msg.functionCall.result.bots.length})`}
+                          </Badge>
                           <span className="text-[11px] text-gray-400 font-mono">
-                            tool: provisionar_bot_cliente
+                            tool: list_bots
                           </span>
                         </div>
 
-                        {!isSuccess && errorDetail && (
-                          <div className="text-xs bg-rose-950/40 border border-rose-500/30 text-rose-200 rounded-xl p-3 font-mono leading-relaxed">
-                            <span className="font-semibold text-rose-400">Detalle del error: </span>
-                            {errorDetail}
-                          </div>
-                        )}
-
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs bg-black/40 rounded-xl p-3 border border-white/5 font-mono">
-                          <div>
-                            <span className="text-gray-400">Tenant Slug: </span>
-                            <span className="text-indigo-300 font-semibold">
-                              {msg.functionCall.args.slug}
-                            </span>
-                          </div>
-                          <div>
-                            <span className="text-gray-400">Empresa: </span>
-                            <span className="text-white">{msg.functionCall.args.name}</span>
-                          </div>
-                          <div>
-                            <span className="text-gray-400">WhatsApp: </span>
-                            <span className="text-emerald-300 font-semibold">
-                              {msg.functionCall.args.phone}
-                            </span>
-                          </div>
-                          <div>
-                            <span className="text-gray-400">Cuota: </span>
-                            <span className="text-violet-300">
-                              {msg.functionCall.args.tokens?.toLocaleString()} tokens (${msg.functionCall.args.budget} USD)
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="flex flex-wrap items-center gap-2 pt-1">
-                          <div className={`inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-md border ${
-                            isSuccess 
-                              ? "text-gray-400 bg-white/5 border-white/5" 
-                              : "text-rose-400/90 bg-rose-950/20 border-rose-500/20"
-                          }`}>
-                            <Database className={`w-3 h-3 ${isSuccess ? "text-emerald-400" : "text-rose-400"}`} />
-                            <span>{isSuccess ? "Supabase DB: public.tenants & runtime_policies" : "Supabase DB: Fallo de inserción"}</span>
-                          </div>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => copyToClipboard(msg.functionCall?.args.slug || "", "Slug")}
-                            className="text-[11px] h-6 px-2 text-gray-400 hover:text-white hover:bg-white/10 gap-1 ml-auto"
-                          >
-                            <Copy className="w-3 h-3" />
-                            Copiar Slug
-                          </Button>
-                        </div>
-                      </div>
-                    );
-                  })()}
-
-                  {/* Visualización de Herramienta: list_bots */}
-                  {msg.functionCall && msg.functionCall.name === "list_bots" && msg.functionCall.result?.bots && (
-                    <div className="mt-3 pt-3 border-t border-white/10 space-y-2.5">
-                      <div className="flex items-center justify-between gap-2">
-                        <Badge
-                          variant="outline"
-                          className="bg-indigo-950/50 text-indigo-400 border-indigo-500/30 text-[11px] font-semibold flex items-center gap-1.5 py-0.5"
-                        >
-                          <ListFilter className="w-3.5 h-3.5 text-indigo-400" />
-                          {`Flota de Bots (${msg.functionCall.result.bots.length})`}
-                        </Badge>
-                        <span className="text-[11px] text-gray-400 font-mono">tool: list_bots</span>
-                      </div>
-
-                      <div className="grid grid-cols-1 gap-2">
-                        {msg.functionCall.result.bots.map((b: any, idx: number) => (
-                          <div
-                            key={idx}
-                            className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 rounded-xl bg-black/40 border border-white/5 text-xs font-mono"
-                          >
-                            <div className="space-y-0.5">
-                              <div className="flex items-center gap-2">
-                                <span className="font-semibold text-white">{b.name}</span>
-                                <Badge
-                                  variant="outline"
-                                  className={`text-[10px] px-1.5 py-0 ${
-                                    b.status === "active"
-                                      ? "bg-emerald-950/40 text-emerald-400 border-emerald-500/30"
-                                      : "bg-gray-800 text-gray-400 border-gray-700"
-                                  }`}
-                                >
-                                  {b.status}
-                                </Badge>
+                        <div className="grid grid-cols-1 gap-2">
+                          {msg.functionCall.result.bots.map((b: any, idx: number) => (
+                            <div
+                              key={idx}
+                              className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 rounded-xl bg-black/40 border border-white/5 text-xs font-mono"
+                            >
+                              <div className="space-y-0.5">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-semibold text-white">{b.name}</span>
+                                  <Badge
+                                    variant="outline"
+                                    className={`text-[10px] px-1.5 py-0 ${
+                                      b.status === "active"
+                                        ? "bg-emerald-950/40 text-emerald-400 border-emerald-500/30"
+                                        : "bg-gray-800 text-gray-400 border-gray-700"
+                                    }`}
+                                  >
+                                    {b.status}
+                                  </Badge>
+                                </div>
+                                <div className="text-[11px] text-gray-400 flex flex-wrap gap-x-3">
+                                  <span>
+                                    Slug: <strong className="text-indigo-300">{b.slug}</strong>
+                                  </span>
+                                  <span>
+                                    WhatsApp:{" "}
+                                    <strong className="text-emerald-300">{b.phone}</strong>
+                                  </span>
+                                </div>
                               </div>
-                              <div className="text-[11px] text-gray-400 flex flex-wrap gap-x-3">
-                                <span>Slug: <strong className="text-indigo-300">{b.slug}</strong></span>
-                                <span>WhatsApp: <strong className="text-emerald-300">{b.phone}</strong></span>
+
+                              <div className="flex items-center gap-1 self-end sm:self-center">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => copyToClipboard(b.id, "ID")}
+                                  className="text-[10px] h-6 px-2 text-gray-400 hover:text-white"
+                                  title="Copiar ID del Bot"
+                                >
+                                  <Copy className="w-3 h-3 mr-1" />
+                                  Copiar ID
+                                </Button>
+                                {b.dashboardUrl && (
+                                  <a
+                                    href={b.dashboardUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="inline-flex items-center gap-1 text-[10px] h-6 px-2 text-indigo-400 hover:text-indigo-300 bg-indigo-500/10 rounded-md border border-indigo-500/20"
+                                  >
+                                    <ExternalLink className="w-3 h-3" />
+                                    Dashboard
+                                  </a>
+                                )}
                               </div>
                             </div>
-
-                            <div className="flex items-center gap-1 self-end sm:self-center">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => copyToClipboard(b.id, "ID")}
-                                className="text-[10px] h-6 px-2 text-gray-400 hover:text-white"
-                                title="Copiar ID del Bot"
-                              >
-                                <Copy className="w-3 h-3 mr-1" />
-                                Copiar ID
-                              </Button>
-                              {b.dashboardUrl && (
-                                <a
-                                  href={b.dashboardUrl}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="inline-flex items-center gap-1 text-[10px] h-6 px-2 text-indigo-400 hover:text-indigo-300 bg-indigo-500/10 rounded-md border border-indigo-500/20"
-                                >
-                                  <ExternalLink className="w-3 h-3" />
-                                  Dashboard
-                                </a>
-                              )}
-                            </div>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
 
                   {/* Visualización de Herramienta: update_bot */}
-                  {msg.functionCall && msg.functionCall.name === "update_bot" && (() => {
-                    const isSuccess = msg.functionCall.result?.success !== false;
-                    return (
-                      <div className="mt-3 pt-3 border-t border-white/10 space-y-2">
-                        <div className="flex items-center justify-between gap-2">
-                          {isSuccess ? (
-                            <Badge
-                              variant="outline"
-                              className="bg-emerald-950/50 text-emerald-400 border-emerald-500/30 text-[11px] font-semibold flex items-center gap-1.5 py-0.5"
-                            >
-                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                              {text("Bot Actualizado", "Bot Updated")}
-                            </Badge>
-                          ) : (
-                            <Badge
-                              variant="outline"
-                              className="bg-rose-950/50 text-rose-400 border-rose-500/30 text-[11px] font-semibold flex items-center gap-1.5 py-0.5"
-                            >
-                              <AlertCircle className="w-3.5 h-3.5 text-rose-400" />
-                              {text("Error al Actualizar", "Update Error")}
-                            </Badge>
-                          )}
-                          <span className="text-[11px] text-gray-400 font-mono">tool: update_bot</span>
+                  {msg.functionCall &&
+                    msg.functionCall.name === "update_bot" &&
+                    (() => {
+                      const isSuccess = msg.functionCall.result?.success !== false;
+                      return (
+                        <div className="mt-3 pt-3 border-t border-white/10 space-y-2">
+                          <div className="flex items-center justify-between gap-2">
+                            {isSuccess ? (
+                              <Badge
+                                variant="outline"
+                                className="bg-emerald-950/50 text-emerald-400 border-emerald-500/30 text-[11px] font-semibold flex items-center gap-1.5 py-0.5"
+                              >
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                                {text("Bot Actualizado", "Bot Updated")}
+                              </Badge>
+                            ) : (
+                              <Badge
+                                variant="outline"
+                                className="bg-rose-950/50 text-rose-400 border-rose-500/30 text-[11px] font-semibold flex items-center gap-1.5 py-0.5"
+                              >
+                                <AlertCircle className="w-3.5 h-3.5 text-rose-400" />
+                                {text("Error al Actualizar", "Update Error")}
+                              </Badge>
+                            )}
+                            <span className="text-[11px] text-gray-400 font-mono">
+                              tool: update_bot
+                            </span>
+                          </div>
+                          <div
+                            className={`text-xs rounded-xl p-2.5 border font-mono ${
+                              isSuccess
+                                ? "bg-black/40 border-white/5 text-gray-300"
+                                : "bg-rose-950/30 border-rose-500/20 text-rose-300"
+                            }`}
+                          >
+                            {msg.functionCall.result?.message ||
+                              msg.functionCall.result?.error ||
+                              (isSuccess
+                                ? "Parámetros actualizados con éxito en Supabase."
+                                : "Error al actualizar el bot.")}
+                          </div>
                         </div>
-                        <div className={`text-xs rounded-xl p-2.5 border font-mono ${
-                          isSuccess
-                            ? "bg-black/40 border-white/5 text-gray-300"
-                            : "bg-rose-950/30 border-rose-500/20 text-rose-300"
-                        }`}>
-                          {msg.functionCall.result?.message ||
-                            msg.functionCall.result?.error ||
-                            (isSuccess ? "Parámetros actualizados con éxito en Supabase." : "Error al actualizar el bot.")}
-                        </div>
-                      </div>
-                    );
-                  })()}
+                      );
+                    })()}
 
                   {/* Visualización de Herramienta: test_bot */}
                   {msg.functionCall && msg.functionCall.name === "test_bot" && (
@@ -809,11 +856,15 @@ export function CopilotChat() {
                       <div className="text-xs bg-black/40 rounded-xl p-2.5 border border-white/5 font-mono space-y-1">
                         <div>
                           <span className="text-gray-400">Estado: </span>
-                          <span className="text-emerald-400 font-semibold">{msg.functionCall.result?.health?.status}</span>
+                          <span className="text-emerald-400 font-semibold">
+                            {msg.functionCall.result?.health?.status}
+                          </span>
                         </div>
                         <div>
                           <span className="text-gray-400">Latencia: </span>
-                          <span className="text-indigo-300">{msg.functionCall.result?.health?.latencyMs} ms</span>
+                          <span className="text-indigo-300">
+                            {msg.functionCall.result?.health?.latencyMs} ms
+                          </span>
                         </div>
                         <div className="text-gray-400 text-[11px]">
                           {msg.functionCall.result?.health?.details}
@@ -833,7 +884,9 @@ export function CopilotChat() {
                           <Trash2 className="w-3.5 h-3.5 text-rose-400" />
                           {text("Bot Desactivado / Eliminado", "Bot Removed")}
                         </Badge>
-                        <span className="text-[11px] text-gray-400 font-mono">tool: delete_bot</span>
+                        <span className="text-[11px] text-gray-400 font-mono">
+                          tool: delete_bot
+                        </span>
                       </div>
                       <div className="text-xs bg-black/40 rounded-xl p-2.5 border border-white/5 font-mono text-gray-300">
                         {msg.functionCall.result?.message || "Bot eliminado de la infraestructura."}
@@ -842,9 +895,7 @@ export function CopilotChat() {
                   )}
                 </div>
 
-                <span className="text-[10px] text-muted-foreground px-1">
-                  {msg.timestamp}
-                </span>
+                <span className="text-[10px] text-muted-foreground px-1">{msg.timestamp}</span>
               </div>
 
               {isUser && (
@@ -944,7 +995,11 @@ export function CopilotChat() {
           <div className="flex items-center justify-between pt-1 px-1 border-t border-white/5 text-xs text-muted-foreground">
             <div className="flex items-center gap-2">
               <span className="hidden sm:inline text-[11px] text-gray-500">
-                Presiona <kbd className="px-1.5 py-0.5 rounded bg-white/10 text-gray-300 font-mono text-[10px]">Enter</kbd> para enviar
+                Presiona{" "}
+                <kbd className="px-1.5 py-0.5 rounded bg-white/10 text-gray-300 font-mono text-[10px]">
+                  Enter
+                </kbd>{" "}
+                para enviar
               </span>
             </div>
 

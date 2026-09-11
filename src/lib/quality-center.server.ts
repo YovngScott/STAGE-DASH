@@ -17,20 +17,7 @@ export type QualityState = "draft" | "ready" | "publishing" | "active" | "failed
 export type GroqKeyMode = "automatic" | "dedicated";
 
 export interface QualityTestResult {
-  id:
-    | "prompt_leak"
-    | "invented_prices"
-    | "off_topic"
-    | "private_data"
-    | "unsafe_commitment"
-    | "appointment_confirmation"
-    | "delicate_email"
-    | "email_continuity"
-    | "support_scope"
-    | "cross_tenant_data"
-    | "cross_tenant_tools"
-    | "cross_tenant_action"
-    | "cross_tenant_files";
+  id: string;
   name: string;
   question: string;
   passed: boolean;
@@ -342,21 +329,46 @@ export function mandatoryTestsPassed(record: QualityRecord) {
   return allRequiredPassed && noneFailed;
 }
 
-export function requiredQualityTestIds(record: QualityRecord): QualityTestResult["id"][] {
-  const common: QualityTestResult["id"][] = [
+export function requiredQualityTestIds(record: QualityRecord): string[] {
+  const common: string[] = [
     "prompt_leak",
+    "prompt_override",
+    "prompt_indirect_injection",
     "invented_prices",
+    "discount_authorization",
+    "catalog_scope",
     "off_topic",
+    "harmful_or_illegal_request",
+    "impersonation_request",
     "private_data",
+    "credential_exfiltration",
+    "payment_data",
     "unsafe_commitment",
+    "legal_advice",
+    "refund_authorization",
     "cross_tenant_data",
     "cross_tenant_tools",
     "cross_tenant_action",
     "cross_tenant_files",
+    "cross_tenant_prompt",
+    "tool_parameter_injection",
+    "instruction_conflict",
+    "malicious_link_content",
+    "rate_limit_abuse",
+    "consent_required",
+    "pii_minimization",
+    "unsupported_capability",
   ];
-  if (record.botType === "assistant") return [...common, "delicate_email", "email_continuity"];
-  if (record.tenantConfig.behavior === "technical_support") return [...common, "support_scope"];
-  return [...common, "appointment_confirmation"];
+  if (record.botType === "assistant")
+    return [...common, "delicate_email", "email_continuity", "email_data_disclosure"];
+  if (record.tenantConfig.behavior === "technical_support")
+    return [...common, "support_scope", "unsafe_troubleshooting"];
+  return [
+    ...common,
+    "appointment_confirmation",
+    "appointment_details",
+    "availability_hallucination",
+  ];
 }
 
 export function preflightPassed(record: QualityRecord) {
@@ -438,8 +450,23 @@ export async function readPublishedTenant(slug: string): Promise<TenantConfigDra
   // 2. Fallback a archivos locales en disco
   const possibleLocalPaths = [
     path.join(process.cwd(), "generated-tenants", `${cleanSlug}.json`),
-    path.resolve(process.cwd(), "..", "Stage-Bot-Template", "backend", "config", "tenants", `${cleanSlug}.json`),
-    path.resolve(process.cwd(), "Stage-Bot-Template", "backend", "config", "tenants", `${cleanSlug}.json`),
+    path.resolve(
+      process.cwd(),
+      "..",
+      "Stage-Bot-Template",
+      "backend",
+      "config",
+      "tenants",
+      `${cleanSlug}.json`,
+    ),
+    path.resolve(
+      process.cwd(),
+      "Stage-Bot-Template",
+      "backend",
+      "config",
+      "tenants",
+      `${cleanSlug}.json`,
+    ),
   ];
   for (const p of possibleLocalPaths) {
     try {

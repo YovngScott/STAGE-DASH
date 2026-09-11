@@ -9,84 +9,39 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as WebsiteRouteImport } from './routes/website'
-import { Route as WebappsRouteImport } from './routes/webapps'
-import { Route as SettingsRouteImport } from './routes/settings'
-import { Route as QualityCenterRouteImport } from './routes/quality-center'
-import { Route as ProductsRouteImport } from './routes/products'
-import { Route as LedgerRouteImport } from './routes/ledger'
-import { Route as LeadsRouteImport } from './routes/leads'
-import { Route as HealthRouteImport } from './routes/health'
-import { Route as ClientsRouteImport } from './routes/clients'
-import { Route as BotBuilderRouteImport } from './routes/bot-builder'
-import { Route as AuthRouteImport } from './routes/auth'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as ApiWebappFactoryRouteImport } from './routes/api.webapp-factory'
-import { Route as ApiQualityCenterRouteImport } from './routes/api.quality-center'
-import { Route as ApiProvisionStatusRouteImport } from './routes/api.provision-status'
-import { Route as ApiMagicOnboardRouteImport } from './routes/api.magic-onboard'
-import { Route as ApiImpersonateRouteImport } from './routes/api.impersonate'
-import { Route as ApiCopilotRouteImport } from './routes/api.copilot'
-import { Route as ApiClientAdminUserRouteImport } from './routes/api.client-admin-user'
-import { Route as ApiCatalogStockRouteImport } from './routes/api.catalog-stock'
-import { Route as ApiCatalogImportRouteImport } from './routes/api.catalog-import'
-import { Route as ApiBotWhatsappRouteImport } from './routes/api.bot-whatsapp'
-import { Route as ApiBotToggleRouteImport } from './routes/api.bot-toggle'
-import { Route as ApiBotLifecycleRouteImport } from './routes/api.bot-lifecycle'
-import { Route as ApiBotHealthRouteImport } from './routes/api.bot-health'
-import { Route as ApiBotEnvioAutomaticoRouteImport } from './routes/api.bot-envio-automatico'
-import { Route as ApiBotEditRouteImport } from './routes/api.bot-edit'
+import { Route as AuthRouteImport } from './routes/auth'
+import { Route as BotBuilderRouteImport } from './routes/bot-builder'
+import { Route as ClientsRouteImport } from './routes/clients'
+import { Route as HealthRouteImport } from './routes/health'
+import { Route as LeadsRouteImport } from './routes/leads'
+import { Route as LedgerRouteImport } from './routes/ledger'
+import { Route as ProductsRouteImport } from './routes/products'
+import { Route as QualityCenterRouteImport } from './routes/quality-center'
+import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as WebappsRouteImport } from './routes/webapps'
+import { Route as WebsiteRouteImport } from './routes/website'
 import { Route as ApiBotBuilderRouteImport } from './routes/api.bot-builder'
+import { Route as ApiBotEditRouteImport } from './routes/api.bot-edit'
+import { Route as ApiBotEnvioAutomaticoRouteImport } from './routes/api.bot-envio-automatico'
+import { Route as ApiBotHealthRouteImport } from './routes/api.bot-health'
+import { Route as ApiBotLifecycleRouteImport } from './routes/api.bot-lifecycle'
+import { Route as ApiBotToggleRouteImport } from './routes/api.bot-toggle'
+import { Route as ApiBotWhatsappRouteImport } from './routes/api.bot-whatsapp'
+import { Route as ApiCatalogImportRouteImport } from './routes/api.catalog-import'
+import { Route as ApiCatalogStockRouteImport } from './routes/api.catalog-stock'
+import { Route as ApiClientAdminUserRouteImport } from './routes/api.client-admin-user'
+import { Route as ApiCopilotRouteImport } from './routes/api.copilot'
+import { Route as ApiImpersonateRouteImport } from './routes/api.impersonate'
+import { Route as ApiMagicOnboardRouteImport } from './routes/api.magic-onboard'
+import { Route as ApiProvisionStatusRouteImport } from './routes/api.provision-status'
+import { Route as ApiQualityCenterRouteImport } from './routes/api.quality-center'
+import { Route as ApiWebappFactoryRouteImport } from './routes/api.webapp-factory'
 import { Route as ApiWebhooksLeadsRouteImport } from './routes/api.webhooks.leads'
 
-const WebsiteRoute = WebsiteRouteImport.update({
-  id: '/website',
-  path: '/website',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const WebappsRoute = WebappsRouteImport.update({
-  id: '/webapps',
-  path: '/webapps',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SettingsRoute = SettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const QualityCenterRoute = QualityCenterRouteImport.update({
-  id: '/quality-center',
-  path: '/quality-center',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ProductsRoute = ProductsRouteImport.update({
-  id: '/products',
-  path: '/products',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LedgerRoute = LedgerRouteImport.update({
-  id: '/ledger',
-  path: '/ledger',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LeadsRoute = LeadsRouteImport.update({
-  id: '/leads',
-  path: '/leads',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const HealthRoute = HealthRouteImport.update({
-  id: '/health',
-  path: '/health',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ClientsRoute = ClientsRouteImport.update({
-  id: '/clients',
-  path: '/clients',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const BotBuilderRoute = BotBuilderRouteImport.update({
-  id: '/bot-builder',
-  path: '/bot-builder',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthRoute = AuthRouteImport.update({
@@ -94,79 +49,59 @@ const AuthRoute = AuthRouteImport.update({
   path: '/auth',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const BotBuilderRoute = BotBuilderRouteImport.update({
+  id: '/bot-builder',
+  path: '/bot-builder',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiWebappFactoryRoute = ApiWebappFactoryRouteImport.update({
-  id: '/api/webapp-factory',
-  path: '/api/webapp-factory',
+const ClientsRoute = ClientsRouteImport.update({
+  id: '/clients',
+  path: '/clients',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiQualityCenterRoute = ApiQualityCenterRouteImport.update({
-  id: '/api/quality-center',
-  path: '/api/quality-center',
+const HealthRoute = HealthRouteImport.update({
+  id: '/health',
+  path: '/health',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiProvisionStatusRoute = ApiProvisionStatusRouteImport.update({
-  id: '/api/provision-status',
-  path: '/api/provision-status',
+const LeadsRoute = LeadsRouteImport.update({
+  id: '/leads',
+  path: '/leads',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiMagicOnboardRoute = ApiMagicOnboardRouteImport.update({
-  id: '/api/magic-onboard',
-  path: '/api/magic-onboard',
+const LedgerRoute = LedgerRouteImport.update({
+  id: '/ledger',
+  path: '/ledger',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiImpersonateRoute = ApiImpersonateRouteImport.update({
-  id: '/api/impersonate',
-  path: '/api/impersonate',
+const ProductsRoute = ProductsRouteImport.update({
+  id: '/products',
+  path: '/products',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiCopilotRoute = ApiCopilotRouteImport.update({
-  id: '/api/copilot',
-  path: '/api/copilot',
+const QualityCenterRoute = QualityCenterRouteImport.update({
+  id: '/quality-center',
+  path: '/quality-center',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiClientAdminUserRoute = ApiClientAdminUserRouteImport.update({
-  id: '/api/client-admin-user',
-  path: '/api/client-admin-user',
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiCatalogStockRoute = ApiCatalogStockRouteImport.update({
-  id: '/api/catalog-stock',
-  path: '/api/catalog-stock',
+const WebappsRoute = WebappsRouteImport.update({
+  id: '/webapps',
+  path: '/webapps',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiCatalogImportRoute = ApiCatalogImportRouteImport.update({
-  id: '/api/catalog-import',
-  path: '/api/catalog-import',
+const WebsiteRoute = WebsiteRouteImport.update({
+  id: '/website',
+  path: '/website',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiBotWhatsappRoute = ApiBotWhatsappRouteImport.update({
-  id: '/api/bot-whatsapp',
-  path: '/api/bot-whatsapp',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiBotToggleRoute = ApiBotToggleRouteImport.update({
-  id: '/api/bot-toggle',
-  path: '/api/bot-toggle',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiBotLifecycleRoute = ApiBotLifecycleRouteImport.update({
-  id: '/api/bot-lifecycle',
-  path: '/api/bot-lifecycle',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiBotHealthRoute = ApiBotHealthRouteImport.update({
-  id: '/api/bot-health',
-  path: '/api/bot-health',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiBotEnvioAutomaticoRoute = ApiBotEnvioAutomaticoRouteImport.update({
-  id: '/api/bot-envio-automatico',
-  path: '/api/bot-envio-automatico',
+const ApiBotBuilderRoute = ApiBotBuilderRouteImport.update({
+  id: '/api/bot-builder',
+  path: '/api/bot-builder',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiBotEditRoute = ApiBotEditRouteImport.update({
@@ -174,9 +109,74 @@ const ApiBotEditRoute = ApiBotEditRouteImport.update({
   path: '/api/bot-edit',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiBotBuilderRoute = ApiBotBuilderRouteImport.update({
-  id: '/api/bot-builder',
-  path: '/api/bot-builder',
+const ApiBotEnvioAutomaticoRoute = ApiBotEnvioAutomaticoRouteImport.update({
+  id: '/api/bot-envio-automatico',
+  path: '/api/bot-envio-automatico',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiBotHealthRoute = ApiBotHealthRouteImport.update({
+  id: '/api/bot-health',
+  path: '/api/bot-health',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiBotLifecycleRoute = ApiBotLifecycleRouteImport.update({
+  id: '/api/bot-lifecycle',
+  path: '/api/bot-lifecycle',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiBotToggleRoute = ApiBotToggleRouteImport.update({
+  id: '/api/bot-toggle',
+  path: '/api/bot-toggle',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiBotWhatsappRoute = ApiBotWhatsappRouteImport.update({
+  id: '/api/bot-whatsapp',
+  path: '/api/bot-whatsapp',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiCatalogImportRoute = ApiCatalogImportRouteImport.update({
+  id: '/api/catalog-import',
+  path: '/api/catalog-import',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiCatalogStockRoute = ApiCatalogStockRouteImport.update({
+  id: '/api/catalog-stock',
+  path: '/api/catalog-stock',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiClientAdminUserRoute = ApiClientAdminUserRouteImport.update({
+  id: '/api/client-admin-user',
+  path: '/api/client-admin-user',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiCopilotRoute = ApiCopilotRouteImport.update({
+  id: '/api/copilot',
+  path: '/api/copilot',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiImpersonateRoute = ApiImpersonateRouteImport.update({
+  id: '/api/impersonate',
+  path: '/api/impersonate',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMagicOnboardRoute = ApiMagicOnboardRouteImport.update({
+  id: '/api/magic-onboard',
+  path: '/api/magic-onboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiProvisionStatusRoute = ApiProvisionStatusRouteImport.update({
+  id: '/api/provision-status',
+  path: '/api/provision-status',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiQualityCenterRoute = ApiQualityCenterRouteImport.update({
+  id: '/api/quality-center',
+  path: '/api/quality-center',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiWebappFactoryRoute = ApiWebappFactoryRouteImport.update({
+  id: '/api/webapp-factory',
+  path: '/api/webapp-factory',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiWebhooksLeadsRoute = ApiWebhooksLeadsRouteImport.update({
@@ -409,74 +409,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/website': {
-      id: '/website'
-      path: '/website'
-      fullPath: '/website'
-      preLoaderRoute: typeof WebsiteRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/webapps': {
-      id: '/webapps'
-      path: '/webapps'
-      fullPath: '/webapps'
-      preLoaderRoute: typeof WebappsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/settings': {
-      id: '/settings'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof SettingsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/quality-center': {
-      id: '/quality-center'
-      path: '/quality-center'
-      fullPath: '/quality-center'
-      preLoaderRoute: typeof QualityCenterRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/products': {
-      id: '/products'
-      path: '/products'
-      fullPath: '/products'
-      preLoaderRoute: typeof ProductsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/ledger': {
-      id: '/ledger'
-      path: '/ledger'
-      fullPath: '/ledger'
-      preLoaderRoute: typeof LedgerRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/leads': {
-      id: '/leads'
-      path: '/leads'
-      fullPath: '/leads'
-      preLoaderRoute: typeof LeadsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/health': {
-      id: '/health'
-      path: '/health'
-      fullPath: '/health'
-      preLoaderRoute: typeof HealthRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/clients': {
-      id: '/clients'
-      path: '/clients'
-      fullPath: '/clients'
-      preLoaderRoute: typeof ClientsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/bot-builder': {
-      id: '/bot-builder'
-      path: '/bot-builder'
-      fullPath: '/bot-builder'
-      preLoaderRoute: typeof BotBuilderRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/auth': {
@@ -486,109 +423,81 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+    '/bot-builder': {
+      id: '/bot-builder'
+      path: '/bot-builder'
+      fullPath: '/bot-builder'
+      preLoaderRoute: typeof BotBuilderRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/webapp-factory': {
-      id: '/api/webapp-factory'
-      path: '/api/webapp-factory'
-      fullPath: '/api/webapp-factory'
-      preLoaderRoute: typeof ApiWebappFactoryRouteImport
+    '/clients': {
+      id: '/clients'
+      path: '/clients'
+      fullPath: '/clients'
+      preLoaderRoute: typeof ClientsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/quality-center': {
-      id: '/api/quality-center'
-      path: '/api/quality-center'
-      fullPath: '/api/quality-center'
-      preLoaderRoute: typeof ApiQualityCenterRouteImport
+    '/health': {
+      id: '/health'
+      path: '/health'
+      fullPath: '/health'
+      preLoaderRoute: typeof HealthRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/provision-status': {
-      id: '/api/provision-status'
-      path: '/api/provision-status'
-      fullPath: '/api/provision-status'
-      preLoaderRoute: typeof ApiProvisionStatusRouteImport
+    '/leads': {
+      id: '/leads'
+      path: '/leads'
+      fullPath: '/leads'
+      preLoaderRoute: typeof LeadsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/magic-onboard': {
-      id: '/api/magic-onboard'
-      path: '/api/magic-onboard'
-      fullPath: '/api/magic-onboard'
-      preLoaderRoute: typeof ApiMagicOnboardRouteImport
+    '/ledger': {
+      id: '/ledger'
+      path: '/ledger'
+      fullPath: '/ledger'
+      preLoaderRoute: typeof LedgerRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/impersonate': {
-      id: '/api/impersonate'
-      path: '/api/impersonate'
-      fullPath: '/api/impersonate'
-      preLoaderRoute: typeof ApiImpersonateRouteImport
+    '/products': {
+      id: '/products'
+      path: '/products'
+      fullPath: '/products'
+      preLoaderRoute: typeof ProductsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/copilot': {
-      id: '/api/copilot'
-      path: '/api/copilot'
-      fullPath: '/api/copilot'
-      preLoaderRoute: typeof ApiCopilotRouteImport
+    '/quality-center': {
+      id: '/quality-center'
+      path: '/quality-center'
+      fullPath: '/quality-center'
+      preLoaderRoute: typeof QualityCenterRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/client-admin-user': {
-      id: '/api/client-admin-user'
-      path: '/api/client-admin-user'
-      fullPath: '/api/client-admin-user'
-      preLoaderRoute: typeof ApiClientAdminUserRouteImport
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/catalog-stock': {
-      id: '/api/catalog-stock'
-      path: '/api/catalog-stock'
-      fullPath: '/api/catalog-stock'
-      preLoaderRoute: typeof ApiCatalogStockRouteImport
+    '/webapps': {
+      id: '/webapps'
+      path: '/webapps'
+      fullPath: '/webapps'
+      preLoaderRoute: typeof WebappsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/catalog-import': {
-      id: '/api/catalog-import'
-      path: '/api/catalog-import'
-      fullPath: '/api/catalog-import'
-      preLoaderRoute: typeof ApiCatalogImportRouteImport
+    '/website': {
+      id: '/website'
+      path: '/website'
+      fullPath: '/website'
+      preLoaderRoute: typeof WebsiteRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/bot-whatsapp': {
-      id: '/api/bot-whatsapp'
-      path: '/api/bot-whatsapp'
-      fullPath: '/api/bot-whatsapp'
-      preLoaderRoute: typeof ApiBotWhatsappRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/bot-toggle': {
-      id: '/api/bot-toggle'
-      path: '/api/bot-toggle'
-      fullPath: '/api/bot-toggle'
-      preLoaderRoute: typeof ApiBotToggleRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/bot-lifecycle': {
-      id: '/api/bot-lifecycle'
-      path: '/api/bot-lifecycle'
-      fullPath: '/api/bot-lifecycle'
-      preLoaderRoute: typeof ApiBotLifecycleRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/bot-health': {
-      id: '/api/bot-health'
-      path: '/api/bot-health'
-      fullPath: '/api/bot-health'
-      preLoaderRoute: typeof ApiBotHealthRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/bot-envio-automatico': {
-      id: '/api/bot-envio-automatico'
-      path: '/api/bot-envio-automatico'
-      fullPath: '/api/bot-envio-automatico'
-      preLoaderRoute: typeof ApiBotEnvioAutomaticoRouteImport
+    '/api/bot-builder': {
+      id: '/api/bot-builder'
+      path: '/api/bot-builder'
+      fullPath: '/api/bot-builder'
+      preLoaderRoute: typeof ApiBotBuilderRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/bot-edit': {
@@ -598,11 +507,102 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiBotEditRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/bot-builder': {
-      id: '/api/bot-builder'
-      path: '/api/bot-builder'
-      fullPath: '/api/bot-builder'
-      preLoaderRoute: typeof ApiBotBuilderRouteImport
+    '/api/bot-envio-automatico': {
+      id: '/api/bot-envio-automatico'
+      path: '/api/bot-envio-automatico'
+      fullPath: '/api/bot-envio-automatico'
+      preLoaderRoute: typeof ApiBotEnvioAutomaticoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/bot-health': {
+      id: '/api/bot-health'
+      path: '/api/bot-health'
+      fullPath: '/api/bot-health'
+      preLoaderRoute: typeof ApiBotHealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/bot-lifecycle': {
+      id: '/api/bot-lifecycle'
+      path: '/api/bot-lifecycle'
+      fullPath: '/api/bot-lifecycle'
+      preLoaderRoute: typeof ApiBotLifecycleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/bot-toggle': {
+      id: '/api/bot-toggle'
+      path: '/api/bot-toggle'
+      fullPath: '/api/bot-toggle'
+      preLoaderRoute: typeof ApiBotToggleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/bot-whatsapp': {
+      id: '/api/bot-whatsapp'
+      path: '/api/bot-whatsapp'
+      fullPath: '/api/bot-whatsapp'
+      preLoaderRoute: typeof ApiBotWhatsappRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/catalog-import': {
+      id: '/api/catalog-import'
+      path: '/api/catalog-import'
+      fullPath: '/api/catalog-import'
+      preLoaderRoute: typeof ApiCatalogImportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/catalog-stock': {
+      id: '/api/catalog-stock'
+      path: '/api/catalog-stock'
+      fullPath: '/api/catalog-stock'
+      preLoaderRoute: typeof ApiCatalogStockRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/client-admin-user': {
+      id: '/api/client-admin-user'
+      path: '/api/client-admin-user'
+      fullPath: '/api/client-admin-user'
+      preLoaderRoute: typeof ApiClientAdminUserRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/copilot': {
+      id: '/api/copilot'
+      path: '/api/copilot'
+      fullPath: '/api/copilot'
+      preLoaderRoute: typeof ApiCopilotRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/impersonate': {
+      id: '/api/impersonate'
+      path: '/api/impersonate'
+      fullPath: '/api/impersonate'
+      preLoaderRoute: typeof ApiImpersonateRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/magic-onboard': {
+      id: '/api/magic-onboard'
+      path: '/api/magic-onboard'
+      fullPath: '/api/magic-onboard'
+      preLoaderRoute: typeof ApiMagicOnboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/provision-status': {
+      id: '/api/provision-status'
+      path: '/api/provision-status'
+      fullPath: '/api/provision-status'
+      preLoaderRoute: typeof ApiProvisionStatusRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/quality-center': {
+      id: '/api/quality-center'
+      path: '/api/quality-center'
+      fullPath: '/api/quality-center'
+      preLoaderRoute: typeof ApiQualityCenterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/webapp-factory': {
+      id: '/api/webapp-factory'
+      path: '/api/webapp-factory'
+      fullPath: '/api/webapp-factory'
+      preLoaderRoute: typeof ApiWebappFactoryRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/webhooks/leads': {

@@ -461,11 +461,10 @@ function resolveOwnerServiceRoleKey(): string {
     }
   }
 
-  // Fallback a clave conocida del proyecto Owner
-  return (
-    process.env.STAGE_SUPABASE_SERVICE_ROLE_KEY ||
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF1dmJtcGZpcGx3YXd4cWlibW1xIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzk4ODA2OSwiZXhwIjoyMDk5NTY0MDY5fQ.6o_HHsM06jw94Jgp4FQnQKBnw70Jg-2pKKDZE5VxGek"
-  );
+  // Nunca uses una clave de servicio incrustada en el repositorio. La clave
+  // debe existir únicamente en el gestor de secretos del entorno que ejecuta
+  // el aprovisionamiento.
+  return process.env.STAGE_SUPABASE_SERVICE_ROLE_KEY || "";
 }
 
 export async function executeSupabaseProvision(
@@ -517,7 +516,9 @@ export async function executeSupabaseProvision(
           mrr: normalized.monthlyBudgetUsd,
           billing_cycle: "monthly",
           services: [productName],
-          bot_activo: true,
+          // El Copiloto crea primero un borrador. El estado activo solo se
+          // asigna después de pruebas de calidad y aprovisionamiento exitosos.
+          bot_activo: false,
         })
         .select("id")
         .single();
@@ -553,7 +554,7 @@ export async function executeSupabaseProvision(
           slug: normalized.slug,
           kind: normalized.kind,
           product_name: productName,
-          status: "active",
+          status: "draft",
           dashboard_url: localDashboardUrl,
         },
         { onConflict: "slug" },
