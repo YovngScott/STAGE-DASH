@@ -6,7 +6,7 @@ import { access } from "node:fs/promises";
 import { constants } from "node:fs";
 import path from "node:path";
 import { supabase } from "@/integrations/supabase/client";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { isStageOwner, supabaseAdmin } from "@/integrations/supabase/client.server";
 
 const DEFAULT_REPO = "YovngScott/Stage-Bot-Template";
 const MESSAGING_SUPABASE_URL =
@@ -590,10 +590,7 @@ async function requireOwner(request: Request): Promise<Response | null> {
   if (!token) return Response.json({ error: "No autorizado." }, { status: 401 });
   const { data: user, error } = await supabase.auth.getUser(token);
   if (error || !user.user) return Response.json({ error: "No autorizado." }, { status: 401 });
-  const { data: isOwner } = await supabase.rpc("has_role", {
-    _user_id: user.user.id,
-    _role: "owner",
-  });
+  const isOwner = await isStageOwner(user.user.id);
   return isOwner ? null : Response.json({ error: "No autorizado." }, { status: 401 });
 }
 

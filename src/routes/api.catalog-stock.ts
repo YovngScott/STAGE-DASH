@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { isStageOwner, supabaseAdmin } from "@/integrations/supabase/client.server";
 
 export const Route = createFileRoute("/api/catalog-stock")({
   server: {
@@ -9,10 +9,7 @@ export const Route = createFileRoute("/api/catalog-stock")({
         const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
         const { data: user } = await supabaseAdmin.auth.getUser(token);
         if (!user.user) return Response.json({ error: "No autorizado." }, { status: 401 });
-        const { data: owner } = await supabaseAdmin.rpc("has_role", {
-          _user_id: user.user.id,
-          _role: "owner",
-        });
+        const owner = await isStageOwner(user.user.id);
         if (!owner) return Response.json({ error: "No autorizado." }, { status: 403 });
         const body = (await request.json().catch(() => null)) as {
           tenantId?: string;

@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import type {} from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { isStageOwner, supabaseAdmin } from "@/integrations/supabase/client.server";
 
 export const Route = createFileRoute("/api/bot-whatsapp")({
   server: {
@@ -14,10 +14,7 @@ export const Route = createFileRoute("/api/bot-whatsapp")({
         const { data: userData, error: userError } = await supabase.auth.getUser(token);
         if (userError || !userData.user)
           return Response.json({ error: "No autorizado." }, { status: 401 });
-        const { data: isOwner } = await supabase.rpc("has_role", {
-          _user_id: userData.user.id,
-          _role: "owner",
-        });
+        const isOwner = await isStageOwner(userData.user.id);
         if (!isOwner) return Response.json({ error: "No autorizado." }, { status: 401 });
 
         const body = (await request.json().catch(() => null)) as {

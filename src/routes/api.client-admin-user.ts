@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import type {} from "@tanstack/react-start";
 import { createClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { isStageOwner, supabaseAdmin } from "@/integrations/supabase/client.server";
 
 const MESSAGING_SUPABASE_URL =
   process.env.STAGE_MESSAGING_SUPABASE_URL || "https://vulyyztktylldfnuvzbn.supabase.co";
@@ -236,10 +236,7 @@ async function requireOwner(request: Request): Promise<Response | null> {
   const { data: userData, error: userError } = await supabase.auth.getUser(token);
   if (userError || !userData.user)
     return Response.json({ error: "No autorizado." }, { status: 401 });
-  const { data: isOwner } = await supabase.rpc("has_role", {
-    _user_id: userData.user.id,
-    _role: "owner",
-  });
+  const isOwner = await isStageOwner(userData.user.id);
   return isOwner ? null : Response.json({ error: "No autorizado." }, { status: 401 });
 }
 

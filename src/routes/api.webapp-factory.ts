@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import type {} from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
+import { isStageOwner } from "@/integrations/supabase/client.server";
 import {
   listWebAppDeployments,
   listWebAppTemplates,
@@ -16,11 +17,7 @@ async function owner(request: Request) {
   if (!token) return false;
   const { data } = await supabase.auth.getUser(token);
   if (!data.user) return false;
-  const { data: isOwner } = await supabase.rpc("has_role", {
-    _user_id: data.user.id,
-    _role: "owner",
-  });
-  return Boolean(isOwner);
+  return isStageOwner(data.user.id);
 }
 
 export const Route = createFileRoute("/api/webapp-factory")({

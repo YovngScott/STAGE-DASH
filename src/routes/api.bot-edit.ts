@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { isStageOwner, supabaseAdmin } from "@/integrations/supabase/client.server";
 import { type BotKind, type TenantConfigDraft } from "@/lib/provisioning";
 import { composeTenantPrompt, normalizeBotBehavior, type BotBehavior } from "@/lib/bot-prompts";
 import {
@@ -248,10 +248,7 @@ async function authorizeOwner(request: Request): Promise<Response | null> {
   if (!token) return Response.json({ error: "No autorizado." }, { status: 401 });
   const { data: user, error } = await supabase.auth.getUser(token);
   if (error || !user.user) return Response.json({ error: "No autorizado." }, { status: 401 });
-  const { data: owner } = await supabase.rpc("has_role", {
-    _user_id: user.user.id,
-    _role: "owner",
-  });
+  const owner = await isStageOwner(user.user.id);
   return owner ? null : Response.json({ error: "No autorizado." }, { status: 401 });
 }
 

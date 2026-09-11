@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import type {} from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { isStageOwner, supabaseAdmin } from "@/integrations/supabase/client.server";
 import {
   buildDashboardUrl,
   getActiveProvisionBySlug,
@@ -116,10 +116,7 @@ export const Route = createFileRoute("/api/bot-builder")({
         if (userError || !userData.user) {
           return Response.json({ error: "No autorizado." }, { status: 401 });
         }
-        const { data: isOwner } = await supabase.rpc("has_role", {
-          _user_id: userData.user.id,
-          _role: "owner",
-        });
+        const isOwner = await isStageOwner(userData.user.id);
         if (!isOwner) {
           return Response.json({ error: "No autorizado." }, { status: 401 });
         }
