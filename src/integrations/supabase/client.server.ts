@@ -57,3 +57,24 @@ export const supabaseAdmin = createClient(SUPABASE_URL, resolveDashboardServiceR
   auth: { persistSession: false, autoRefreshToken: false },
   realtime: { transport: wsTransport },
 });
+
+/**
+ * The public Supabase client has no request-bound session in server routes.
+ * Verify the caller's token first, then use this server-only role lookup for
+ * authorization. This keeps owner checks fail-closed without treating a valid
+ * owner request as anonymous.
+ */
+export async function isStageOwner(userId: string): Promise<boolean> {
+  const { data, error } = await supabaseAdmin
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", userId)
+    .eq("role", "owner")
+    .maybeSingle();
+
+  if (error) {
+    console.error("[StageAuth] Owner role lookup failed:", error.message);
+    return false;
+  }
+  return Boolean(data);
+}
